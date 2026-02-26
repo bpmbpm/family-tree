@@ -26,3 +26,5 @@ digraph G {
     node1 -> node2;
 }
 ```
+### info
+- https://habr.com/ru/companies/ruvds/articles/716404/
