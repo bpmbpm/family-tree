@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест загрузки фото из папки pic</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; }
+        .gallery { display: flex; flex-wrap: wrap; gap: 20px; }
+        .photo { background: white; border-radius: 8px; padding: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; width: 150px; }
+        .photo img { width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 1px solid #ccc; }
+        .photo .filename { margin-top: 5px; font-size: 12px; word-break: break-word; color: #2c3e50; }
+    </style>
+</head>
+<body>
+    <h1>📸 Тест загрузки фото из папки <code>pic/</code></h1>
+    <div class="gallery" id="gallery"></div>
+    <script>
+        // Список файлов, которые ожидаются в папке pic.
+        // Вы можете добавить сюда имена из вашего Excel или просто проверить заглушки.
+        const expectedFiles = [
+            'defaultm.png',
+            'defaultf.png',
+            // Добавьте сюда имена idA из вашего файла, например:
+            // 'Ульянов_Владимир_Ильич.png',
+            // 'Бланк_Мария_Александровна.png',
+        ];
+
+        const gallery = document.getElementById('gallery');
+
+        function addImage(filename) {
+            const div = document.createElement('div');
+            div.className = 'photo';
+            const img = document.createElement('img');
+            img.src = `pic/${filename}?t=${Date.now()}`;
+            img.alt = filename;
+            img.onerror = () => { img.style.opacity = '0.3'; img.title = 'Ошибка загрузки'; };
+            div.appendChild(img);
+            const name = document.createElement('div');
+            name.className = 'filename';
+            name.textContent = filename;
+            div.appendChild(name);
+            gallery.appendChild(div);
+        }
+
+        // Добавляем стандартные заглушки
+        addImage('defaultm.png');
+        addImage('defaultf.png');
+
+        // Если хотите проверить конкретные файлы из вашего Excel, 
+        // раскомментируйте строки ниже и укажите правильные имена:
+        // addImage('Ульянов_Владимир_Ильич.png');
+        // addImage('Бланк_Мария_Александровна.png');
+        // addImage('Ульянов_Илья_Николаевич.png');
+        // addImage('Смирнова_Анна_Алексеевна.png');
+    </script>
+    <p>Если фото не отображаются, проверьте:</p>
+    <ul>
+        <li>Файлы действительно лежат в папке <code>pic/</code> рядом с этим HTML.</li>
+        <li>Имена файлов точно совпадают с <code>idA</code> из Excel (включая подчёркивания и расширение .png).</li>
+        <li>При открытии локально браузер может блокировать загрузку. Откройте консоль (F12) и посмотрите ошибки.</li>
+    </ul>
+</body>
+</html>
