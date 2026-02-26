@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Семейное древо на excel + mermaid</title>
+    <!-- Используем последнюю версию Mermaid -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background: #f0f2f5;
+            color: #1e1e2f;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .toolbar {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 8px 16px;
+            background: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        button:hover {
+            background: #1e2b37;
+        }
+        button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+        #fileInput {
+            display: none;
+        }
+        .status {
+            padding: 10px 15px;
+            background: #fff8e5;
+            border-left: 5px solid #f1c40f;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        .mermaid-container {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            overflow-x: auto;
+            min-height: 500px;
+            margin-bottom: 20px;
+        }
+        .mermaid-container svg {
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto;
+            display: block;
+        }
+        .info-panels {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .panel-header {
+            background: #e9ecef;
+            padding: 10px 15px;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .panel-header:hover {
+            background: #dee2e6;
+        }
+        .panel-header .toggle-icon {
+            font-size: 1.2em;
+        }
+        .panel-content {
+            padding: 15px;
+            border-top: 1px solid #ddd;
+            display: none;
+        }
+        .panel-content.visible {
+            display: block;
+        }
+        .placeholder-images {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .placeholder-item {
+            text-align: center;
+        }
+        .placeholder-item img {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid #ccc;
+            background: #f8f9fa;
+        }
+        .placeholder-item .path {
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 5px;
+            color: #495057;
+        }
+        .mermaid-code {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow: auto;
+            border: 1px solid #ced4da;
+        }
+        .link-box {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .link-box input {
+            flex: 1;
+            min-width: 300px;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            background: #f8f9fa;
+        }
+        .link-box button {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+        footer {
+            margin-top: 25px;
+            text-align: center;
+            color: #5d6d7e;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌳 Семейное древо на excel + mermaid</h1>
+        <div class="toolbar">
+            <button id="loadBtn">📂 Загрузить tree.xlsx</button>
+            <button id="manualBtn">📁 Выбрать файл</button>
+            <button id="mermaidLiveBtn" disabled>🔗 Открыть в mermaid.live</button>
+            <input type="file" id="fileInput" accept=".xlsx, .xls">
+        </div>
+        <div id="status" class="status">⏳ Ожидание загрузки файла...</div>
+        
+        <!-- Панели с дополнительной информацией (скрыты по умолчанию) -->
+        <div class="info-panels">
+            <!-- Панель 1: Ссылка на Mermaid Live -->
+            <div class="panel" id="panel-link">
+                <div class="panel-header" onclick="togglePanel('panel-link-content')">
+                    <span>🔗 Ссылка на Mermaid Live (откроется в новой вкладке)</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div class="panel-content" id="panel-link-content">
+                    <div class="link-box">
+                        <input type="text" id="mermaidLinkInput" readonly value="(сгенерируется после загрузки данных)" />
+                        <button onclick="copyLink()">📋 Копировать</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Панель 2: Заглушки фото -->
+            <div class="panel" id="panel-placeholders">
+                <div class="panel-header" onclick="togglePanel('panel-placeholders-content')">
+                    <span>🖼️ Заглушки фото (defaultm.png / defaultf.png)</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div class="panel-content" id="panel-placeholders-content">
+                    <div class="placeholder-images">
+                        <div class="placeholder-item">
+                            <img src="pic/defaultm.png" alt="defaultm" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'60\' height=\'60\' viewBox=\'0 0 60 60\'%3E%3Crect width=\'60\' height=\'60\' fill=\'%23ddd\'/%3E%3Ctext x=\'30\' y=\'35\' font-size=\'10\' text-anchor=\'middle\' fill=\'%23333\'%3Eнет m%3C/text%3E%3C/svg%3E';">
+                            <div class="path">pic/defaultm.png</div>
+                        </div>
+                        <div class="placeholder-item">
+                            <img src="pic/defaultf.png" alt="defaultf" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'60\' height=\'60\' viewBox=\'0 0 60 60\'%3E%3Crect width=\'60\' height=\'60\' fill=\'%23ddd\'/%3E%3Ctext x=\'30\' y=\'35\' font-size=\'10\' text-anchor=\'middle\' fill=\'%23333\'%3Eнет f%3C/text%3E%3C/svg%3E';">
+                            <div class="path">pic/defaultf.png</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Панель 3: Исходный код Mermaid (несжатый) -->
+            <div class="panel" id="panel-code">
+                <div class="panel-header" onclick="togglePanel('panel-code-content')">
+                    <span>📄 Исходный код Mermaid (несжатый)</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div class="panel-content" id="panel-code-content">
+                    <pre id="mermaidCodePre" class="mermaid-code">(код появится после загрузки данных)</pre>
+                </div>
+            </div>
+        </div>
+        
+        <div id="mermaidContainer" class="mermaid-container">Дерево будет построено здесь...</div>
+        
+        <footer>Фото из папки <code>pic/</code> (idA.png). Для мужчин рамка синяя, для женщин — розовая. Годы на новой строке.</footer>
+    </div>
+
+    <script>
+        (function() {
+            let people = [];
+            let rawMermaidCode = '';
+            let lastCompressedLink = '';
+            
+            const mermaidLiveBtn = document.getElementById('mermaidLiveBtn');
+            const statusDiv = document.getElementById('status');
+            const container = document.getElementById('mermaidContainer');
+            const loadBtn = document.getElementById('loadBtn');
+            const manualBtn = document.getElementById('manualBtn');
+            const fileInput = document.getElementById('fileInput');
+            const mermaidLinkInput = document.getElementById('mermaidLinkInput');
+            const mermaidCodePre = document.getElementById('mermaidCodePre');
+
+            // Функции для панелей (делаем глобальными)
+            window.togglePanel = function(contentId) {
+                const content = document.getElementById(contentId);
+                const header = content.previousElementSibling;
+                const icon = header.querySelector('.toggle-icon');
+                if (content.classList.contains('visible')) {
+                    content.classList.remove('visible');
+                    icon.textContent = '▶';
+                } else {
+                    content.classList.add('visible');
+                    icon.textContent = '▼';
+                }
+            };
+
+            window.copyLink = function() {
+                mermaidLinkInput.select();
+                document.execCommand('copy');
+                alert('Ссылка скопирована!');
+            };
+
+            // Инициализация Mermaid
+            mermaid.initialize({
+                theme: 'base',
+                themeVariables: {
+                    'background': '#ffffff',
+                    'primaryColor': '#f9f9f9',
+                    'primaryBorderColor': '#333',
+                    'primaryTextColor': '#1e1e2f',
+                    'lineColor': '#5d6d7e',
+                },
+                flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', padding: 20 },
+                securityLevel: 'loose',
+                startOnLoad: false
+            });
+
+            function showStatus(msg, isError = false) {
+                statusDiv.textContent = msg;
+                statusDiv.style.backgroundColor = isError ? '#fadbd8' : '#fff8e5';
+                statusDiv.style.borderLeftColor = isError ? '#e74c3c' : '#f1c40f';
+            }
+
+            // Парсинг Excel
+            function parseExcel(arrayBuffer) {
+                try {
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                    const sheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('person')) || workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                    if (rows.length < 2) throw new Error('Нет данных на листе person');
+                    const dataRows = rows.slice(1).filter(row => row[1] && row[1].toString().trim() !== '');
+                    const peopleList = dataRows.map(row => ({
+                        idA: row[0] ? row[0].toString().trim() : '',
+                        label: row[1] ? row[1].toString().trim() : '',
+                        sex: row[2] ? row[2].toString().trim() : '',
+                        hasFather: row[4] ? row[4].toString().trim() : '',
+                        hasMother: row[5] ? row[5].toString().trim() : '',
+                        birth: row[6] ? row[6].toString().trim() : '',
+                        death: row[7] ? row[7].toString().trim() : ''
+                    })).filter(p => p.idA && p.label);
+                    if (peopleList.length === 0) throw new Error('Нет записей с idA и label');
+                    return peopleList;
+                } catch (e) {
+                    showStatus('Ошибка парсинга Excel: ' + e.message, true);
+                    throw e;
+                }
+            }
+
+            // Генерация кода Mermaid с \n и классами
+            function generateMermaidCode(people) {
+                const nodes = [];
+                const edges = [];
+                const coupleSet = new Set();
+
+                const classDefs = [
+                    'classDef male fill:#a3c4f3,stroke:#2c3e50,stroke-width:2px;',
+                    'classDef female fill:#fbb9c0,stroke:#a6344b,stroke-width:2px;',
+                    'classDef unknown fill:#d5d8dc,stroke:#2c3e50,stroke-width:2px;'
+                ];
+
+                people.forEach(p => {
+                    const birthYear = p.birth || '?';
+                    const deathYear = p.death || '?';
+                    // Два слеша, чтобы в итоге был один \n
+                    const label = `${p.label}\\n(${birthYear}–${deathYear})`;
+                    nodes.push(`${p.idA}["${label}"]`);
+                });
+
+                people.forEach(p => {
+                    if (p.hasFather) edges.push(`${p.hasFather} --> ${p.idA}`);
+                    if (p.hasMother) edges.push(`${p.hasMother} --> ${p.idA}`);
+                    if (p.hasFather && p.hasMother) {
+                        const coupleKey = p.hasFather < p.hasMother ? `${p.hasFather}|${p.hasMother}` : `${p.hasMother}|${p.hasFather}`;
+                        coupleSet.add(coupleKey);
+                    }
+                });
+
+                coupleSet.forEach(couple => {
+                    const [a, b] = couple.split('|');
+                    edges.push(`${a} --- ${b}`);
+                });
+
+                const classAssignments = people.map(p => {
+                    let cls = 'unknown';
+                    if (p.sex === 'М' || p.sex === 'M') cls = 'male';
+                    else if (p.sex === 'Ж' || p.sex === 'F') cls = 'female';
+                    return `class ${p.idA} ${cls};`;
+                });
+
+                return `graph TB\n  ${nodes.join('\n  ')}\n  ${edges.join('\n  ')}\n  ${classDefs.join('\n  ')}\n  ${classAssignments.join('\n  ')}`;
+            }
+
+            // Функция сжатия для mermaid.live
+            function compressToBase64(str) {
+                try {
+                    const compressed = pako.deflate(str, { level: 9 });
+                    let binaryString = '';
+                    compressed.forEach(byte => binaryString += String.fromCharCode(byte));
+                    return btoa(binaryString);
+                } catch (error) {
+                    console.error('Ошибка сжатия:', error);
+                    return '';
+                }
+            }
+
+            // Кастомизация узлов после рендера (добавление фото)
+            async function customizeNodes() {
+                const svg = document.querySelector('#mermaidContainer svg');
+                if (!svg) return;
+
+                for (const person of people) {
+                    const expectedLabel = `${person.label} (${person.birth || '?'}–${person.death || '?'})`;
+                    const groups = svg.querySelectorAll('g');
+                    let targetGroup = null;
+                    for (let g of groups) {
+                        const textElem = g.querySelector('text');
+                        if (textElem && textElem.textContent.replace(/\s+/g, ' ').includes(expectedLabel.replace(/\s+/g, ' '))) {
+                            targetGroup = g;
+                            break;
+                        }
+                    }
+                    if (!targetGroup) continue;
+
+                    const rect = targetGroup.querySelector('rect');
+                    if (!rect) continue;
+
+                    const x = parseFloat(rect.getAttribute('x'));
+                    const y = parseFloat(rect.getAttribute('y'));
+                    const width = parseFloat(rect.getAttribute('width'));
+                    const height = parseFloat(rect.getAttribute('height'));
+
+                    targetGroup.querySelectorAll('rect, text').forEach(el => el.remove());
+
+                    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+                    fo.setAttribute('x', x);
+                    fo.setAttribute('y', y);
+                    fo.setAttribute('width', width);
+                    fo.setAttribute('height', height);
+
+                    const div = document.createElement('div');
+                    div.style.cssText = `
+                        display: flex;
+                        align-items: center;
+                        height: 100%;
+                        width: 100%;
+                        background-color: ${person.sex === 'М' ? '#a3c4f3' : (person.sex === 'Ж' ? '#fbb9c0' : '#d5d8dc')};
+                        border: 2px solid ${person.sex === 'М' ? '#2c3e50' : '#a6344b'};
+                        border-radius: 8px;
+                        overflow: hidden;
+                        box-sizing: border-box;
+                        padding: 4px;
+                    `;
+
+                    const img = document.createElement('img');
+                    img.style.cssText = 'width:45px; height:45px; object-fit:cover; border-radius:6px; margin-right:8px; border:1px solid #fff; flex-shrink:0;';
+                    
+                    const setImage = (src) => {
+                        img.src = src + '?t=' + Date.now();
+                        img.onerror = () => {
+                            if (src.includes('default')) return;
+                            const defaultImg = person.sex === 'М' ? 'pic/defaultm.png' : 'pic/defaultf.png';
+                            setImage(defaultImg);
+                        };
+                    };
+                    setImage(`pic/${person.idA}.png`);
+
+                    const textDiv = document.createElement('div');
+                    textDiv.style.cssText = 'display:flex; flex-direction:column; justify-content:center; flex:1; font-size:12px; line-height:1.4; color:#1e1e2f; font-weight:500;';
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = person.label;
+                    nameSpan.style.fontWeight = 'bold';
+                    
+                    const yearsSpan = document.createElement('span');
+                    yearsSpan.textContent = `${person.birth || '?'} — ${person.death || '?'}`;
+                    yearsSpan.style.fontSize = '11px';
+                    yearsSpan.style.opacity = '0.8';
+
+                    textDiv.appendChild(nameSpan);
+                    textDiv.appendChild(yearsSpan);
+                    div.appendChild(img);
+                    div.appendChild(textDiv);
+                    fo.appendChild(div);
+                    targetGroup.appendChild(fo);
+                }
+            }
+
+            // Обновление информации в панелях
+            function updateInfoPanels() {
+                if (rawMermaidCode) {
+                    mermaidCodePre.textContent = rawMermaidCode;
+                    
+                    // Генерируем ссылку
+                    const compressed = compressToBase64(rawMermaidCode);
+                    lastCompressedLink = `https://mermaid.live/view#pako:${compressed}`;
+                    mermaidLinkInput.value = lastCompressedLink;
+                } else {
+                    mermaidCodePre.textContent = '(код появится после загрузки данных)';
+                    mermaidLinkInput.value = '(сгенерируется после загрузки данных)';
+                }
+            }
+
+            // Построение дерева
+            async function buildTree(peopleArray) {
+                if (!peopleArray.length) return;
+                people = peopleArray;
+                rawMermaidCode = generateMermaidCode(people);
+                mermaidLiveBtn.disabled = false;
+                
+                // Обновляем панели
+                updateInfoPanels();
+
+                container.innerHTML = '';
+                try {
+                    const { svg } = await mermaid.render('mermaidChart', rawMermaidCode);
+                    container.innerHTML = svg;
+                    setTimeout(() => customizeNodes(), 100);
+                    showStatus('✅ Дерево построено');
+                } catch (err) {
+                    showStatus('Ошибка рендеринга: ' + err.message, true);
+                }
+            }
+
+            // Загрузка из файла
+            async function loadFromUrl(url) {
+                try {
+                    showStatus('⏳ Загрузка...');
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = parseExcel(await response.arrayBuffer());
+                    await buildTree(data);
+                } catch (e) {
+                    showStatus('Ошибка загрузки: ' + e.message, true);
+                }
+            }
+
+            function loadFromFile(file) {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const data = parseExcel(e.target.result);
+                        await buildTree(data);
+                    } catch (err) {
+                        showStatus('Ошибка чтения: ' + err.message, true);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            // События
+            loadBtn.addEventListener('click', () => loadFromUrl('tree.xlsx'));
+            manualBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files[0]) loadFromFile(e.target.files[0]);
+                fileInput.value = '';
+            });
+
+            mermaidLiveBtn.addEventListener('click', () => {
+                if (!rawMermaidCode) return;
+                const compressed = compressToBase64(rawMermaidCode);
+                window.open(`https://mermaid.live/view#pako:${compressed}`, '_blank');
+            });
+
+            // Автозагрузка
+            loadFromUrl('tree.xlsx');
+        })();
+    </script>
+</body>
+</html>
