@@ -1,4 +1,5 @@
 ## mermaid vs graphviz
+
 Похоже mermaid не поддерживает встраивание картинок. Тогда вместо mermaid используй библиотеку graphviz (dot).
 ---
 
