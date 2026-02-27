@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест вставки фото в узел персоны (Graphviz SVG)</title>
+    <script src="https://unpkg.com/@viz-js/viz@3.4.0/lib/viz-standalone.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; }
+        .section { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; margin-top: 0; }
+        .result { font-weight: bold; padding: 6px 12px; border-radius: 4px; display: inline-block; margin-top: 8px; }
+        .result.ok { background: #d4edda; color: #155724; }
+        .result.fail { background: #f8d7da; color: #721c24; }
+        #graphContainer { min-height: 200px; }
+        #graphContainer svg { max-width: 100%; height: auto; }
+        .test-log { font-family: monospace; font-size: 13px; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 4px; padding: 10px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; margin-top: 10px; }
+        .photo-preview { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 10px; }
+        .photo-card { text-align: center; }
+        .photo-card img { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 2px solid #ccc; display: block; }
+        .photo-card .label { font-size: 12px; margin-top: 4px; color: #495057; word-break: break-all; max-width: 90px; }
+        .photo-card .status { font-size: 11px; }
+        .photo-card .status.ok { color: #155724; }
+        .photo-card .status.fail { color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест вставки фото в узел персоны (Graphviz SVG)</h1>
+    <p>Этот файл тестирует механизм вставки изображений в узлы дерева. Используется тот же подход, что и в <code>index.html</code>: Graphviz рендерит граф в SVG, затем JS загружает фото и вставляет их как <code>&lt;image&gt;</code> прямо в SVG-узлы.</p>
+
+    <!-- Тест 1: Проверка наличия файлов фото -->
+    <div class="section">
+        <h2>Тест 1: Наличие файлов фото в папке <code>pic/</code></h2>
+        <p>Проверяем, что файлы фото доступны по HTTP (HEAD-запрос).</p>
+        <div class="photo-preview" id="photoPreview">
+            <em style="color:#888">Загрузка...</em>
+        </div>
+        <div id="test1Result"></div>
+    </div>
+
+    <!-- Тест 2: Загрузка фото как base64 data URL -->
+    <div class="section">
+        <h2>Тест 2: Загрузка фото как base64 data URL</h2>
+        <p>Проверяем, что фото можно загрузить и преобразовать в data URL (нужно для вставки в SVG).</p>
+        <div id="dataUrlPreview" class="photo-preview">
+            <em style="color:#888">Загрузка...</em>
+        </div>
+        <div id="test2Result"></div>
+    </div>
+
+    <!-- Тест 3: Graphviz + вставка фото в SVG-узлы -->
+    <div class="section">
+        <h2>Тест 3: Graphviz рендеринг с фото в узлах</h2>
+        <p>Строим граф из трёх персон, затем вставляем фото в SVG-узлы. Ожидаемый результат: фото отображаются слева в каждом узле.</p>
+        <div id="graphContainer">
+            <em style="color:#888">Строим граф...</em>
+        </div>
+        <div id="test3Log" class="test-log"></div>
+        <div id="test3Result"></div>
+    </div>
+
+    <script>
+    (function() {
+        // Тестовые данные — те же персоны, что в tree.xlsx (из папки pic/)
+        const testPeople = [
+            { idA: 'Ульянов_Илья_Николаевич', label: 'Илья Ульянов', sex: 'М', birth: '1831', death: '1886' },
+            { idA: 'Бланк_Мария_Александровна', label: 'Мария Бланк', sex: 'Ж', birth: '1835', death: '1916' },
+            { idA: 'Ульянов_Владимир_Ильич', label: 'Владимир Ульянов', sex: 'М', birth: '1870', death: '1924', hasFather: 'Ульянов_Илья_Николаевич', hasMother: 'Бланк_Мария_Александровна' },
+        ];
+
+        const maleColor = '#a3c4f3';
+        const femaleColor = '#fbb9c0';
+        const unknownColor = '#d5d8dc';
+
+        function log3(msg) {
+            const el = document.getElementById('test3Log');
+            el.textContent += msg + '\n';
+        }
+
+        function setResult(id, ok, msg) {
+            const el = document.getElementById(id);
+            el.innerHTML = `<span class="result ${ok ? 'ok' : 'fail'}">${ok ? '✅' : '❌'} ${msg}</span>`;
+        }
+
+        // --- Тест 1: HEAD-запросы для проверки наличия файлов ---
+        async function test1() {
+            const filesToCheck = [
+                'dafaultm.png',
+                'dafaultf.png',
+                ...testPeople.map(p => p.idA + '.png'),
+            ];
+
+            const preview = document.getElementById('photoPreview');
+            preview.innerHTML = '';
+
+            let allFound = true;
+            const results = await Promise.all(filesToCheck.map(async filename => {
+                try {
+                    const resp = await fetch('pic/' + filename, { method: 'HEAD' });
+                    return { filename, ok: resp.ok };
+                } catch {
+                    return { filename, ok: false };
+                }
+            }));
+
+            results.forEach(({ filename, ok }) => {
+                if (!ok) allFound = false;
+
+                const card = document.createElement('div');
+                card.className = 'photo-card';
+
+                const img = document.createElement('img');
+                img.src = 'pic/' + filename;
+                img.alt = filename;
+                img.onerror = () => { img.style.opacity = '0.2'; };
+                card.appendChild(img);
+
+                const lbl = document.createElement('div');
+                lbl.className = 'label';
+                lbl.textContent = filename;
+                card.appendChild(lbl);
+
+                const st = document.createElement('div');
+                st.className = 'status ' + (ok ? 'ok' : 'fail');
+                st.textContent = ok ? 'найден' : 'не найден';
+                card.appendChild(st);
+
+                preview.appendChild(card);
+            });
+
+            const foundCount = results.filter(r => r.ok).length;
+            setResult('test1Result', foundCount > 0,
+                `Найдено ${foundCount} из ${filesToCheck.length} файлов фото`);
+            return results;
+        }
+
+        // --- Загрузка изображения как base64 data URL ---
+        async function loadImageAsDataUrl(src) {
+            try {
+                const response = await fetch(src);
+                if (!response.ok) return null;
+                const blob = await response.blob();
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(blob);
+                });
+            } catch {
+                return null;
+            }
+        }
+
+        // --- Тест 2: Загрузка как data URL ---
+        async function test2() {
+            const preview = document.getElementById('dataUrlPreview');
+            preview.innerHTML = '';
+
+            const filesToLoad = ['dafaultm.png', 'dafaultf.png'];
+            // Добавляем только те персональные фото, что были найдены в тесте 1
+            testPeople.forEach(p => filesToLoad.push(p.idA + '.png'));
+
+            let successCount = 0;
+            for (const filename of filesToLoad) {
+                const dataUrl = await loadImageAsDataUrl('pic/' + filename);
+
+                const card = document.createElement('div');
+                card.className = 'photo-card';
+
+                const img = document.createElement('img');
+                if (dataUrl) {
+                    img.src = dataUrl;
+                    successCount++;
+                } else {
+                    img.style.opacity = '0.2';
+                    img.src = 'pic/' + filename;
+                }
+                img.alt = filename;
+                card.appendChild(img);
+
+                const lbl = document.createElement('div');
+                lbl.className = 'label';
+                lbl.textContent = filename.length > 25 ? filename.substring(0, 23) + '…' : filename;
+                lbl.title = filename;
+                card.appendChild(lbl);
+
+                const st = document.createElement('div');
+                st.className = 'status ' + (dataUrl ? 'ok' : 'fail');
+                st.textContent = dataUrl ? 'data URL ✓' : 'ошибка';
+                card.appendChild(st);
+
+                preview.appendChild(card);
+            }
+
+            setResult('test2Result', successCount > 0,
+                `Успешно загружено как data URL: ${successCount} из ${filesToLoad.length}`);
+        }
+
+        // --- Вставка фото в SVG-узлы ---
+        async function injectPhotosIntoSvg(svgEl, peopleList) {
+            const IMG_SIZE = 45;
+            const IMG_MARGIN = 6;
+            let injected = 0;
+
+            const nodeGroups = svgEl.querySelectorAll('g.node');
+            log3(`Найдено узлов в SVG: ${nodeGroups.length}`);
+
+            for (const nodeGroup of nodeGroups) {
+                const titleEl = nodeGroup.querySelector('title');
+                if (!titleEl) { log3('  - узел без <title>, пропускаем'); continue; }
+                const nodeId = titleEl.textContent.trim();
+                const person = peopleList.find(p => p.idA === nodeId);
+                if (!person) { log3(`  - узел "${nodeId}" не найден в данных, пропускаем`); continue; }
+
+                log3(`  - обрабатываем узел: ${nodeId}`);
+
+                // Определяем файл фото (персональное или заглушка)
+                const personalFile = person.idA + '.png';
+                const defaultFile = (person.sex === 'Ж' || person.sex === 'F') ? 'dafaultf.png' : 'dafaultm.png';
+
+                let dataUrl = await loadImageAsDataUrl('pic/' + personalFile);
+                if (!dataUrl) {
+                    log3(`    фото ${personalFile} не найдено, пробуем заглушку ${defaultFile}`);
+                    dataUrl = await loadImageAsDataUrl('pic/' + defaultFile);
+                }
+                if (!dataUrl) { log3(`    заглушка тоже не найдена, пропускаем`); continue; }
+
+                log3(`    фото загружено как data URL (${dataUrl.length} байт)`);
+
+                const shape = nodeGroup.querySelector('polygon, ellipse, rect, path');
+                if (!shape) { log3(`    форма узла не найдена, пропускаем`); continue; }
+
+                const bbox = shape.getBBox();
+                if (!bbox || bbox.width === 0) { log3(`    BBox пустой, пропускаем`); continue; }
+
+                log3(`    BBox: x=${bbox.x.toFixed(1)}, y=${bbox.y.toFixed(1)}, w=${bbox.width.toFixed(1)}, h=${bbox.height.toFixed(1)}`);
+
+                const imgX = bbox.x + IMG_MARGIN;
+                const imgY = bbox.y + (bbox.height - IMG_SIZE) / 2;
+
+                // ClipPath для скруглённых углов фото
+                const defs = svgEl.querySelector('defs') || svgEl.insertBefore(
+                    document.createElementNS('http://www.w3.org/2000/svg', 'defs'),
+                    svgEl.firstChild
+                );
+                const clipId = 'photo-clip-' + nodeId.replace(/[^a-zA-Z0-9]/g, '_');
+                const clipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clipPath.setAttribute('id', clipId);
+                const clipRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                clipRect.setAttribute('x', imgX);
+                clipRect.setAttribute('y', imgY);
+                clipRect.setAttribute('width', IMG_SIZE);
+                clipRect.setAttribute('height', IMG_SIZE);
+                clipRect.setAttribute('rx', 5);
+                clipPath.appendChild(clipRect);
+                defs.appendChild(clipPath);
+
+                const svgImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+                svgImg.setAttribute('x', imgX);
+                svgImg.setAttribute('y', imgY);
+                svgImg.setAttribute('width', IMG_SIZE);
+                svgImg.setAttribute('height', IMG_SIZE);
+                svgImg.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+                svgImg.setAttribute('href', dataUrl);
+                svgImg.setAttribute('clip-path', `url(#${clipId})`);
+
+                const firstText = nodeGroup.querySelector('text');
+                if (firstText) {
+                    nodeGroup.insertBefore(svgImg, firstText);
+                } else {
+                    nodeGroup.appendChild(svgImg);
+                }
+
+                // Смещаем текст вправо
+                const textShift = IMG_SIZE + IMG_MARGIN * 2;
+                nodeGroup.querySelectorAll('text').forEach(t => {
+                    const curX = parseFloat(t.getAttribute('x') || '0');
+                    t.setAttribute('x', curX + textShift / 2);
+                    t.querySelectorAll('tspan').forEach(ts => {
+                        const tsX = parseFloat(ts.getAttribute('x') || '0');
+                        ts.setAttribute('x', tsX + textShift / 2);
+                    });
+                });
+
+                injected++;
+                log3(`    ✅ фото вставлено успешно`);
+            }
+
+            return injected;
+        }
+
+        // --- Тест 3: Graphviz + вставка фото ---
+        async function test3() {
+            log3('Инициализация Graphviz...');
+            const graphContainer = document.getElementById('graphContainer');
+
+            // Генерируем DOT-граф
+            const nodes = testPeople.map(p => {
+                const fillcolor = p.sex === 'М' || p.sex === 'M' ? maleColor
+                    : p.sex === 'Ж' || p.sex === 'F' ? femaleColor : unknownColor;
+                const label = `${p.label}\\n(${p.birth || '?'}–${p.death || '?'})`;
+                return `  ${p.idA} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}", width=2.5, height=0.9, fixedsize=false, margin="0.9,0.15"];`;
+            });
+
+            const edges = [];
+            testPeople.forEach(p => {
+                if (p.hasFather) edges.push(`  ${p.hasFather} -> ${p.idA};`);
+                if (p.hasMother) edges.push(`  ${p.hasMother} -> ${p.idA};`);
+            });
+
+            const dotCode = `digraph G {\n  rankdir=TB;\n  node [fontname="Arial", fontsize=11];\n  edge [color="#5d6d7e"];\n\n${nodes.join('\n')}\n\n${edges.join('\n')}\n}`;
+            log3('DOT-код сгенерирован:\n' + dotCode);
+
+            try {
+                log3('\nРендеринг через @viz-js/viz...');
+                const viz = await Viz.instance();
+                const svgStr = await viz.renderString(dotCode, { format: 'svg' });
+                graphContainer.innerHTML = svgStr;
+                log3('SVG отрендерен успешно.');
+
+                const svgEl = graphContainer.querySelector('svg');
+                if (!svgEl) {
+                    log3('ОШИБКА: SVG элемент не найден!');
+                    setResult('test3Result', false, 'SVG не найден после рендеринга');
+                    return;
+                }
+
+                log3('\nВставка фото в узлы SVG...');
+                const injectedCount = await injectPhotosIntoSvg(svgEl, testPeople);
+                log3(`\nИтог: вставлено фото в ${injectedCount} из ${testPeople.length} узлов.`);
+
+                setResult('test3Result', injectedCount > 0,
+                    `Граф построен, фото вставлено в ${injectedCount} из ${testPeople.length} узлов`);
+            } catch (err) {
+                log3('ОШИБКА: ' + err.message);
+                console.error(err);
+                setResult('test3Result', false, 'Ошибка: ' + err.message);
+            }
+        }
+
+        // Запускаем все тесты последовательно
+        (async () => {
+            await test1();
+            await test2();
+            await test3();
+        })();
+    })();
+    </script>
+
+    <div style="margin-top:30px; padding:15px; background:#e8f4f8; border-radius:8px; font-size:14px;">
+        <strong>📋 Как пользоваться:</strong>
+        <ul>
+            <li>Откройте этот файл через веб-сервер (например, <code>python3 -m http.server</code> в папке <code>ver1/</code>).</li>
+            <li>Тест 1 проверяет, что файлы фото лежат в <code>pic/</code> и доступны по HTTP.</li>
+            <li>Тест 2 проверяет загрузку фото как base64 data URL (нужно для вставки в SVG).</li>
+            <li>Тест 3 строит Graphviz граф и вставляет фото в узлы — как это делает основной <code>index.html</code>.</li>
+            <li>Все три теста должны быть <span style="color:green;font-weight:bold">✅</span> для корректной работы фото в дереве.</li>
+        </ul>
+        <p>Имена файлов фото должны совпадать с <code>idA</code> из Excel (с расширением <code>.png</code>).<br>
+        Заглушки по умолчанию: <code>pic/dafaultm.png</code> (мужчины), <code>pic/dafaultf.png</code> (женщины).</p>
+    </div>
+</body>
+</html>

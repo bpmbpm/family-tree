@@ -398,12 +398,13 @@
                     const nodeId = p.idA;
                     const label = `${p.label}\\n(${birthYear}–${deathYear})`;
 
-                    // Use Graphviz image= attribute with relative path to pic/ folder.
-                    // imagescale=true scales the image to fit; imagepos=ml aligns it to the middle-left.
-                    // The node width is extended to accommodate the image on the left.
+                    // Check if person has a photo available (used by injectPhotosIntoSvg after rendering).
+                    // Note: Graphviz image= attribute does NOT work in browser WASM rendering context.
+                    // Photos are injected into the SVG after rendering via injectPhotosIntoSvg().
                     const photoFile = await getPersonPhotoFile(p);
                     if (photoFile) {
-                        nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}", image="pic/${photoFile}", imagescale=true, imagepos=ml, width=2.5, height=1.0, fixedsize=false, margin="0.85,0.1"];`);
+                        // Extra width/height and left margin to make room for the photo (injected post-render)
+                        nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}", width=2.5, height=0.9, fixedsize=false, margin="0.9,0.15"];`);
                     } else {
                         nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}"];`);
                     }
@@ -429,6 +430,106 @@
                 return `digraph G {\n  rankdir=TB;\n  node [fontname="Arial", fontsize=11];\n  edge [color="#5d6d7e"];\n\n${nodes.join('\n')}\n\n${edges.join('\n')}\n}`;
             }
 
+            // --- Load image as base64 data URL ---
+            async function loadImageAsDataUrl(src) {
+                try {
+                    const response = await fetch(src);
+                    if (!response.ok) return null;
+                    const blob = await response.blob();
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = () => resolve(null);
+                        reader.readAsDataURL(blob);
+                    });
+                } catch {
+                    return null;
+                }
+            }
+
+            // --- Inject photos into rendered SVG nodes ---
+            // After Graphviz renders SVG, the image= attribute does not work in browser WASM context.
+            // We post-process the SVG: find each node by its title, load its photo via fetch,
+            // and inject an <image> element with a base64 data URL into the node group.
+            async function injectPhotosIntoSvg(svgEl) {
+                const IMG_SIZE = 45;
+                const IMG_MARGIN = 6;
+
+                const nodeGroups = svgEl.querySelectorAll('g.node');
+
+                for (const nodeGroup of nodeGroups) {
+                    const titleEl = nodeGroup.querySelector('title');
+                    if (!titleEl) continue;
+                    const nodeId = titleEl.textContent.trim();
+                    const person = people.find(p => p.idA === nodeId);
+                    if (!person) continue;
+
+                    const photoFile = await getPersonPhotoFile(person);
+                    if (!photoFile) continue;
+
+                    const dataUrl = await loadImageAsDataUrl('pic/' + photoFile);
+                    if (!dataUrl) continue;
+
+                    // Find the bounding polygon/rect of the node
+                    const shape = nodeGroup.querySelector('polygon, ellipse, rect, path');
+                    if (!shape) continue;
+
+                    const bbox = shape.getBBox();
+                    if (!bbox || bbox.width === 0) continue;
+
+                    // Create SVG <image> element positioned inside the node (left side)
+                    const imgX = bbox.x + IMG_MARGIN;
+                    const imgY = bbox.y + (bbox.height - IMG_SIZE) / 2;
+
+                    const svgImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+                    svgImg.setAttribute('x', imgX);
+                    svgImg.setAttribute('y', imgY);
+                    svgImg.setAttribute('width', IMG_SIZE);
+                    svgImg.setAttribute('height', IMG_SIZE);
+                    svgImg.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+                    svgImg.setAttribute('href', dataUrl);
+
+                    // Add a clipPath for rounded corners on the image
+                    const defs = svgEl.querySelector('defs') || svgEl.insertBefore(
+                        document.createElementNS('http://www.w3.org/2000/svg', 'defs'),
+                        svgEl.firstChild
+                    );
+                    const clipId = 'photo-clip-' + nodeId.replace(/[^a-zA-Z0-9]/g, '_');
+                    const clipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                    clipPath.setAttribute('id', clipId);
+                    const clipRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    clipRect.setAttribute('x', imgX);
+                    clipRect.setAttribute('y', imgY);
+                    clipRect.setAttribute('width', IMG_SIZE);
+                    clipRect.setAttribute('height', IMG_SIZE);
+                    clipRect.setAttribute('rx', 5);
+                    clipPath.appendChild(clipRect);
+                    defs.appendChild(clipPath);
+                    svgImg.setAttribute('clip-path', `url(#${clipId})`);
+
+                    // Insert image before first text element so text renders on top
+                    const firstText = nodeGroup.querySelector('text');
+                    if (firstText) {
+                        nodeGroup.insertBefore(svgImg, firstText);
+                    } else {
+                        nodeGroup.appendChild(svgImg);
+                    }
+
+                    // Shift text elements to the right to avoid overlap with image
+                    const textShift = IMG_SIZE + IMG_MARGIN * 2;
+                    const textEls = nodeGroup.querySelectorAll('text');
+                    textEls.forEach(t => {
+                        const curX = parseFloat(t.getAttribute('x') || '0');
+                        t.setAttribute('x', curX + textShift / 2);
+                        // Also update tspan x attributes
+                        t.querySelectorAll('tspan').forEach(ts => {
+                            const tsX = parseFloat(ts.getAttribute('x') || '0');
+                            ts.setAttribute('x', tsX + textShift / 2);
+                        });
+                    });
+                }
+            }
+
             // --- Render DOT code ---
             async function renderDot(dotStr) {
                 try {
@@ -440,6 +541,8 @@
                     const svgEl = graphvizContainer.querySelector('svg');
                     if (svgEl) {
                         addNodeClickHandlers(svgEl);
+                        // Inject photos into SVG nodes (Graphviz image= attr doesn't work in browser WASM)
+                        await injectPhotosIntoSvg(svgEl);
                     }
                 } catch (error) {
                     graphvizContainer.innerHTML = `<p style="color:red">Ошибка рендеринга: ${error.message}</p>`;
