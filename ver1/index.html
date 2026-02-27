@@ -399,17 +399,18 @@
                     else if (p.sex === 'Ж' || p.sex === 'F') fillcolor = femaleColor;
 
                     const nodeId = p.idA;
-                    const label = `${p.label}\\n(${birthYear}–${deathYear})`;
+                    const labelText = `${p.label}\\n${birthYear}–${deathYear}`;
 
                     const photoPath = await getPersonPhotoPath(p);
                     if (photoPath) {
-                        // Use native Graphviz image= attribute with the photo path.
-                        // imagescale=true scales the image to fit the reserved area.
-                        // imagepos="ml" positions the image at the middle-left of the node.
-                        // labelloc="c" centres the text label vertically.
-                        nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}", image="${photoPath}", imagescale=true, imagepos="ml", labelloc="c", width=2.8, height=0.85, fixedsize=false];`);
+                        // HTML-like label: table with photo cell on left and left-aligned text on right.
+                        // This ensures the name and years are left-aligned relative to the fixed left margin,
+                        // not centered across the full node width.
+                        // style="filled" (no rounded) — rounded corners look bad with photos.
+                        const htmlLabel = `<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="4" CELLPADDING="2"><TR><TD FIXEDSIZE="TRUE" WIDTH="${PHOTO_SIZE_PX}" HEIGHT="${PHOTO_SIZE_PX}"><IMG SRC="${photoPath}" SCALE="TRUE"/></TD><TD ALIGN="LEFT" VALIGN="MIDDLE"><FONT FACE="Arial" POINT-SIZE="11">${p.label}<BR ALIGN="LEFT"/>${birthYear}–${deathYear}<BR ALIGN="LEFT"/></FONT></TD></TR></TABLE>>`;
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label=${htmlLabel}];`);
                     } else {
-                        nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}"];`);
+                        nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${labelText}"];`);
                     }
                 }
 
