@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Семейное древо на excel + Graphviz (с фото)</title>
+    <script src="https://unpkg.com/@viz-js/viz@3.4.0/lib/viz-standalone.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background: #f0f2f5; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .toolbar { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        button { padding: 8px 16px; background: #2c3e50; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        button:hover { background: #1e2b37; }
+        button:disabled { background: #95a5a6; cursor: not-allowed; }
+        #fileInput { display: none; }
+        .status { padding: 10px 15px; background: #fff8e5; border-left: 5px solid #f1c40f; margin-bottom: 20px; }
+        .info-panels { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+        .panel { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+        .panel-header { background: #e9ecef; padding: 10px 15px; font-weight: 600; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .panel-header:hover { background: #dee2e6; }
+        .panel-header .toggle-icon { font-size: 1.2em; }
+        .panel-content { padding: 15px; border-top: 1px solid #ddd; display: none; }
+        .panel-content.visible { display: block; }
+        .photos-grid { display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-start; }
+        .photo-item { text-align: center; }
+        .photo-item img { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 2px solid #ccc; background: #f8f9fa; display: block; }
+        .photo-item .path { font-family: monospace; font-size: 11px; margin-top: 4px; color: #495057; max-width: 80px; word-break: break-all; }
+        .dot-code { background: #f8f9fa; padding: 10px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; white-space: pre-wrap; max-height: 300px; overflow: auto; border: 1px solid #ced4da; }
+        .link-box { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .link-box input { flex: 1; min-width: 300px; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; font-family: monospace; font-size: 13px; background: #f8f9fa; }
+        .link-box button { padding: 6px 12px; font-size: 13px; }
+        footer { margin-top: 25px; text-align: center; color: #5d6d7e; font-size: 0.9rem; }
+
+        /* Diagram panel */
+        .diagram-panel { background: white; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 20px; display: flex; flex-direction: column; }
+        .diagram-panel-header { background: #e9ecef; padding: 10px 15px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+        .diagram-panel-title { font-size: 1.05em; }
+
+        /* Zoom container */
+        .zoom-container {
+            position: relative;
+            overflow: auto;
+            min-height: 500px;
+            max-height: 80vh;
+            background: white;
+            padding: 10px;
+            flex: 1;
+        }
+        .zoom-content {
+            transform-origin: top left;
+            transition: transform 0.15s ease;
+            display: inline-block;
+        }
+        .zoom-content svg {
+            display: block;
+        }
+
+        /* Zoom controls — at the bottom of diagram panel */
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 15px;
+            background: #f5f5f5;
+            border-top: 1px solid #ddd;
+        }
+        .zoom-controls button {
+            padding: 5px 12px;
+            font-size: 14px;
+            background: #607D8B;
+        }
+        .zoom-controls button:hover { background: #455A64; }
+        .zoom-controls span {
+            min-width: 50px;
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+            font-size: 13px;
+        }
+
+        /* Properties panel (Свойство объекта диаграммы) */
+        #properties-panels-container {
+            position: fixed;
+            top: 0; left: 0;
+            width: 0; height: 0;
+            pointer-events: none;
+            z-index: 2000;
+        }
+        .properties-panel {
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            min-width: 280px;
+            max-width: 400px;
+            pointer-events: all;
+            z-index: 2000;
+        }
+        .properties-panel.visible { display: block; }
+        .properties-header {
+            background: #2c3e50;
+            color: white;
+            padding: 10px 12px;
+            border-radius: 8px 8px 0 0;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .properties-header-content { flex: 1; }
+        .properties-header-title { font-size: 11px; opacity: 0.8; margin-bottom: 4px; }
+        .properties-header h3 { margin: 0; font-size: 14px; font-weight: 600; }
+        .properties-close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+            opacity: 0.8;
+        }
+        .properties-close-btn:hover { opacity: 1; background: none; }
+        .properties-content {
+            padding: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .property-item { margin-bottom: 8px; }
+        .property-predicate { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 2px; }
+        .property-value { font-size: 13px; color: #333; word-break: break-all; }
+        .property-value.photo { margin-top: 6px; }
+        .property-value.photo img { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 2px solid #ccc; }
+        .properties-empty { color: #888; font-style: italic; font-size: 13px; }
+        .properties-copy-btn {
+            background: #607D8B;
+            padding: 3px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            margin-top: 4px;
+            cursor: pointer;
+        }
+        .properties-copy-btn:hover { background: #455A64; }
+
+        /* Node hover/selected style */
+        .node { cursor: pointer; }
+        .node:hover polygon, .node:hover ellipse, .node:hover path, .node:hover rect {
+            stroke-width: 3 !important;
+            stroke: #e67e22 !important;
+        }
+        .node.selected polygon, .node.selected ellipse, .node.selected path, .node.selected rect {
+            stroke-width: 3 !important;
+            stroke: #e74c3c !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌳 Семейное древо на excel + Graphviz (с фото)</h1>
+        <div class="toolbar">
+            <button id="loadBtn">📂 Загрузить tree.xlsx</button>
+            <button id="manualBtn">📁 Выбрать файл</button>
+            <button id="graphvizOnlineBtn" disabled>🔗 Показать в окне GraphvizOnline</button>
+            <input type="file" id="fileInput" accept=".xlsx, .xls">
+        </div>
+        <div id="status" class="status">⏳ Ожидание загрузки файла...</div>
+
+        <!-- Информационные панели -->
+        <div class="info-panels">
+            <div class="panel" id="panel-link">
+                <div class="panel-header" onclick="togglePanel('panel-link-content')">
+                    <span>🔗 Ссылка на GraphvizOnline</span>
+                    <span class="toggle-icon">▶</span>
+                </div>
+                <div class="panel-content" id="panel-link-content">
+                    <div class="link-box">
+                        <input type="text" id="graphvizLinkInput" readonly value="(сгенерируется после загрузки)" />
+                        <button onclick="copyLink()">📋 Копировать</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" id="panel-placeholders">
+                <div class="panel-header" onclick="togglePanel('panel-placeholders-content')">
+                    <span>🖼️ Фото персон</span>
+                    <span class="toggle-icon">▶</span>
+                </div>
+                <div class="panel-content" id="panel-placeholders-content">
+                    <div class="photos-grid" id="photosGrid">
+                        <em style="color:#888">Загрузите Excel для отображения фото</em>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" id="panel-code">
+                <div class="panel-header" onclick="togglePanel('panel-code-content')">
+                    <span>📄 Исходный код DOT (несжатый)</span>
+                    <span class="toggle-icon">▶</span>
+                </div>
+                <div class="panel-content" id="panel-code-content">
+                    <pre id="dotCodePre" class="dot-code">(код появится после загрузки)</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diagram panel: zoom container on top, zoom controls at bottom -->
+        <div class="diagram-panel">
+            <div class="diagram-panel-header">
+                <span class="diagram-panel-title">📊 Диаграмма</span>
+            </div>
+            <div class="zoom-container" id="zoomContainer">
+                <div class="zoom-content" id="zoomContent">
+                    <div id="graphvizContainer">Дерево будет построено здесь...</div>
+                </div>
+            </div>
+            <div class="zoom-controls" id="zoom-controls">
+                <button onclick="zoomIn()" title="Увеличить">+</button>
+                <span id="zoom-level">100%</span>
+                <button onclick="zoomOut()" title="Уменьшить">−</button>
+                <button onclick="zoomReset()" title="Сбросить масштаб">Сброс</button>
+                <button onclick="zoomFit()" title="Вписать в окно">Вписать</button>
+            </div>
+        </div>
+
+        <footer>Фото из папки <code>pic/</code> (idA.png). Используется штатный атрибут Graphviz <code>image=</code>. Для мужчин рамка синяя, для женщин — розовая. Годы на новой строке.</footer>
+    </div>
+
+    <!-- Properties panels container (fixed positioning) -->
+    <div id="properties-panels-container"></div>
+
+    <script>
+        (function() {
+            let people = [];
+            let dotCode = '';
+            let graphvizLink = '';
+            let currentScale = 1.0;
+
+            // Properties panel state
+            let openPropertiesPanels = [];
+            let propertiesPanelCounter = 0;
+            let selectedNodeElement = null;
+            let draggedPanel = null;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+
+            // Cache: filename -> true (exists) or false (not found)
+            const photoExistsCache = {};
+
+            // Photo size for Graphviz image= attribute (pixels)
+            const PHOTO_SIZE_PX = 50;
+
+            const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
+            const statusDiv = document.getElementById('status');
+            const graphvizContainer = document.getElementById('graphvizContainer');
+            const zoomContent = document.getElementById('zoomContent');
+            const zoomContainer = document.getElementById('zoomContainer');
+            const zoomLevelSpan = document.getElementById('zoom-level');
+            const loadBtn = document.getElementById('loadBtn');
+            const manualBtn = document.getElementById('manualBtn');
+            const fileInput = document.getElementById('fileInput');
+            const graphvizLinkInput = document.getElementById('graphvizLinkInput');
+            const dotCodePre = document.getElementById('dotCodePre');
+
+            // --- Panel toggling ---
+            window.togglePanel = function(contentId) {
+                const content = document.getElementById(contentId);
+                const icon = content.previousElementSibling.querySelector('.toggle-icon');
+                content.classList.toggle('visible');
+                icon.textContent = content.classList.contains('visible') ? '▼' : '▶';
+            };
+
+            window.copyLink = function() {
+                graphvizLinkInput.select();
+                document.execCommand('copy');
+                alert('Ссылка скопирована!');
+            };
+
+            // --- Zoom controls ---
+            function applyZoom() {
+                zoomContent.style.transform = `scale(${currentScale})`;
+                zoomLevelSpan.textContent = Math.round(currentScale * 100) + '%';
+            }
+
+            window.zoomIn = function() {
+                if (currentScale < 5.0) { currentScale = Math.min(5.0, currentScale + 0.1); applyZoom(); }
+            };
+            window.zoomOut = function() {
+                if (currentScale > 0.1) { currentScale = Math.max(0.1, currentScale - 0.1); applyZoom(); }
+            };
+            window.zoomReset = function() {
+                currentScale = 1.0;
+                applyZoom();
+            };
+            window.zoomFit = function() {
+                const svg = graphvizContainer.querySelector('svg');
+                if (!svg) return;
+                const containerW = zoomContainer.clientWidth - 20;
+                const containerH = zoomContainer.clientHeight - 20;
+                const svgW = svg.getBoundingClientRect().width / currentScale;
+                const svgH = svg.getBoundingClientRect().height / currentScale;
+                if (svgW <= 0 || svgH <= 0) return;
+                const scaleX = containerW / svgW;
+                const scaleY = containerH / svgH;
+                currentScale = Math.min(scaleX, scaleY, 1.0);
+                applyZoom();
+            };
+
+            // Mouse wheel zoom
+            zoomContainer.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                currentScale = Math.min(5.0, Math.max(0.1, currentScale + delta));
+                applyZoom();
+            }, { passive: false });
+
+            // --- Status ---
+            function showStatus(msg, isError = false) {
+                statusDiv.textContent = msg;
+                statusDiv.style.backgroundColor = isError ? '#fadbd8' : '#fff8e5';
+                statusDiv.style.borderLeftColor = isError ? '#e74c3c' : '#f1c40f';
+            }
+
+            // --- Check if photo exists via HEAD request ---
+            async function checkPhotoExists(filename) {
+                if (photoExistsCache[filename] !== undefined) return photoExistsCache[filename];
+                try {
+                    const response = await fetch('pic/' + filename, { method: 'HEAD' });
+                    photoExistsCache[filename] = response.ok;
+                    return response.ok;
+                } catch {
+                    photoExistsCache[filename] = false;
+                    return false;
+                }
+            }
+
+            // --- Determine which photo path to use for a person (returns path string or null) ---
+            async function getPersonPhotoPath(person) {
+                const personalFile = person.idA + '.png';
+                if (await checkPhotoExists(personalFile)) return 'pic/' + personalFile;
+                // Fall back to default
+                const defaultFile = (person.sex === 'Ж' || person.sex === 'F') ? 'dafaultf.png' : 'dafaultm.png';
+                if (await checkPhotoExists(defaultFile)) return 'pic/' + defaultFile;
+                return null;
+            }
+
+            // --- Preload / check photo existence for all people ---
+            async function preloadPhotoChecks(peopleList) {
+                const filenames = new Set(['dafaultm.png', 'dafaultf.png']);
+                peopleList.forEach(p => { if (p.idA) filenames.add(p.idA + '.png'); });
+                await Promise.all(Array.from(filenames).map(fn => checkPhotoExists(fn)));
+            }
+
+            // --- Parse Excel ---
+            function parseExcel(arrayBuffer) {
+                try {
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                    const sheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('person')) || workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                    if (rows.length < 2) throw new Error('Нет данных на листе person');
+                    const dataRows = rows.slice(1).filter(row => row[1] && row[1].toString().trim() !== '');
+                    const peopleList = dataRows.map(row => ({
+                        idA: row[0] ? row[0].toString().trim() : '',
+                        label: row[1] ? row[1].toString().trim() : '',
+                        sex: row[2] ? row[2].toString().trim() : '',
+                        hasFather: row[4] ? row[4].toString().trim() : '',
+                        hasMother: row[5] ? row[5].toString().trim() : '',
+                        birth: row[6] ? row[6].toString().trim() : '',
+                        death: row[7] ? row[7].toString().trim() : ''
+                    })).filter(p => p.idA && p.label);
+                    if (peopleList.length === 0) throw new Error('Нет записей с idA и label');
+                    return peopleList;
+                } catch (e) {
+                    showStatus('Ошибка парсинга Excel: ' + e.message, true);
+                    throw e;
+                }
+            }
+
+            // --- Generate DOT code using native Graphviz image= attribute ---
+            // Uses pic/<idA>.png paths directly; images are registered via the images option
+            // in viz.renderString() so Graphviz can allocate proper space for them in layout.
+            async function generateDotCode(peopleList) {
+                const nodes = [];
+                const edges = [];
+                const coupleSet = new Set();
+
+                const maleColor = "#a3c4f3";
+                const femaleColor = "#fbb9c0";
+                const unknownColor = "#d5d8dc";
+
+                for (const p of peopleList) {
+                    const birthYear = p.birth || '?';
+                    const deathYear = p.death || '?';
+
+                    let fillcolor = unknownColor;
+                    if (p.sex === 'М' || p.sex === 'M') fillcolor = maleColor;
+                    else if (p.sex === 'Ж' || p.sex === 'F') fillcolor = femaleColor;
+
+                    const nodeId = p.idA;
+                    const labelText = `${p.label}\\n${birthYear}–${deathYear}`;
+
+                    const photoPath = await getPersonPhotoPath(p);
+                    if (photoPath) {
+                        // HTML-like label: table with photo cell on left and left-aligned text on right.
+                        // This ensures the name and years are left-aligned relative to the fixed left margin,
+                        // not centered across the full node width.
+                        // style="filled" (no rounded) — rounded corners look bad with photos.
+                        const htmlLabel = `<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="4" CELLPADDING="2"><TR><TD FIXEDSIZE="TRUE" WIDTH="${PHOTO_SIZE_PX}" HEIGHT="${PHOTO_SIZE_PX}"><IMG SRC="${photoPath}" SCALE="TRUE"/></TD><TD ALIGN="LEFT" VALIGN="MIDDLE"><FONT FACE="Arial" POINT-SIZE="11">${p.label}<BR ALIGN="LEFT"/>${birthYear}–${deathYear}<BR ALIGN="LEFT"/></FONT></TD></TR></TABLE>>`;
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label=${htmlLabel}];`);
+                    } else {
+                        nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${labelText}"];`);
+                    }
+                }
+
+                // Parent relationships
+                peopleList.forEach(p => {
+                    const childId = p.idA;
+                    if (p.hasFather) edges.push(`  ${p.hasFather} -> ${childId};`);
+                    if (p.hasMother) edges.push(`  ${p.hasMother} -> ${childId};`);
+                    if (p.hasFather && p.hasMother) {
+                        const key = p.hasFather < p.hasMother ? `${p.hasFather}|${p.hasMother}` : `${p.hasMother}|${p.hasFather}`;
+                        coupleSet.add(key);
+                    }
+                });
+
+                // Couple links
+                coupleSet.forEach(couple => {
+                    const [a, b] = couple.split('|');
+                    edges.push(`  ${a} -> ${b} [dir=none, color="#5d6d7e"];`);
+                });
+
+                return `digraph G {\n  rankdir=TB;\n  node [fontname="Arial", fontsize=11];\n  edge [color="#5d6d7e"];\n\n${nodes.join('\n')}\n\n${edges.join('\n')}\n}`;
+            }
+
+            // --- Build images array for viz.renderString() images option ---
+            // Collects all unique photo paths used in the DOT code and registers them
+            // with fixed dimensions so Graphviz can allocate space in the node layout.
+            async function buildImagesOption(peopleList) {
+                const imageMap = new Map(); // path -> true (deduplicate)
+                for (const p of peopleList) {
+                    const photoPath = await getPersonPhotoPath(p);
+                    if (photoPath) imageMap.set(photoPath, true);
+                }
+                return Array.from(imageMap.keys()).map(path => ({
+                    name: path,
+                    width: PHOTO_SIZE_PX,
+                    height: PHOTO_SIZE_PX
+                }));
+            }
+
+            // --- Render DOT code using native Graphviz image= attribute ---
+            async function renderDot(dotStr, imagesOption) {
+                try {
+                    const viz = await Viz.instance();
+                    const svgStr = await viz.renderString(dotStr, {
+                        format: 'svg',
+                        images: imagesOption
+                    });
+                    graphvizContainer.innerHTML = svgStr;
+
+                    // Add node click handlers
+                    const svgEl = graphvizContainer.querySelector('svg');
+                    if (svgEl) {
+                        addNodeClickHandlers(svgEl);
+                    }
+                } catch (error) {
+                    graphvizContainer.innerHTML = `<p style="color:red">Ошибка рендеринга: ${error.message}</p>`;
+                    console.error(error);
+                }
+            }
+
+            // --- Update photos panel ---
+            // Shows only files that actually exist in pic/ folder (no empty placeholders).
+            function updatePhotosPanel() {
+                const grid = document.getElementById('photosGrid');
+                grid.innerHTML = '';
+
+                // Build list of files that were checked and found to exist
+                const existingFiles = [];
+
+                // Always include defaults if they exist
+                for (const fn of ['dafaultm.png', 'dafaultf.png']) {
+                    if (photoExistsCache[fn]) existingFiles.push(fn);
+                }
+
+                // Add person photos that exist
+                people.forEach(p => {
+                    const fn = p.idA + '.png';
+                    if (photoExistsCache[fn] && !existingFiles.includes(fn)) {
+                        existingFiles.push(fn);
+                    }
+                });
+
+                if (existingFiles.length === 0) {
+                    grid.innerHTML = '<em style="color:#888">Файлы фото не найдены в папке pic/</em>';
+                    return;
+                }
+
+                existingFiles.forEach(filename => {
+                    const div = document.createElement('div');
+                    div.className = 'photo-item';
+
+                    const img = document.createElement('img');
+                    img.src = 'pic/' + filename;
+                    img.alt = filename;
+                    img.title = filename;
+
+                    const label = document.createElement('div');
+                    label.className = 'path';
+                    const shortName = filename.length > 20 ? filename.substring(0, 18) + '…' : filename;
+                    label.textContent = shortName;
+                    label.title = filename;
+
+                    div.appendChild(img);
+                    div.appendChild(label);
+                    grid.appendChild(div);
+                });
+            }
+
+            // --- Update info panels ---
+            function updateInfoPanels() {
+                if (dotCode) {
+                    dotCodePre.textContent = dotCode;
+                    const encoded = encodeURIComponent(dotCode);
+                    graphvizLink = `https://dreampuf.github.io/GraphvizOnline/?engine=dot#${encoded}`;
+                    graphvizLinkInput.value = graphvizLink;
+                } else {
+                    dotCodePre.textContent = '(код появится после загрузки)';
+                    graphvizLinkInput.value = '(сгенерируется после загрузки)';
+                }
+                updatePhotosPanel();
+            }
+
+            // ================================================================
+            // PROPERTIES PANEL (Свойство объекта диаграммы)
+            // Based on rdf-grapher ver9d implementation
+            // ================================================================
+
+            function showNodeProperties(person) {
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+
+                // If already open for this person, bring to front
+                const existingPanel = openPropertiesPanels.find(p => p.idA === person.idA);
+                if (existingPanel) {
+                    const panel = document.getElementById(existingPanel.panelId);
+                    if (panel) bringPanelToFront(panel);
+                    return;
+                }
+
+                propertiesPanelCounter++;
+                const panelId = 'properties-panel-' + propertiesPanelCounter;
+
+                const offsetMultiplier = openPropertiesPanels.length % 5;
+                const rightOffset = 20 + (offsetMultiplier * 30);
+                const topOffset = 100 + (offsetMultiplier * 30);
+
+                // Build properties content
+                const sex = person.sex || '—';
+                const birth = person.birth || '—';
+                const death = person.death || '—';
+                const photoFile = photoExistsCache[person.idA + '.png'] ? person.idA + '.png' : null;
+
+                let propertiesHtml = '';
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">ID</div><div class="property-value">${person.idA}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Имя</div><div class="property-value">${person.label}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Пол</div><div class="property-value">${sex}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Год рождения</div><div class="property-value">${birth}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Год смерти</div><div class="property-value">${death}</div></div>`;
+                if (person.hasFather) {
+                    const father = people.find(p => p.idA === person.hasFather);
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Отец</div><div class="property-value">${father ? father.label : person.hasFather}</div></div>`;
+                }
+                if (person.hasMother) {
+                    const mother = people.find(p => p.idA === person.hasMother);
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Мать</div><div class="property-value">${mother ? mother.label : person.hasMother}</div></div>`;
+                }
+                if (photoFile) {
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="pic/${photoFile}" alt="${person.label}"></div></div>`;
+                }
+
+                const escapedLabel = person.label.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                const panelHtml = `
+                    <div class="properties-panel visible" id="${panelId}" style="right: ${rightOffset}px; top: ${topOffset}px;">
+                        <div class="properties-header" onmousedown="startDragPanel(event, '${panelId}')">
+                            <div class="properties-header-content">
+                                <div class="properties-header-title">Свойство объекта диаграммы</div>
+                                <h3>${person.label}</h3>
+                                <button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId('${escapedLabel}', this)">Копировать</button>
+                            </div>
+                            <button class="properties-close-btn" onclick="closePropertiesPanel('${panelId}')">&times;</button>
+                        </div>
+                        <div class="properties-content">
+                            ${propertiesHtml}
+                        </div>
+                    </div>
+                `;
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                openPropertiesPanels.push({ panelId: panelId, idA: person.idA });
+
+                const newPanel = document.getElementById(panelId);
+                if (newPanel) bringPanelToFront(newPanel);
+            }
+
+            window.closePropertiesPanel = function(panelId) {
+                const panel = document.getElementById(panelId);
+                if (panel) {
+                    panel.remove();
+                    openPropertiesPanels = openPropertiesPanels.filter(p => p.panelId !== panelId);
+                }
+                if (selectedNodeElement) {
+                    selectedNodeElement.classList.remove('selected');
+                    selectedNodeElement = null;
+                }
+            };
+
+            window.copyObjectId = function(label, btn) {
+                navigator.clipboard.writeText(label).then(() => {
+                    const orig = btn.textContent;
+                    btn.textContent = '✓';
+                    setTimeout(() => { btn.textContent = orig; }, 1500);
+                }).catch(() => {
+                    // Fallback
+                    const el = document.createElement('textarea');
+                    el.value = label;
+                    document.body.appendChild(el);
+                    el.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(el);
+                });
+            };
+
+            function bringPanelToFront(panel) {
+                let maxZIndex = 2000;
+                openPropertiesPanels.forEach(p => {
+                    const el = document.getElementById(p.panelId);
+                    if (el) {
+                        const z = parseInt(el.style.zIndex) || 2000;
+                        if (z > maxZIndex) maxZIndex = z;
+                    }
+                });
+                panel.style.zIndex = maxZIndex + 1;
+            }
+
+            window.startDragPanel = function(event, panelId) {
+                if (event.target.classList.contains('properties-close-btn') ||
+                    event.target.classList.contains('properties-copy-btn')) return;
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+
+                draggedPanel = panel;
+                const rect = panel.getBoundingClientRect();
+                dragOffsetX = event.clientX - rect.left;
+                dragOffsetY = event.clientY - rect.top;
+
+                bringPanelToFront(panel);
+                document.addEventListener('mousemove', dragPanel);
+                document.addEventListener('mouseup', stopDragPanel);
+                event.preventDefault();
+            };
+
+            function dragPanel(event) {
+                if (!draggedPanel) return;
+                const newLeft = event.clientX - dragOffsetX;
+                const newTop = event.clientY - dragOffsetY;
+                draggedPanel.style.left = newLeft + 'px';
+                draggedPanel.style.top = newTop + 'px';
+                draggedPanel.style.right = 'auto';
+            }
+
+            function stopDragPanel() {
+                draggedPanel = null;
+                document.removeEventListener('mousemove', dragPanel);
+                document.removeEventListener('mouseup', stopDragPanel);
+            }
+
+            // --- Add node click handlers to rendered SVG ---
+            function addNodeClickHandlers(svgEl) {
+                const nodes = svgEl.querySelectorAll('g.node');
+                nodes.forEach(node => {
+                    node.style.cursor = 'pointer';
+                    node.addEventListener('click', function(event) {
+                        event.stopPropagation();
+
+                        const titleEl = node.querySelector('title');
+                        if (!titleEl) return;
+                        const nodeId = titleEl.textContent.trim();
+                        const person = people.find(p => p.idA === nodeId);
+                        if (!person) return;
+
+                        // Update selection highlight
+                        if (selectedNodeElement) {
+                            selectedNodeElement.classList.remove('selected');
+                        }
+                        node.classList.add('selected');
+                        selectedNodeElement = node;
+
+                        showNodeProperties(person);
+                    });
+                });
+
+                // Click on empty SVG area: deselect
+                svgEl.addEventListener('click', function() {
+                    if (selectedNodeElement) {
+                        selectedNodeElement.classList.remove('selected');
+                        selectedNodeElement = null;
+                    }
+                });
+            }
+
+            // --- Build tree ---
+            async function buildTree(peopleArray) {
+                if (!peopleArray.length) return;
+                people = peopleArray;
+                showStatus('⏳ Проверка наличия фото...');
+                await preloadPhotoChecks(people);
+                showStatus('⏳ Генерация DOT кода...');
+                dotCode = await generateDotCode(people);
+                graphvizOnlineBtn.disabled = false;
+                updateInfoPanels();
+                showStatus('⏳ Построение дерева...');
+                const imagesOption = await buildImagesOption(people);
+                await renderDot(dotCode, imagesOption);
+                showStatus('✅ Дерево построено');
+            }
+
+            async function loadFromUrl(url) {
+                try {
+                    showStatus('⏳ Загрузка...');
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = parseExcel(await response.arrayBuffer());
+                    await buildTree(data);
+                } catch (e) {
+                    showStatus('Ошибка загрузки: ' + e.message, true);
+                }
+            }
+
+            function loadFromFile(file) {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const data = parseExcel(e.target.result);
+                        await buildTree(data);
+                    } catch (err) {
+                        showStatus('Ошибка чтения: ' + err.message, true);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            loadBtn.addEventListener('click', () => loadFromUrl('tree.xlsx'));
+            manualBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files[0]) loadFromFile(e.target.files[0]);
+                fileInput.value = '';
+            });
+
+            graphvizOnlineBtn.addEventListener('click', () => {
+                if (graphvizLink) window.open(graphvizLink, '_blank');
+            });
+
+            loadFromUrl('tree.xlsx');
+        })();
+    </script>
+</body>
+</html>
