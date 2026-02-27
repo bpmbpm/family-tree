@@ -224,7 +224,7 @@
             </div>
         </div>
 
-        <footer>Фото из папки <code>pic/</code> (idA.png). Для мужчин рамка синяя, для женщин — розовая. Годы на новой строке.</footer>
+        <footer>Фото из папки <code>pic/</code> (idA.png). Используется штатный атрибут Graphviz <code>image=</code>. Для мужчин рамка синяя, для женщин — розовая. Годы на новой строке.</footer>
     </div>
 
     <!-- Properties panels container (fixed positioning) -->
@@ -247,6 +247,9 @@
 
             // Cache: filename -> true (exists) or false (not found)
             const photoExistsCache = {};
+
+            // Photo size for Graphviz image= attribute (pixels)
+            const PHOTO_SIZE_PX = 50;
 
             const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
             const statusDiv = document.getElementById('status');
@@ -332,13 +335,13 @@
                 }
             }
 
-            // --- Determine which photo file to use for a person (returns filename or null) ---
-            async function getPersonPhotoFile(person) {
+            // --- Determine which photo path to use for a person (returns path string or null) ---
+            async function getPersonPhotoPath(person) {
                 const personalFile = person.idA + '.png';
-                if (await checkPhotoExists(personalFile)) return personalFile;
+                if (await checkPhotoExists(personalFile)) return 'pic/' + personalFile;
                 // Fall back to default
                 const defaultFile = (person.sex === 'Ж' || person.sex === 'F') ? 'dafaultf.png' : 'dafaultm.png';
-                if (await checkPhotoExists(defaultFile)) return defaultFile;
+                if (await checkPhotoExists(defaultFile)) return 'pic/' + defaultFile;
                 return null;
             }
 
@@ -375,9 +378,9 @@
                 }
             }
 
-            // --- Generate DOT code using Graphviz image attribute ---
-            // Uses the standard Graphviz image= attribute for photo embedding in nodes.
-            // Photos are loaded from pic/ folder using relative paths.
+            // --- Generate DOT code using native Graphviz image= attribute ---
+            // Uses pic/<idA>.png paths directly; images are registered via the images option
+            // in viz.renderString() so Graphviz can allocate proper space for them in layout.
             async function generateDotCode(peopleList) {
                 const nodes = [];
                 const edges = [];
@@ -398,12 +401,13 @@
                     const nodeId = p.idA;
                     const label = `${p.label}\\n(${birthYear}–${deathYear})`;
 
-                    // Use Graphviz image= attribute with relative path to pic/ folder.
-                    // imagescale=true scales the image to fit; imagepos=ml aligns it to the middle-left.
-                    // The node width is extended to accommodate the image on the left.
-                    const photoFile = await getPersonPhotoFile(p);
-                    if (photoFile) {
-                        nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}", image="pic/${photoFile}", imagescale=true, imagepos=ml, width=2.5, height=1.0, fixedsize=false, margin="0.85,0.1"];`);
+                    const photoPath = await getPersonPhotoPath(p);
+                    if (photoPath) {
+                        // Use native Graphviz image= attribute with the photo path.
+                        // imagescale=true scales the image to fit the reserved area.
+                        // imagepos="ml" positions the image at the middle-left of the node.
+                        // labelloc="c" centres the text label vertically.
+                        nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}", image="${photoPath}", imagescale=true, imagepos="ml", labelloc="c", width=2.8, height=0.85, fixedsize=false];`);
                     } else {
                         nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}"];`);
                     }
@@ -429,11 +433,30 @@
                 return `digraph G {\n  rankdir=TB;\n  node [fontname="Arial", fontsize=11];\n  edge [color="#5d6d7e"];\n\n${nodes.join('\n')}\n\n${edges.join('\n')}\n}`;
             }
 
-            // --- Render DOT code ---
-            async function renderDot(dotStr) {
+            // --- Build images array for viz.renderString() images option ---
+            // Collects all unique photo paths used in the DOT code and registers them
+            // with fixed dimensions so Graphviz can allocate space in the node layout.
+            async function buildImagesOption(peopleList) {
+                const imageMap = new Map(); // path -> true (deduplicate)
+                for (const p of peopleList) {
+                    const photoPath = await getPersonPhotoPath(p);
+                    if (photoPath) imageMap.set(photoPath, true);
+                }
+                return Array.from(imageMap.keys()).map(path => ({
+                    name: path,
+                    width: PHOTO_SIZE_PX,
+                    height: PHOTO_SIZE_PX
+                }));
+            }
+
+            // --- Render DOT code using native Graphviz image= attribute ---
+            async function renderDot(dotStr, imagesOption) {
                 try {
                     const viz = await Viz.instance();
-                    const svgStr = await viz.renderString(dotStr, { format: 'svg' });
+                    const svgStr = await viz.renderString(dotStr, {
+                        format: 'svg',
+                        images: imagesOption
+                    });
                     graphvizContainer.innerHTML = svgStr;
 
                     // Add node click handlers
@@ -699,7 +722,8 @@
                 graphvizOnlineBtn.disabled = false;
                 updateInfoPanels();
                 showStatus('⏳ Построение дерева...');
-                await renderDot(dotCode);
+                const imagesOption = await buildImagesOption(people);
+                await renderDot(dotCode, imagesOption);
                 showStatus('✅ Дерево построено');
             }
 

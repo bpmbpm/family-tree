@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест вставки фото в узел персоны (Graphviz image= attribute)</title>
+    <script src="https://unpkg.com/@viz-js/viz@3.4.0/lib/viz-standalone.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; }
+        .section { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; margin-top: 0; }
+        .result { font-weight: bold; padding: 6px 12px; border-radius: 4px; display: inline-block; margin-top: 8px; }
+        .result.ok { background: #d4edda; color: #155724; }
+        .result.fail { background: #f8d7da; color: #721c24; }
+        #graphContainer { min-height: 200px; }
+        #graphContainer svg { max-width: 100%; height: auto; }
+        .test-log { font-family: monospace; font-size: 13px; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 4px; padding: 10px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; margin-top: 10px; }
+        .photo-preview { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 10px; }
+        .photo-card { text-align: center; }
+        .photo-card img { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 2px solid #ccc; display: block; }
+        .photo-card .label { font-size: 12px; margin-top: 4px; color: #495057; word-break: break-all; max-width: 90px; }
+        .photo-card .status { font-size: 11px; }
+        .photo-card .status.ok { color: #155724; }
+        .photo-card .status.fail { color: #721c24; }
+        .dot-code { background: #f8f9fa; padding: 10px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; max-height: 200px; overflow: auto; border: 1px solid #ced4da; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест вставки фото в узел персоны (Graphviz image= attribute)</h1>
+    <p>Этот файл тестирует механизм вставки изображений в узлы дерева с использованием <strong>штатного атрибута Graphviz <code>image=</code></strong>.
+    Библиотека <code>@viz-js/viz</code> поддерживает опцию <code>images</code> в <code>renderString()</code>, которая регистрирует размеры изображений,
+    после чего Graphviz включает <code>&lt;image&gt;</code> элементы прямо в SVG.</p>
+
+    <!-- Тест 1: Проверка наличия файлов фото -->
+    <div class="section">
+        <h2>Тест 1: Наличие файлов фото в папке <code>pic/</code></h2>
+        <p>Проверяем, что файлы фото доступны по HTTP (HEAD-запрос).</p>
+        <div class="photo-preview" id="photoPreview">
+            <em style="color:#888">Загрузка...</em>
+        </div>
+        <div id="test1Result"></div>
+    </div>
+
+    <!-- Тест 2: Graphviz + штатный image= атрибут -->
+    <div class="section">
+        <h2>Тест 2: Graphviz рендеринг с <code>image=</code> атрибутом</h2>
+        <p>Строим граф из трёх персон используя атрибут <code>image=</code> и опцию <code>images</code> в <code>renderString()</code>.
+        Ожидаемый результат: фото отображаются в узлах напрямую через SVG <code>&lt;image&gt;</code> элементы.</p>
+        <div id="dotCodeSection">
+            <strong>DOT-код:</strong>
+            <pre id="dotCodePre" class="dot-code">(будет показан после рендеринга)</pre>
+        </div>
+        <div id="graphContainer">
+            <em style="color:#888">Строим граф...</em>
+        </div>
+        <div id="test2Log" class="test-log"></div>
+        <div id="test2Result"></div>
+    </div>
+
+    <!-- Тест 3: Проверка SVG структуры -->
+    <div class="section">
+        <h2>Тест 3: Проверка наличия <code>&lt;image&gt;</code> элементов в SVG</h2>
+        <p>Проверяем, что Graphviz действительно включил <code>&lt;image&gt;</code> элементы в SVG (штатный механизм).</p>
+        <div id="test3Log" class="test-log"></div>
+        <div id="test3Result"></div>
+    </div>
+
+    <script>
+    (function() {
+        // Тестовые данные — те же персоны, что в tree.xlsx (из папки pic/)
+        const testPeople = [
+            { idA: 'Ульянов_Илья_Николаевич', label: 'Илья Ульянов', sex: 'М', birth: '1831', death: '1886' },
+            { idA: 'Бланк_Мария_Александровна', label: 'Мария Бланк', sex: 'Ж', birth: '1835', death: '1916' },
+            { idA: 'Ульянов_Владимир_Ильич', label: 'Владимир Ульянов', sex: 'М', birth: '1870', death: '1924', hasFather: 'Ульянов_Илья_Николаевич', hasMother: 'Бланк_Мария_Александровна' },
+        ];
+
+        // Photo size registered for Graphviz layout (px)
+        const PHOTO_SIZE_PX = 50;
+
+        const maleColor = '#a3c4f3';
+        const femaleColor = '#fbb9c0';
+        const unknownColor = '#d5d8dc';
+
+        function log2(msg) {
+            const el = document.getElementById('test2Log');
+            el.textContent += msg + '\n';
+        }
+
+        function log3(msg) {
+            const el = document.getElementById('test3Log');
+            el.textContent += msg + '\n';
+        }
+
+        function setResult(id, ok, msg) {
+            const el = document.getElementById(id);
+            el.innerHTML = `<span class="result ${ok ? 'ok' : 'fail'}">${ok ? '✅' : '❌'} ${msg}</span>`;
+        }
+
+        // --- Тест 1: HEAD-запросы для проверки наличия файлов ---
+        async function test1() {
+            const filesToCheck = [
+                'dafaultm.png',
+                'dafaultf.png',
+                ...testPeople.map(p => p.idA + '.png'),
+            ];
+
+            const preview = document.getElementById('photoPreview');
+            preview.innerHTML = '';
+
+            let allFound = true;
+            const results = await Promise.all(filesToCheck.map(async filename => {
+                try {
+                    const resp = await fetch('pic/' + filename, { method: 'HEAD' });
+                    return { filename, ok: resp.ok };
+                } catch {
+                    return { filename, ok: false };
+                }
+            }));
+
+            results.forEach(({ filename, ok }) => {
+                if (!ok) allFound = false;
+
+                const card = document.createElement('div');
+                card.className = 'photo-card';
+
+                const img = document.createElement('img');
+                img.src = 'pic/' + filename;
+                img.alt = filename;
+                img.onerror = () => { img.style.opacity = '0.2'; };
+                card.appendChild(img);
+
+                const lbl = document.createElement('div');
+                lbl.className = 'label';
+                lbl.textContent = filename;
+                card.appendChild(lbl);
+
+                const st = document.createElement('div');
+                st.className = 'status ' + (ok ? 'ok' : 'fail');
+                st.textContent = ok ? 'найден' : 'не найден';
+                card.appendChild(st);
+
+                preview.appendChild(card);
+            });
+
+            const foundCount = results.filter(r => r.ok).length;
+            setResult('test1Result', foundCount > 0,
+                `Найдено ${foundCount} из ${filesToCheck.length} файлов фото`);
+            return results;
+        }
+
+        // --- Тест 2 + 3: Graphviz с native image= атрибутом ---
+        async function test2and3(photoCheckResults) {
+            log2('Определяем пути к фото для каждой персоны...');
+
+            // Determine photo paths based on test1 results
+            const photoCheckMap = {};
+            photoCheckResults.forEach(r => { photoCheckMap[r.filename] = r.ok; });
+
+            function getPhotoPath(person) {
+                const personalFile = person.idA + '.png';
+                if (photoCheckMap[personalFile]) return 'pic/' + personalFile;
+                const defaultFile = (person.sex === 'Ж' || person.sex === 'F') ? 'dafaultf.png' : 'dafaultm.png';
+                if (photoCheckMap[defaultFile]) return 'pic/' + defaultFile;
+                return null;
+            }
+
+            // Build DOT code with native image= attribute
+            const nodes = testPeople.map(p => {
+                const fillcolor = (p.sex === 'М' || p.sex === 'M') ? maleColor
+                    : (p.sex === 'Ж' || p.sex === 'F') ? femaleColor : unknownColor;
+                const label = `${p.label}\\n(${p.birth || '?'}–${p.death || '?'})`;
+                const photoPath = getPhotoPath(p);
+                log2(`  ${p.idA}: фото = ${photoPath || '(нет)'}`);
+                if (photoPath) {
+                    return `  ${p.idA} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}", image="${photoPath}", imagescale=true, imagepos="ml", labelloc="c", width=2.8, height=0.85, fixedsize=false];`;
+                } else {
+                    return `  ${p.idA} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}"];`;
+                }
+            });
+
+            const edges = [];
+            testPeople.forEach(p => {
+                if (p.hasFather) edges.push(`  ${p.hasFather} -> ${p.idA};`);
+                if (p.hasMother) edges.push(`  ${p.hasMother} -> ${p.idA};`);
+            });
+
+            const dotCode = `digraph G {\n  rankdir=TB;\n  node [fontname="Arial", fontsize=11];\n  edge [color="#5d6d7e"];\n\n${nodes.join('\n')}\n\n${edges.join('\n')}\n}`;
+            document.getElementById('dotCodePre').textContent = dotCode;
+            log2('\nDOT-код с image= атрибутами сгенерирован.');
+
+            // Build images option: unique paths with fixed dimensions
+            const imagePathSet = new Set();
+            testPeople.forEach(p => {
+                const path = getPhotoPath(p);
+                if (path) imagePathSet.add(path);
+            });
+            const imagesOption = Array.from(imagePathSet).map(path => ({
+                name: path,
+                width: PHOTO_SIZE_PX,
+                height: PHOTO_SIZE_PX
+            }));
+            log2(`\nОпция images для renderString: ${JSON.stringify(imagesOption, null, 2)}`);
+
+            const graphContainer = document.getElementById('graphContainer');
+            graphContainer.innerHTML = '';
+
+            try {
+                log2('\nИнициализация @viz-js/viz...');
+                const viz = await Viz.instance();
+                log2('Рендеринг через viz.renderString() с опцией images...');
+                const svgStr = await viz.renderString(dotCode, {
+                    format: 'svg',
+                    images: imagesOption
+                });
+                graphContainer.innerHTML = svgStr;
+                log2('SVG отрендерен успешно.');
+
+                const svgEl = graphContainer.querySelector('svg');
+                if (!svgEl) {
+                    log2('ОШИБКА: SVG элемент не найден!');
+                    setResult('test2Result', false, 'SVG не найден после рендеринга');
+                    return;
+                }
+
+                setResult('test2Result', true, `Граф построен с использованием штатного атрибута Graphviz image=`);
+
+                // Test 3: check SVG for <image> elements
+                log3('Анализ SVG структуры...');
+                const imageEls = svgEl.querySelectorAll('image');
+                log3(`Найдено <image> элементов в SVG: ${imageEls.length}`);
+
+                imageEls.forEach((imgEl, i) => {
+                    const href = imgEl.getAttribute('href') || imgEl.getAttribute('xlink:href') || '';
+                    const w = imgEl.getAttribute('width') || '';
+                    const h = imgEl.getAttribute('height') || '';
+                    log3(`  [${i+1}] href="${href}", width="${w}", height="${h}"`);
+                });
+
+                if (imageEls.length > 0) {
+                    setResult('test3Result', true,
+                        `Найдено ${imageEls.length} элементов <image> в SVG — штатный механизм Graphviz image= работает`);
+                } else {
+                    // If no <image> elements found, check if photos were available
+                    const photosAvailable = imagesOption.length > 0;
+                    if (!photosAvailable) {
+                        log3('Фото не были найдены в pic/, поэтому image= атрибут не использовался.');
+                        setResult('test3Result', true,
+                            `Фото не найдены в pic/ — узлы без изображений (это нормально)`);
+                    } else {
+                        log3('ВНИМАНИЕ: Фото были зарегистрированы, но <image> элементов не найдено.');
+                        log3('Возможно, браузер заблокировал относительные пути в SVG.');
+                        setResult('test3Result', false,
+                            `<image> элементы не найдены в SVG, хотя фото были зарегистрированы`);
+                    }
+                }
+
+            } catch (err) {
+                log2('ОШИБКА: ' + err.message);
+                console.error(err);
+                setResult('test2Result', false, 'Ошибка рендеринга: ' + err.message);
+                setResult('test3Result', false, 'Тест не выполнен из-за ошибки рендеринга');
+            }
+        }
+
+        // Запускаем тесты последовательно
+        (async () => {
+            const photoResults = await test1();
+            await test2and3(photoResults);
+        })();
+    })();
+    </script>
+
+    <div style="margin-top:30px; padding:15px; background:#e8f4f8; border-radius:8px; font-size:14px;">
+        <strong>📋 Как пользоваться:</strong>
+        <ul>
+            <li>Откройте этот файл через веб-сервер (например, <code>python3 -m http.server</code> в папке <code>ver1/</code>).</li>
+            <li>Тест 1 проверяет, что файлы фото лежат в <code>pic/</code> и доступны по HTTP.</li>
+            <li>Тест 2 строит Graphviz граф используя штатный атрибут <code>image=</code> через опцию <code>images</code> в <code>renderString()</code>.</li>
+            <li>Тест 3 проверяет, что SVG содержит <code>&lt;image&gt;</code> элементы — это подтверждает работу штатного механизма.</li>
+            <li>Все три теста должны быть <span style="color:green;font-weight:bold">✅</span> для корректной работы фото в дереве.</li>
+        </ul>
+        <p><strong>Принцип работы:</strong> Метод <code>viz.renderString(dotCode, { images: [...] })</code> принимает массив объектов
+        <code>{ name, width, height }</code>, где <code>name</code> — путь к файлу (используется в атрибуте <code>image=</code> узла DOT).
+        Graphviz резервирует место под изображение и включает <code>&lt;image href="путь"&gt;</code> прямо в SVG-вывод.
+        Браузер затем загружает фото по этому пути.</p>
+        <p>Имена файлов фото должны совпадать с <code>idA</code> из Excel (с расширением <code>.png</code>).<br>
+        Заглушки по умолчанию: <code>pic/dafaultm.png</code> (мужчины), <code>pic/dafaultf.png</code> (женщины).</p>
+    </div>
+</body>
+</html>
