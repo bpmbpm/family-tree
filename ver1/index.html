@@ -53,6 +53,17 @@
                 </div>
                 <div class="panel-content" id="panel-code-content">
                     <textarea id="dotCodePre" class="dot-code">(код появится после загрузки)</textarea>
+                    <div class="dot-code-find-replace">
+                        <input type="text" id="dotFindInput" placeholder="Найти..." class="dot-find-input">
+                        <input type="text" id="dotReplaceInput" placeholder="Заменить на..." class="dot-find-input">
+                        <div class="dot-find-buttons">
+                            <button onclick="dotFindFirst()">🔍 Найти</button>
+                            <button onclick="dotFindNext()">⏭ Далее</button>
+                            <button onclick="dotReplaceOne()">✏️ Заменить</button>
+                            <button onclick="dotReplaceAll()">🔁 Заменить все</button>
+                            <span id="dotFindStatus" class="dot-find-status"></span>
+                        </div>
+                    </div>
                     <div class="dot-code-toolbar">
                         <button onclick="refreshDiagramFromEditor()">🔄 Обновить</button>
                     </div>
@@ -109,6 +120,16 @@
             let NODE_WIDTH_IN = 2.0;
             let NODE_HEIGHT_IN = ((PHOTO_SIZE_PX + 32) / 72).toFixed(2) * 1; // ~1.83in
 
+            // Rendering parameters — will be overridden by config.json values if available.
+            let FONT_NAME = 'Arial';
+            let FONT_SIZE = 11;
+            let LINE_SPACING = 1.0;
+            let MALE_COLOR = '#a3c4f3';
+            let FEMALE_COLOR = '#fbb9c0';
+            let UNKNOWN_COLOR = '#d5d8dc';
+            let BORDER_COLOR = '#2c3e50';
+            let EDGE_COLOR = '#5d6d7e';
+
             const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
             const statusDiv = document.getElementById('status');
             const graphvizContainer = document.getElementById('graphvizContainer');
@@ -132,6 +153,30 @@
                         }
                         if (typeof config.nodeHeight === 'number' && config.nodeHeight > 0) {
                             NODE_HEIGHT_IN = config.nodeHeight;
+                        }
+                        if (typeof config.fontName === 'string' && config.fontName.trim()) {
+                            FONT_NAME = config.fontName.trim();
+                        }
+                        if (typeof config.fontSize === 'number' && config.fontSize > 0) {
+                            FONT_SIZE = config.fontSize;
+                        }
+                        if (typeof config.lineSpacing === 'number' && config.lineSpacing > 0) {
+                            LINE_SPACING = config.lineSpacing;
+                        }
+                        if (typeof config.maleColor === 'string' && config.maleColor.trim()) {
+                            MALE_COLOR = config.maleColor.trim();
+                        }
+                        if (typeof config.femaleColor === 'string' && config.femaleColor.trim()) {
+                            FEMALE_COLOR = config.femaleColor.trim();
+                        }
+                        if (typeof config.unknownColor === 'string' && config.unknownColor.trim()) {
+                            UNKNOWN_COLOR = config.unknownColor.trim();
+                        }
+                        if (typeof config.borderColor === 'string' && config.borderColor.trim()) {
+                            BORDER_COLOR = config.borderColor.trim();
+                        }
+                        if (typeof config.edgeColor === 'string' && config.edgeColor.trim()) {
+                            EDGE_COLOR = config.edgeColor.trim();
                         }
                     }
                 } catch (e) {
@@ -265,17 +310,13 @@
                 const edges = [];
                 const coupleSet = new Set();
 
-                const maleColor = "#a3c4f3";
-                const femaleColor = "#fbb9c0";
-                const unknownColor = "#d5d8dc";
-
                 for (const p of peopleList) {
                     const birthYear = p.birth || '?';
                     const deathYear = p.death || '?';
 
-                    let fillcolor = unknownColor;
-                    if (p.sex === 'М' || p.sex === 'M') fillcolor = maleColor;
-                    else if (p.sex === 'Ж' || p.sex === 'F') fillcolor = femaleColor;
+                    let fillcolor = UNKNOWN_COLOR;
+                    if (p.sex === 'М' || p.sex === 'M') fillcolor = MALE_COLOR;
+                    else if (p.sex === 'Ж' || p.sex === 'F') fillcolor = FEMALE_COLOR;
 
                     const nodeId = p.idA;
                     // Replace spaces with \n in label for better node layout
@@ -288,12 +329,12 @@
                         // fixedsize=true locks the node to exactly width×height so layout is consistent.
                         // imagescale=false keeps photo at registered PHOTO_SIZE_PX so it doesn't
                         // stretch over the text area; labelloc=b places text at bottom inside node.
-                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50",`);
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}",`);
                         nodes.push(`    label="${labelText}", image="${photoPath}",`);
                         nodes.push(`    fixedsize=true, width=${NODE_WIDTH_IN}, height=${NODE_HEIGHT_IN},`);
                         nodes.push(`    imagepos=tc, imagescale=false, labelloc=b];`);
                     } else {
-                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label="${labelText}"];`);
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}", label="${labelText}"];`);
                     }
                 }
 
@@ -311,10 +352,10 @@
                 // Couple links
                 coupleSet.forEach(couple => {
                     const [a, b] = couple.split('|');
-                    edges.push(`  ${a} -> ${b} [dir=none, color="#5d6d7e"];`);
+                    edges.push(`  ${a} -> ${b} [dir=none, color="${EDGE_COLOR}"];`);
                 });
 
-                return `digraph G {\n  rankdir=TB;\n  node [fontname="Arial", fontsize=11];\n  edge [color="#5d6d7e"];\n\n${nodes.join('\n')}\n\n${edges.join('\n')}\n}`;
+                return `digraph G {\n  rankdir=TB;\n  node [fontname="${FONT_NAME}", fontsize=${FONT_SIZE}];\n  edge [color="${EDGE_COLOR}"];\n\n${nodes.join('\n')}\n\n${edges.join('\n')}\n}`;
             }
 
             // --- Build images array for viz.renderString() images option ---
@@ -353,6 +394,105 @@
                     console.error(error);
                 }
             }
+
+            // --- Find/Replace in DOT editor ---
+            let dotFindLastIndex = -1;
+            let dotFindLastTerm = '';
+
+            function getDotFindTerm() {
+                return document.getElementById('dotFindInput').value;
+            }
+
+            function getDotReplaceTerm() {
+                return document.getElementById('dotReplaceInput').value;
+            }
+
+            function setDotFindStatus(msg) {
+                document.getElementById('dotFindStatus').textContent = msg;
+            }
+
+            window.dotFindFirst = function() {
+                const term = getDotFindTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                const idx = text.indexOf(term);
+                if (idx === -1) {
+                    setDotFindStatus('Не найдено');
+                    dotFindLastIndex = -1;
+                } else {
+                    dotCodePre.focus();
+                    dotCodePre.setSelectionRange(idx, idx + term.length);
+                    dotFindLastIndex = idx;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('');
+                }
+            };
+
+            window.dotFindNext = function() {
+                const term = getDotFindTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                // If term changed, start from beginning
+                const startFrom = (term === dotFindLastTerm && dotFindLastIndex !== -1)
+                    ? dotFindLastIndex + 1 : 0;
+                const idx = text.indexOf(term, startFrom);
+                if (idx === -1) {
+                    // Wrap around
+                    const idxWrap = text.indexOf(term, 0);
+                    if (idxWrap === -1) {
+                        setDotFindStatus('Не найдено');
+                        dotFindLastIndex = -1;
+                    } else {
+                        dotCodePre.focus();
+                        dotCodePre.setSelectionRange(idxWrap, idxWrap + term.length);
+                        dotFindLastIndex = idxWrap;
+                        dotFindLastTerm = term;
+                        setDotFindStatus('С начала');
+                    }
+                } else {
+                    dotCodePre.focus();
+                    dotCodePre.setSelectionRange(idx, idx + term.length);
+                    dotFindLastIndex = idx;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('');
+                }
+            };
+
+            window.dotReplaceOne = function() {
+                const term = getDotFindTerm();
+                const replacement = getDotReplaceTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                // Replace only at the current selection if it matches
+                const selStart = dotCodePre.selectionStart;
+                const selEnd = dotCodePre.selectionEnd;
+                if (selEnd - selStart === term.length && text.substring(selStart, selEnd) === term) {
+                    dotCodePre.value = text.substring(0, selStart) + replacement + text.substring(selEnd);
+                    dotFindLastIndex = selStart + replacement.length - 1;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('Заменено');
+                    // Move to next match
+                    window.dotFindNext();
+                } else {
+                    // Just find first
+                    window.dotFindFirst();
+                }
+            };
+
+            window.dotReplaceAll = function() {
+                const term = getDotFindTerm();
+                const replacement = getDotReplaceTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                const count = (text.split(term).length - 1);
+                if (count === 0) {
+                    setDotFindStatus('Не найдено');
+                    return;
+                }
+                dotCodePre.value = text.split(term).join(replacement);
+                dotFindLastIndex = -1;
+                setDotFindStatus(`Заменено: ${count}`);
+            };
 
             // --- Refresh diagram from DOT editor ---
             window.refreshDiagramFromEditor = async function() {
