@@ -406,11 +406,13 @@
                     }
                     const labelText = `${labelName}\\n${birthYear}–${deathYear}`;
 
-                    // Use lineSpacingSurName2 margin when surName2 is present, otherwise use lineSpacing
-                    const spacing = p.surName2 ? LINE_SPACING_SURNAME2 : LINE_SPACING;
-                    const baseMarginH = 0.11;
-                    const baseMarginV = 0.055;
-                    const marginAttr = `margin="${(baseMarginH * spacing).toFixed(3)},${(baseMarginV * spacing).toFixed(3)}"`;
+                    // For surName2 nodes, scale fontsize by LINE_SPACING_SURNAME2 to produce compact text layout.
+                    // The margin attribute alone has no effect on fixedsize=true nodes, so fontsize is used
+                    // to visibly reflect the lineSpacingSurName2 config: lower value → smaller font → more compact.
+                    const nodeFontSize = p.surName2
+                        ? +(FONT_SIZE * LINE_SPACING_SURNAME2).toFixed(1)
+                        : FONT_SIZE;
+                    const fontSizeAttr = nodeFontSize !== FONT_SIZE ? `, fontsize=${nodeFontSize}` : '';
 
                     const photoPath = await getPersonPhotoPath(p);
                     if (photoPath) {
@@ -420,10 +422,10 @@
                         // stretch over the text area; labelloc=b places text at bottom inside node.
                         nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}",`);
                         nodes.push(`    label="${labelText}", image="${photoPath}",`);
-                        nodes.push(`    fixedsize=true, width=${NODE_WIDTH_IN}, height=${NODE_HEIGHT_IN},`);
-                        nodes.push(`    imagepos=tc, imagescale=false, labelloc=b, ${marginAttr}];`);
+                        nodes.push(`    fixedsize=true, width=${NODE_WIDTH_IN}, height=${NODE_HEIGHT_IN}${fontSizeAttr},`);
+                        nodes.push(`    imagepos=tc, imagescale=false, labelloc=b];`);
                     } else {
-                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}", label="${labelText}", ${marginAttr}];`);
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}", label="${labelText}"${fontSizeAttr}];`);
                     }
                 }
 
