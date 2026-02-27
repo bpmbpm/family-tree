@@ -224,7 +224,7 @@
             </div>
         </div>
 
-        <footer>Фото из папки <code>pic/</code> (idA.png). Используется штатный атрибут Graphviz <code>image=</code> с <code>labelloc=b</code> (фото сверху, подпись снизу). Для мужчин рамка синяя, для женщин — розовая. Годы на новой строке.</footer>
+        <footer>Фото из папки <code>pic/</code> (idA.png). Используется HTML-метка Graphviz <code>&lt;&lt;TABLE&gt;&gt;</code>: фото сверху, имя и годы снизу (без наложения текста). Для мужчин рамка синяя, для женщин — розовая.</footer>
     </div>
 
     <!-- Properties panels container (fixed positioning) -->
@@ -379,10 +379,10 @@
                 }
             }
 
-            // --- Generate DOT code using native Graphviz image= + labelloc=b ---
-            // Photo appears above the node label (labelloc=b places label below image).
-            // All nodes use style="filled" (no rounded corners).
-            // DOT code stays clean and readable — no HTML-like <<TABLE...>> labels.
+            // --- Generate DOT code using HTML-like TABLE labels ---
+            // Each node is vertical: photo on top row, text (name + years) in bottom row.
+            // This prevents text from overlapping the photo (issue #11).
+            // Nodes without photos use a plain text label.
             async function generateDotCode(peopleList) {
                 const nodes = [];
                 const edges = [];
@@ -405,10 +405,11 @@
 
                     const photoPath = await getPersonPhotoPath(p);
                     if (photoPath) {
-                        // image= places photo above label; labelloc=b puts label below the image.
-                        // imagescale=true scales photo to fit the reserved space.
-                        // No rounded corners (style="filled") for consistency with default-photo nodes.
-                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label="${labelText}", image="${photoPath}", imagescale=true, labelloc=b];`);
+                        // HTML-like TABLE label: photo on top row, name+years on bottom row.
+                        // The vertical layout ensures text never overlaps the photo.
+                        // BORDER=0 and CELLBORDER=0 keep the table invisible inside the node border.
+                        const htmlLabel = `<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0"><TR><TD><IMG SRC="${photoPath}" SCALE="TRUE"/></TD></TR><TR><TD ALIGN="CENTER"><FONT POINT-SIZE="11">${p.label}</FONT></TD></TR><TR><TD ALIGN="CENTER"><FONT POINT-SIZE="10">${birthYear}–${deathYear}</FONT></TD></TR></TABLE>>`;
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label=${htmlLabel}];`);
                     } else {
                         nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label="${labelText}"];`);
                     }
@@ -450,7 +451,7 @@
                 }));
             }
 
-            // --- Render DOT code using native Graphviz image= attribute ---
+            // --- Render DOT code using Graphviz HTML-like TABLE labels ---
             async function renderDot(dotStr, imagesOption) {
                 try {
                     const viz = await Viz.instance();
