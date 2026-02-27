@@ -169,13 +169,17 @@
             const nodes = testPeople.map(p => {
                 const fillcolor = (p.sex === 'М' || p.sex === 'M') ? maleColor
                     : (p.sex === 'Ж' || p.sex === 'F') ? femaleColor : unknownColor;
-                const label = `${p.label}\\n(${p.birth || '?'}–${p.death || '?'})`;
+                const birth = p.birth || '?';
+                const death = p.death || '?';
+                const labelText = `${p.label}\\n${birth}–${death}`;
                 const photoPath = getPhotoPath(p);
                 log2(`  ${p.idA}: фото = ${photoPath || '(нет)'}`);
                 if (photoPath) {
-                    return `  ${p.idA} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}", image="${photoPath}", imagescale=true, imagepos="ml", labelloc="c", width=2.8, height=0.85, fixedsize=false];`;
+                    // HTML-like label: photo on left, left-aligned text on right. No rounded corners.
+                    const htmlLabel = `<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="4" CELLPADDING="2"><TR><TD FIXEDSIZE="TRUE" WIDTH="${PHOTO_SIZE_PX}" HEIGHT="${PHOTO_SIZE_PX}"><IMG SRC="${photoPath}" SCALE="TRUE"/></TD><TD ALIGN="LEFT" VALIGN="MIDDLE"><FONT FACE="Arial" POINT-SIZE="11">${p.label}<BR ALIGN="LEFT"/>${birth}–${death}<BR ALIGN="LEFT"/></FONT></TD></TR></TABLE>>`;
+                    return `  ${p.idA} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label=${htmlLabel}];`;
                 } else {
-                    return `  ${p.idA} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}"];`;
+                    return `  ${p.idA} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${labelText}"];`;
                 }
             });
 
