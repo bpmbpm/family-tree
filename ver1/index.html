@@ -124,6 +124,7 @@
             let FONT_NAME = 'Arial';
             let FONT_SIZE = 11;
             let LINE_SPACING = 1.0;
+            let LINE_SPACING_SURNAME2 = 0.8;
             let MALE_COLOR = '#a3c4f3';
             let FEMALE_COLOR = '#fbb9c0';
             let UNKNOWN_COLOR = '#d5d8dc';
@@ -164,6 +165,9 @@
                         }
                         if (typeof config.lineSpacing === 'number' && config.lineSpacing > 0) {
                             LINE_SPACING = config.lineSpacing;
+                        }
+                        if (typeof config.lineSpacingSurName2 === 'number' && config.lineSpacingSurName2 > 0) {
+                            LINE_SPACING_SURNAME2 = config.lineSpacingSurName2;
                         }
                         if (typeof config.maleColor === 'string' && config.maleColor.trim()) {
                             MALE_COLOR = config.maleColor.trim();
@@ -402,6 +406,12 @@
                     }
                     const labelText = `${labelName}\\n${birthYear}–${deathYear}`;
 
+                    // Use lineSpacingSurName2 margin when surName2 is present, otherwise use lineSpacing
+                    const spacing = p.surName2 ? LINE_SPACING_SURNAME2 : LINE_SPACING;
+                    const baseMarginH = 0.11;
+                    const baseMarginV = 0.055;
+                    const marginAttr = `margin="${(baseMarginH * spacing).toFixed(3)},${(baseMarginV * spacing).toFixed(3)}"`;
+
                     const photoPath = await getPersonPhotoPath(p);
                     if (photoPath) {
                         // Portrait node: photo at top-center at its registered size, text at bottom.
@@ -411,9 +421,9 @@
                         nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}",`);
                         nodes.push(`    label="${labelText}", image="${photoPath}",`);
                         nodes.push(`    fixedsize=true, width=${NODE_WIDTH_IN}, height=${NODE_HEIGHT_IN},`);
-                        nodes.push(`    imagepos=tc, imagescale=false, labelloc=b];`);
+                        nodes.push(`    imagepos=tc, imagescale=false, labelloc=b, ${marginAttr}];`);
                     } else {
-                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}", label="${labelText}"];`);
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}", label="${labelText}", ${marginAttr}];`);
                     }
                 }
 
@@ -710,8 +720,19 @@
                     propertiesHtml += `<div class="property-item"><div class="property-predicate">Мать</div><div class="property-value">${mother ? mother.label : person.hasMother}</div></div>`;
                 }
                 if (person.hyperLink) {
-                    const safeHref = person.hyperLink.replace(/"/g, '&quot;');
-                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Ссылка</div><div class="property-value"><a href="${safeHref}" target="_blank" rel="noopener noreferrer">${person.hyperLink}</a></div></div>`;
+                    const links = person.hyperLink.split(';').map(s => s.trim()).filter(s => s);
+                    const linkHtml = links.map(href => {
+                        const safeHref = href.replace(/"/g, '&quot;');
+                        let displayText = href;
+                        try {
+                            const url = new URL(href);
+                            // Show only the second-level domain (e.g. ruwiki.ru from ru.wikipedia.org)
+                            const hostParts = url.hostname.replace(/^www\./, '').split('.');
+                            displayText = hostParts.length >= 2 ? hostParts.slice(-2).join('.') : url.hostname;
+                        } catch (e) { /* not a valid URL, show as-is */ }
+                        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${displayText}</a>`;
+                    }).join(' ');
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Ссылка</div><div class="property-value">${linkHtml}</div></div>`;
                 }
                 if (photoFile) {
                     propertiesHtml += `<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="${PIC_DIR}/${photoFile}" alt="${person.label}"></div></div>`;
