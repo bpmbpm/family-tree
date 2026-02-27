@@ -8,5 +8,6 @@
   "femaleColor": "lightpink",
   "unknownColor": "lightgrey",
   "borderColor": "darkslategray",
-  "edgeColor": "slategray"
+  "edgeColor": "slategray",
+  "picDir": "pic"
 }

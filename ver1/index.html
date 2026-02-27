@@ -129,6 +129,8 @@
             let UNKNOWN_COLOR = '#d5d8dc';
             let BORDER_COLOR = '#2c3e50';
             let EDGE_COLOR = '#5d6d7e';
+            // Photo directory — can be relative or absolute path, will be overridden by config.json
+            let PIC_DIR = 'pic';
 
             const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
             const statusDiv = document.getElementById('status');
@@ -177,6 +179,10 @@
                         }
                         if (typeof config.edgeColor === 'string' && config.edgeColor.trim()) {
                             EDGE_COLOR = config.edgeColor.trim();
+                        }
+                        if (typeof config.picDir === 'string' && config.picDir.trim()) {
+                            // Normalize: remove trailing slash, support both relative and absolute paths
+                            PIC_DIR = config.picDir.trim().replace(/\/+$/, '');
                         }
                     }
                 } catch (e) {
@@ -247,7 +253,7 @@
             async function checkPhotoExists(filename) {
                 if (photoExistsCache[filename] !== undefined) return photoExistsCache[filename];
                 try {
-                    const response = await fetch('pic/' + filename, { method: 'HEAD' });
+                    const response = await fetch(PIC_DIR + '/' + filename, { method: 'HEAD' });
                     photoExistsCache[filename] = response.ok;
                     return response.ok;
                 } catch {
@@ -259,10 +265,10 @@
             // --- Determine which photo path to use for a person (returns path string or null) ---
             async function getPersonPhotoPath(person) {
                 const personalFile = person.idA + '.png';
-                if (await checkPhotoExists(personalFile)) return 'pic/' + personalFile;
+                if (await checkPhotoExists(personalFile)) return PIC_DIR + '/' + personalFile;
                 // Fall back to default
                 const defaultFile = (person.sex === 'Ж' || person.sex === 'F') ? 'dafaultf.png' : 'dafaultm.png';
-                if (await checkPhotoExists(defaultFile)) return 'pic/' + defaultFile;
+                if (await checkPhotoExists(defaultFile)) return PIC_DIR + '/' + defaultFile;
                 return null;
             }
 
@@ -277,22 +283,90 @@
             function parseExcel(arrayBuffer) {
                 try {
                     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                    const sheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('person')) || workbook.SheetNames[0];
-                    const sheet = workbook.Sheets[sheetName];
+
+                    // Parse person sheet
+                    const personSheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('person')) || workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[personSheetName];
                     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
                     if (rows.length < 2) throw new Error('Нет данных на листе person');
-                    const dataRows = rows.slice(1).filter(row => row[1] && row[1].toString().trim() !== '');
-                    const peopleList = dataRows.map(row => ({
-                        idA: row[0] ? row[0].toString().trim() : '',
-                        label: row[1] ? row[1].toString().trim() : '',
-                        sex: row[2] ? row[2].toString().trim() : '',
-                        hasFather: row[4] ? row[4].toString().trim() : '',
-                        hasMother: row[5] ? row[5].toString().trim() : '',
-                        birth: row[6] ? row[6].toString().trim() : '',
-                        death: row[7] ? row[7].toString().trim() : ''
-                    })).filter(p => p.idA && p.label);
+
+                    // Detect column indices by header names (robust to column order changes)
+                    const headerRow = rows[0].map(h => (h || '').toString().trim().toLowerCase());
+                    const colIdx = {
+                        idA: headerRow.indexOf('ida'),
+                        label: headerRow.indexOf('label'),
+                        sex: headerRow.indexOf('sex'),
+                        surName2: headerRow.indexOf('surname2'),
+                        hasFather: headerRow.indexOf('hasfather'),
+                        hasMother: headerRow.indexOf('hasmother'),
+                        birth: headerRow.indexOf('birth'),
+                        death: headerRow.indexOf('death'),
+                        hyperLink: headerRow.indexOf('hyperlink')
+                    };
+                    // Fallback to positional if header not found
+                    if (colIdx.idA < 0) colIdx.idA = 0;
+                    if (colIdx.label < 0) colIdx.label = 1;
+                    if (colIdx.sex < 0) colIdx.sex = 2;
+                    if (colIdx.surName2 < 0) colIdx.surName2 = 3;
+                    if (colIdx.hasFather < 0) colIdx.hasFather = 4;
+                    if (colIdx.hasMother < 0) colIdx.hasMother = 5;
+                    if (colIdx.birth < 0) colIdx.birth = 6;
+                    if (colIdx.death < 0) colIdx.death = 7;
+                    // hyperLink may not exist, leave as -1 if not found
+
+                    const dataRows = rows.slice(1).filter(row => row[colIdx.label] && row[colIdx.label].toString().trim() !== '');
+                    const peopleList = dataRows.map(row => {
+                        const label = row[colIdx.label] ? row[colIdx.label].toString().trim() : '';
+                        // idA may be a formula (not evaluated by SheetJS) — derive from label if empty or formula
+                        let idA = row[colIdx.idA] ? row[colIdx.idA].toString().trim() : '';
+                        if (!idA || idA.startsWith('=')) {
+                            idA = label.replace(/ /g, '_');
+                        }
+                        return {
+                            idA,
+                            label,
+                            sex: row[colIdx.sex] ? row[colIdx.sex].toString().trim() : '',
+                            surName2: (colIdx.surName2 >= 0 && row[colIdx.surName2]) ? row[colIdx.surName2].toString().trim() : '',
+                            hasFather: row[colIdx.hasFather] ? row[colIdx.hasFather].toString().trim() : '',
+                            hasMother: row[colIdx.hasMother] ? row[colIdx.hasMother].toString().trim() : '',
+                            birth: row[colIdx.birth] ? row[colIdx.birth].toString().trim() : '',
+                            death: row[colIdx.death] ? row[colIdx.death].toString().trim() : '',
+                            hyperLink: (colIdx.hyperLink >= 0 && row[colIdx.hyperLink]) ? row[colIdx.hyperLink].toString().trim() : ''
+                        };
+                    }).filter(p => p.idA && p.label);
                     if (peopleList.length === 0) throw new Error('Нет записей с idA и label');
-                    return peopleList;
+
+                    // Parse family sheet (marriages)
+                    const familySheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('family'));
+                    let marriages = [];
+                    if (familySheetName) {
+                        const familySheet = workbook.Sheets[familySheetName];
+                        const familyRows = XLSX.utils.sheet_to_json(familySheet, { header: 1, defval: '' });
+                        if (familyRows.length > 1) {
+                            const famHeader = familyRows[0].map(h => (h || '').toString().trim().toLowerCase());
+                            const famIdx = {
+                                husband: famHeader.indexOf('husband'),
+                                wife: famHeader.indexOf('wife'),
+                                marriage: famHeader.indexOf('marriage')
+                            };
+                            if (famIdx.husband < 0) famIdx.husband = 1;
+                            if (famIdx.wife < 0) famIdx.wife = 2;
+                            // marriage is optional
+                            familyRows.slice(1).forEach(row => {
+                                const husband = row[famIdx.husband] ? row[famIdx.husband].toString().trim() : '';
+                                const wife = row[famIdx.wife] ? row[famIdx.wife].toString().trim() : '';
+                                if (husband && wife) {
+                                    marriages.push({
+                                        husband,
+                                        wife,
+                                        marriage: (famIdx.marriage >= 0 && row[famIdx.marriage]) ? row[famIdx.marriage].toString().trim() : ''
+                                    });
+                                }
+                            });
+                        }
+                    }
+
+                    return { people: peopleList, marriages };
                 } catch (e) {
                     showStatus('Ошибка парсинга Excel: ' + e.message, true);
                     throw e;
@@ -305,10 +379,12 @@
             // imagepos=tc places photo at top-center; labelloc=b places text at bottom.
             // No <<TABLE>> labels — readable plain DOT code only.
             // Spaces in label names are replaced with \n for better layout.
-            async function generateDotCode(peopleList) {
+            async function generateDotCode(peopleList, marriages) {
                 const nodes = [];
                 const edges = [];
-                const coupleSet = new Set();
+                const clusters = [];
+                // Set of all person idA values for membership check
+                const personIdSet = new Set(peopleList.map(p => p.idA));
 
                 for (const p of peopleList) {
                     const birthYear = p.birth || '?';
@@ -319,8 +395,11 @@
                     else if (p.sex === 'Ж' || p.sex === 'F') fillcolor = FEMALE_COLOR;
 
                     const nodeId = p.idA;
-                    // Replace spaces with \n in label for better node layout
-                    const labelName = p.label.replace(/ /g, '\\n');
+                    // Build label: start with surName2 if present, then the full name, then years
+                    let labelName = p.label.replace(/ /g, '\\n');
+                    if (p.surName2) {
+                        labelName = p.surName2.replace(/ /g, '\\n') + '\\n' + labelName;
+                    }
                     const labelText = `${labelName}\\n${birthYear}–${deathYear}`;
 
                     const photoPath = await getPersonPhotoPath(p);
@@ -343,19 +422,33 @@
                     const childId = p.idA;
                     if (p.hasFather) edges.push(`  ${p.hasFather} -> ${childId};`);
                     if (p.hasMother) edges.push(`  ${p.hasMother} -> ${childId};`);
-                    if (p.hasFather && p.hasMother) {
-                        const key = p.hasFather < p.hasMother ? `${p.hasFather}|${p.hasMother}` : `${p.hasMother}|${p.hasFather}`;
-                        coupleSet.add(key);
+                });
+
+                // Marriage clusters from family sheet
+                // Only include couples where both husband and wife are in the current graph
+                let clusterIdx = 0;
+                (marriages || []).forEach(m => {
+                    if (personIdSet.has(m.husband) && personIdSet.has(m.wife)) {
+                        const clusterLines = [];
+                        clusterLines.push(`  subgraph cluster_marriage_${clusterIdx} {`);
+                        if (m.marriage) {
+                            clusterLines.push(`    label="${m.marriage}";`);
+                        } else {
+                            clusterLines.push(`    label="";`);
+                        }
+                        clusterLines.push(`    rank=same;`);
+                        clusterLines.push(`    style=dashed;`);
+                        clusterLines.push(`    color="${EDGE_COLOR}";`);
+                        clusterLines.push(`    ${m.husband};`);
+                        clusterLines.push(`    ${m.wife};`);
+                        clusterLines.push(`  }`);
+                        clusters.push(clusterLines.join('\n'));
+                        clusterIdx++;
                     }
                 });
 
-                // Couple links
-                coupleSet.forEach(couple => {
-                    const [a, b] = couple.split('|');
-                    edges.push(`  ${a} -> ${b} [dir=none, color="${EDGE_COLOR}"];`);
-                });
-
-                return `digraph G {\n  rankdir=TB;\n  node [fontname="${FONT_NAME}", fontsize=${FONT_SIZE}];\n  edge [color="${EDGE_COLOR}"];\n\n${nodes.join('\n')}\n\n${edges.join('\n')}\n}`;
+                const clusterSection = clusters.length > 0 ? '\n' + clusters.join('\n') + '\n' : '';
+                return `digraph G {\n  rankdir=TB;\n  node [fontname="${FONT_NAME}", fontsize=${FONT_SIZE}];\n  edge [color="${EDGE_COLOR}"];\n\n${nodes.join('\n')}\n${clusterSection}\n${edges.join('\n')}\n}`;
             }
 
             // --- Build images array for viz.renderString() images option ---
@@ -542,7 +635,7 @@
                     div.className = 'photo-item';
 
                     const img = document.createElement('img');
-                    img.src = 'pic/' + filename;
+                    img.src = PIC_DIR + '/' + filename;
                     img.alt = filename;
                     img.title = filename;
 
@@ -616,8 +709,12 @@
                     const mother = people.find(p => p.idA === person.hasMother);
                     propertiesHtml += `<div class="property-item"><div class="property-predicate">Мать</div><div class="property-value">${mother ? mother.label : person.hasMother}</div></div>`;
                 }
+                if (person.hyperLink) {
+                    const safeHref = person.hyperLink.replace(/"/g, '&quot;');
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Ссылка</div><div class="property-value"><a href="${safeHref}" target="_blank" rel="noopener noreferrer">${person.hyperLink}</a></div></div>`;
+                }
                 if (photoFile) {
-                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="pic/${photoFile}" alt="${person.label}"></div></div>`;
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="${PIC_DIR}/${photoFile}" alt="${person.label}"></div></div>`;
                 }
 
                 const escapedLabel = person.label.replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -752,13 +849,15 @@
             }
 
             // --- Build tree ---
-            async function buildTree(peopleArray) {
+            async function buildTree(parsedData) {
+                const peopleArray = parsedData.people || parsedData;
+                const marriagesArray = parsedData.marriages || [];
                 if (!peopleArray.length) return;
                 people = peopleArray;
                 showStatus('⏳ Проверка наличия фото...');
                 await preloadPhotoChecks(people);
                 showStatus('⏳ Генерация DOT кода...');
-                dotCode = await generateDotCode(people);
+                dotCode = await generateDotCode(people, marriagesArray);
                 graphvizOnlineBtn.disabled = false;
                 updateInfoPanels();
                 showStatus('⏳ Построение дерева...');
