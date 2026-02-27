@@ -224,7 +224,7 @@
             </div>
         </div>
 
-        <footer>Фото из папки <code>pic/</code> (idA.png). Используется штатный атрибут Graphviz <code>image=</code>. Для мужчин рамка синяя, для женщин — розовая. Годы на новой строке.</footer>
+        <footer>Фото из папки <code>pic/</code> (idA.png). Используется штатный атрибут Graphviz <code>image=</code> с <code>labelloc=b</code> (фото сверху, подпись снизу). Для мужчин рамка синяя, для женщин — розовая. Годы на новой строке.</footer>
     </div>
 
     <!-- Properties panels container (fixed positioning) -->
@@ -248,8 +248,9 @@
             // Cache: filename -> true (exists) or false (not found)
             const photoExistsCache = {};
 
-            // Photo size for Graphviz image= attribute (pixels)
-            const PHOTO_SIZE_PX = 50;
+            // Photo size for Graphviz image= attribute (pixels at 72 DPI).
+            // Width matches node width so the photo fills the top portion of the node.
+            const PHOTO_SIZE_PX = 100;
 
             const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
             const statusDiv = document.getElementById('status');
@@ -378,9 +379,10 @@
                 }
             }
 
-            // --- Generate DOT code using native Graphviz image= attribute ---
-            // Uses pic/<idA>.png paths directly; images are registered via the images option
-            // in viz.renderString() so Graphviz can allocate proper space for them in layout.
+            // --- Generate DOT code using native Graphviz image= + labelloc=b ---
+            // Photo appears above the node label (labelloc=b places label below image).
+            // All nodes use style="filled" (no rounded corners).
+            // DOT code stays clean and readable — no HTML-like <<TABLE...>> labels.
             async function generateDotCode(peopleList) {
                 const nodes = [];
                 const edges = [];
@@ -403,14 +405,12 @@
 
                     const photoPath = await getPersonPhotoPath(p);
                     if (photoPath) {
-                        // HTML-like label: table with photo cell on left and left-aligned text on right.
-                        // This ensures the name and years are left-aligned relative to the fixed left margin,
-                        // not centered across the full node width.
-                        // style="filled" (no rounded) — rounded corners look bad with photos.
-                        const htmlLabel = `<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="4" CELLPADDING="2"><TR><TD FIXEDSIZE="TRUE" WIDTH="${PHOTO_SIZE_PX}" HEIGHT="${PHOTO_SIZE_PX}"><IMG SRC="${photoPath}" SCALE="TRUE"/></TD><TD ALIGN="LEFT" VALIGN="MIDDLE"><FONT FACE="Arial" POINT-SIZE="11">${p.label}<BR ALIGN="LEFT"/>${birthYear}–${deathYear}<BR ALIGN="LEFT"/></FONT></TD></TR></TABLE>>`;
-                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label=${htmlLabel}];`);
+                        // image= places photo above label; labelloc=b puts label below the image.
+                        // imagescale=true scales photo to fit the reserved space.
+                        // No rounded corners (style="filled") for consistency with default-photo nodes.
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label="${labelText}", image="${photoPath}", imagescale=true, labelloc=b];`);
                     } else {
-                        nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${labelText}"];`);
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label="${labelText}"];`);
                     }
                 }
 
