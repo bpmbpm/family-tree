@@ -224,7 +224,7 @@
             </div>
         </div>
 
-        <footer>Фото из папки <code>pic/</code> (idA.png). Используется HTML-метка Graphviz <code>&lt;&lt;TABLE&gt;&gt;</code>: фото сверху, имя и годы снизу (без наложения текста). Для мужчин рамка синяя, для женщин — розовая.</footer>
+        <footer>Фото из папки <code>pic/</code> (idA.png). Узел: <code>image=</code>, <code>fixedsize=true</code>, <code>imagepos=tc</code>, <code>labelloc=b</code> — фото сверху, имя и годы снизу, без наложения. Для мужчин рамка синяя, для женщин — розовая.</footer>
     </div>
 
     <!-- Properties panels container (fixed positioning) -->
@@ -248,9 +248,13 @@
             // Cache: filename -> true (exists) or false (not found)
             const photoExistsCache = {};
 
-            // Photo size for Graphviz image= attribute (pixels at 72 DPI).
-            // Width matches node width so the photo fills the top portion of the node.
-            const PHOTO_SIZE_PX = 100;
+            // Node dimensions for Graphviz (in inches, at 72 DPI = 1 inch).
+            // Portrait orientation: photo on top (PHOTO_SIZE_PX square), text zone below.
+            // Width 2.0in (~144px) fits typical Russian 3-word names at font-size 11.
+            // Height = photo height (100px) + 32px for 2 text lines = 132px ≈ 1.83in.
+            const PHOTO_SIZE_PX = 100; // photo rendered at 100×100px inside node
+            const NODE_WIDTH_IN = 2.0; // wide enough for Russian 3-word names
+            const NODE_HEIGHT_IN = ((PHOTO_SIZE_PX + 32) / 72).toFixed(2) * 1; // ~1.83in
 
             const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
             const statusDiv = document.getElementById('status');
@@ -379,10 +383,11 @@
                 }
             }
 
-            // --- Generate DOT code using HTML-like TABLE labels ---
-            // Each node is vertical: photo on top row, text (name + years) in bottom row.
-            // This prevents text from overlapping the photo (issue #11).
-            // Nodes without photos use a plain text label.
+            // --- Generate DOT code using native image= attribute ---
+            // Each node is portrait-oriented: photo at top, text label at bottom.
+            // Uses fixedsize=true with width/height so Graphviz reserves exact space.
+            // imagepos=tc places photo at top-center; labelloc=b places text at bottom.
+            // No <<TABLE>> labels — readable plain DOT code only.
             async function generateDotCode(peopleList) {
                 const nodes = [];
                 const edges = [];
@@ -405,11 +410,14 @@
 
                     const photoPath = await getPersonPhotoPath(p);
                     if (photoPath) {
-                        // HTML-like TABLE label: photo on top row, name+years on bottom row.
-                        // The vertical layout ensures text never overlaps the photo.
-                        // BORDER=0 and CELLBORDER=0 keep the table invisible inside the node border.
-                        const htmlLabel = `<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0"><TR><TD><IMG SRC="${photoPath}" SCALE="TRUE"/></TD></TR><TR><TD ALIGN="CENTER"><FONT POINT-SIZE="11">${p.label}</FONT></TD></TR><TR><TD ALIGN="CENTER"><FONT POINT-SIZE="10">${birthYear}–${deathYear}</FONT></TD></TR></TABLE>>`;
-                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label=${htmlLabel}];`);
+                        // Portrait node: photo at top-center at its registered size, text at bottom.
+                        // fixedsize=true locks the node to exactly width×height so layout is consistent.
+                        // imagescale=false keeps photo at registered PHOTO_SIZE_PX so it doesn't
+                        // stretch over the text area; labelloc=b places text at bottom inside node.
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50",`);
+                        nodes.push(`    label="${labelText}", image="${photoPath}",`);
+                        nodes.push(`    fixedsize=true, width=${NODE_WIDTH_IN}, height=${NODE_HEIGHT_IN},`);
+                        nodes.push(`    imagepos=tc, imagescale=false, labelloc=b];`);
                     } else {
                         nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="#2c3e50", label="${labelText}"];`);
                     }
@@ -437,7 +445,7 @@
 
             // --- Build images array for viz.renderString() images option ---
             // Collects all unique photo paths used in the DOT code and registers them
-            // with fixed dimensions so Graphviz can allocate space in the node layout.
+            // with square dimensions matching the node width so the photo fills the top portion.
             async function buildImagesOption(peopleList) {
                 const imageMap = new Map(); // path -> true (deduplicate)
                 for (const p of peopleList) {
@@ -451,7 +459,7 @@
                 }));
             }
 
-            // --- Render DOT code using Graphviz HTML-like TABLE labels ---
+            // --- Render DOT code ---
             async function renderDot(dotStr, imagesOption) {
                 try {
                     const viz = await Viz.instance();
