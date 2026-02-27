@@ -6,7 +6,6 @@
     <title>Семейное древо на excel + Graphviz (с фото)</title>
     <script src="https://unpkg.com/@viz-js/viz@3.4.0/lib/viz-standalone.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background: #f0f2f5; }
         .container { max-width: 1400px; margin: 0 auto; }
@@ -34,18 +33,37 @@
         footer { margin-top: 25px; text-align: center; color: #5d6d7e; font-size: 0.9rem; }
 
         /* Diagram panel */
-        .diagram-panel { background: white; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 20px; }
+        .diagram-panel { background: white; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 20px; display: flex; flex-direction: column; }
         .diagram-panel-header { background: #e9ecef; padding: 10px 15px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
         .diagram-panel-title { font-size: 1.05em; }
 
-        /* Zoom controls */
+        /* Zoom container */
+        .zoom-container {
+            position: relative;
+            overflow: auto;
+            min-height: 500px;
+            max-height: 80vh;
+            background: white;
+            padding: 10px;
+            flex: 1;
+        }
+        .zoom-content {
+            transform-origin: top left;
+            transition: transform 0.15s ease;
+            display: inline-block;
+        }
+        .zoom-content svg {
+            display: block;
+        }
+
+        /* Zoom controls — at the bottom of diagram panel */
         .zoom-controls {
             display: flex;
             align-items: center;
             gap: 8px;
             padding: 8px 15px;
             background: #f5f5f5;
-            border-bottom: 1px solid #ddd;
+            border-top: 1px solid #ddd;
         }
         .zoom-controls button {
             padding: 5px 12px;
@@ -61,22 +79,80 @@
             font-size: 13px;
         }
 
-        /* Zoom container */
-        .zoom-container {
-            position: relative;
-            overflow: auto;
-            min-height: 500px;
-            max-height: 80vh;
+        /* Properties panel (Свойство объекта диаграммы) */
+        #properties-panels-container {
+            position: fixed;
+            top: 0; left: 0;
+            width: 0; height: 0;
+            pointer-events: none;
+            z-index: 2000;
+        }
+        .properties-panel {
+            position: fixed;
             background: white;
-            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            min-width: 280px;
+            max-width: 400px;
+            pointer-events: all;
+            z-index: 2000;
         }
-        .zoom-content {
-            transform-origin: top left;
-            transition: transform 0.15s ease;
-            display: inline-block;
+        .properties-panel.visible { display: block; }
+        .properties-header {
+            background: #2c3e50;
+            color: white;
+            padding: 10px 12px;
+            border-radius: 8px 8px 0 0;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
         }
-        .zoom-content svg {
-            display: block;
+        .properties-header-content { flex: 1; }
+        .properties-header-title { font-size: 11px; opacity: 0.8; margin-bottom: 4px; }
+        .properties-header h3 { margin: 0; font-size: 14px; font-weight: 600; }
+        .properties-close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+            opacity: 0.8;
+        }
+        .properties-close-btn:hover { opacity: 1; background: none; }
+        .properties-content {
+            padding: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .property-item { margin-bottom: 8px; }
+        .property-predicate { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 2px; }
+        .property-value { font-size: 13px; color: #333; word-break: break-all; }
+        .property-value.photo { margin-top: 6px; }
+        .property-value.photo img { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 2px solid #ccc; }
+        .properties-empty { color: #888; font-style: italic; font-size: 13px; }
+        .properties-copy-btn {
+            background: #607D8B;
+            padding: 3px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            margin-top: 4px;
+            cursor: pointer;
+        }
+        .properties-copy-btn:hover { background: #455A64; }
+
+        /* Node hover/selected style */
+        .node { cursor: pointer; }
+        .node:hover polygon, .node:hover ellipse, .node:hover path, .node:hover rect {
+            stroke-width: 3 !important;
+            stroke: #e67e22 !important;
+        }
+        .node.selected polygon, .node.selected ellipse, .node.selected path, .node.selected rect {
+            stroke-width: 3 !important;
+            stroke: #e74c3c !important;
         }
     </style>
 </head>
@@ -129,10 +205,15 @@
             </div>
         </div>
 
-        <!-- Diagram panel with zoom controls -->
+        <!-- Diagram panel: zoom container on top, zoom controls at bottom -->
         <div class="diagram-panel">
             <div class="diagram-panel-header">
                 <span class="diagram-panel-title">📊 Диаграмма</span>
+            </div>
+            <div class="zoom-container" id="zoomContainer">
+                <div class="zoom-content" id="zoomContent">
+                    <div id="graphvizContainer">Дерево будет построено здесь...</div>
+                </div>
             </div>
             <div class="zoom-controls" id="zoom-controls">
                 <button onclick="zoomIn()" title="Увеличить">+</button>
@@ -141,15 +222,13 @@
                 <button onclick="zoomReset()" title="Сбросить масштаб">Сброс</button>
                 <button onclick="zoomFit()" title="Вписать в окно">Вписать</button>
             </div>
-            <div class="zoom-container" id="zoomContainer">
-                <div class="zoom-content" id="zoomContent">
-                    <div id="graphvizContainer">Дерево будет построено здесь...</div>
-                </div>
-            </div>
         </div>
 
         <footer>Фото из папки <code>pic/</code> (idA.png). Для мужчин рамка синяя, для женщин — розовая. Годы на новой строке.</footer>
     </div>
+
+    <!-- Properties panels container (fixed positioning) -->
+    <div id="properties-panels-container"></div>
 
     <script>
         (function() {
@@ -157,8 +236,17 @@
             let dotCode = '';
             let graphvizLink = '';
             let currentScale = 1.0;
-            // Cache: filename -> base64 data URI (or null if not found)
-            const photoCache = {};
+
+            // Properties panel state
+            let openPropertiesPanels = [];
+            let propertiesPanelCounter = 0;
+            let selectedNodeElement = null;
+            let draggedPanel = null;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+
+            // Cache: filename -> true (exists) or false (not found)
+            const photoExistsCache = {};
 
             const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
             const statusDiv = document.getElementById('status');
@@ -231,53 +319,34 @@
                 statusDiv.style.borderLeftColor = isError ? '#e74c3c' : '#f1c40f';
             }
 
-            // --- Load photo as base64 ---
-            async function loadPhotoAsBase64(filename) {
-                if (photoCache[filename] !== undefined) return photoCache[filename];
+            // --- Check if photo exists via HEAD request ---
+            async function checkPhotoExists(filename) {
+                if (photoExistsCache[filename] !== undefined) return photoExistsCache[filename];
                 try {
-                    const response = await fetch('pic/' + filename);
-                    if (!response.ok) {
-                        photoCache[filename] = null;
-                        return null;
-                    }
-                    const blob = await response.blob();
-                    return new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                            photoCache[filename] = reader.result;
-                            resolve(reader.result);
-                        };
-                        reader.onerror = () => {
-                            photoCache[filename] = null;
-                            resolve(null);
-                        };
-                        reader.readAsDataURL(blob);
-                    });
+                    const response = await fetch('pic/' + filename, { method: 'HEAD' });
+                    photoExistsCache[filename] = response.ok;
+                    return response.ok;
                 } catch {
-                    photoCache[filename] = null;
-                    return null;
+                    photoExistsCache[filename] = false;
+                    return false;
                 }
             }
 
-            // --- Preload all photos for people ---
-            async function preloadPhotos(peopleList) {
-                const filenames = new Set();
-                filenames.add('dafaultm.png');
-                filenames.add('dafaultf.png');
-                peopleList.forEach(p => {
-                    if (p.idA) filenames.add(p.idA + '.png');
-                });
-                await Promise.all(Array.from(filenames).map(fn => loadPhotoAsBase64(fn)));
+            // --- Determine which photo file to use for a person (returns filename or null) ---
+            async function getPersonPhotoFile(person) {
+                const personalFile = person.idA + '.png';
+                if (await checkPhotoExists(personalFile)) return personalFile;
+                // Fall back to default
+                const defaultFile = (person.sex === 'Ж' || person.sex === 'F') ? 'dafaultf.png' : 'dafaultm.png';
+                if (await checkPhotoExists(defaultFile)) return defaultFile;
+                return null;
             }
 
-            // --- Determine photo data URI for a person ---
-            function getPhotoDataUri(person) {
-                const personalPhoto = photoCache[person.idA + '.png'];
-                if (personalPhoto) return personalPhoto;
-                if (person.sex === 'Ж' || person.sex === 'F') {
-                    return photoCache['dafaultf.png'] || null;
-                }
-                return photoCache['dafaultm.png'] || null;
+            // --- Preload / check photo existence for all people ---
+            async function preloadPhotoChecks(peopleList) {
+                const filenames = new Set(['dafaultm.png', 'dafaultf.png']);
+                peopleList.forEach(p => { if (p.idA) filenames.add(p.idA + '.png'); });
+                await Promise.all(Array.from(filenames).map(fn => checkPhotoExists(fn)));
             }
 
             // --- Parse Excel ---
@@ -306,8 +375,10 @@
                 }
             }
 
-            // --- Generate DOT code (without image attribute - photos added in post-processing) ---
-            function generateDotCode(peopleList) {
+            // --- Generate DOT code using Graphviz image attribute ---
+            // Uses the standard Graphviz image= attribute for photo embedding in nodes.
+            // Photos are loaded from pic/ folder using relative paths.
+            async function generateDotCode(peopleList) {
                 const nodes = [];
                 const edges = [];
                 const coupleSet = new Set();
@@ -316,7 +387,7 @@
                 const femaleColor = "#fbb9c0";
                 const unknownColor = "#d5d8dc";
 
-                peopleList.forEach(p => {
+                for (const p of peopleList) {
                     const birthYear = p.birth || '?';
                     const deathYear = p.death || '?';
 
@@ -325,17 +396,18 @@
                     else if (p.sex === 'Ж' || p.sex === 'F') fillcolor = femaleColor;
 
                     const nodeId = p.idA;
-                    // Use fixed size with enough room: photo (~60pt) on left + text on right
-                    // width=2.2in, height=0.9in gives enough space for photo + two lines of text
                     const label = `${p.label}\\n(${birthYear}–${deathYear})`;
 
-                    // margin="left+right, top+bottom" in inches.
-                    // We add a large left margin so Graphviz places text to the right,
-                    // leaving room for the photo that will be injected on the left side.
-                    // Photo ≈ height - 8px padding. At 72dpi, height=0.9in=64.8pt → photo≈57pt≈0.79in.
-                    // We set left margin = 0.82in so text stays right of photo area.
-                    nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}", margin="0.82,0.1"];`);
-                });
+                    // Use Graphviz image= attribute with relative path to pic/ folder.
+                    // imagescale=true scales the image to fit; imagepos=ml aligns it to the middle-left.
+                    // The node width is extended to accommodate the image on the left.
+                    const photoFile = await getPersonPhotoFile(p);
+                    if (photoFile) {
+                        nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}", image="pic/${photoFile}", imagescale=true, imagepos=ml, width=2.5, height=1.0, fixedsize=false, margin="0.85,0.1"];`);
+                    } else {
+                        nodes.push(`  ${nodeId} [shape=box, style="filled,rounded", fillcolor="${fillcolor}", color="#2c3e50", fontname="Arial", fontsize=11, label="${label}"];`);
+                    }
+                }
 
                 // Parent relationships
                 peopleList.forEach(p => {
@@ -357,94 +429,6 @@
                 return `digraph G {\n  rankdir=TB;\n  node [fontname="Arial", fontsize=11];\n  edge [color="#5d6d7e"];\n\n${nodes.join('\n')}\n\n${edges.join('\n')}\n}`;
             }
 
-            // --- Inject photos into rendered SVG ---
-            // After Graphviz renders the SVG, we find each node group,
-            // shift the text to the right, and insert a photo on the left.
-            function injectPhotosIntoSVG(svgElement, peopleList) {
-                const svgNS = 'http://www.w3.org/2000/svg';
-                const xlinkNS = 'http://www.w3.org/1999/xlink';
-
-                // Ensure <defs> exists for clip paths
-                let defs = svgElement.querySelector('defs');
-                if (!defs) {
-                    defs = document.createElementNS(svgNS, 'defs');
-                    svgElement.insertBefore(defs, svgElement.firstChild);
-                }
-
-                // Graphviz renders each node as a <g class="node">
-                const nodeGroups = svgElement.querySelectorAll('g.node');
-
-                nodeGroups.forEach(g => {
-                    const titleEl = g.querySelector('title');
-                    if (!titleEl) return;
-                    const nodeId = titleEl.textContent.trim();
-                    const person = peopleList.find(p => p.idA === nodeId);
-                    if (!person) return;
-
-                    const photoData = getPhotoDataUri(person);
-                    if (!photoData) return;
-
-                    // Find the shape element for bounding box
-                    const shape = g.querySelector('polygon, ellipse, path, rect');
-                    if (!shape) return;
-
-                    const bbox = shape.getBBox();
-                    if (bbox.width <= 0 || bbox.height <= 0) return;
-
-                    // Photo: square occupying left portion of the node
-                    // Use a fixed photo size based on node height, with small padding
-                    const padding = 5;
-                    const photoSize = bbox.height - padding * 2;
-                    const photoX = bbox.x + padding;
-                    const photoY = bbox.y + padding;
-                    // Note: text positioning is handled via the DOT margin attribute,
-                    // so we don't need to shift text elements here.
-
-                    // Create clipPath for rounded photo
-                    const safeId = nodeId.replace(/[^a-zA-Z0-9]/g, '_');
-                    const clipId = 'clip-photo-' + safeId;
-
-                    const clipPath = document.createElementNS(svgNS, 'clipPath');
-                    clipPath.setAttribute('id', clipId);
-                    const clipRect = document.createElementNS(svgNS, 'rect');
-                    clipRect.setAttribute('x', photoX);
-                    clipRect.setAttribute('y', photoY);
-                    clipRect.setAttribute('width', photoSize);
-                    clipRect.setAttribute('height', photoSize);
-                    clipRect.setAttribute('rx', '5');
-                    clipRect.setAttribute('ry', '5');
-                    clipPath.appendChild(clipRect);
-                    defs.appendChild(clipPath);
-
-                    // Create image element (after shape, before text)
-                    const imgEl = document.createElementNS(svgNS, 'image');
-                    imgEl.setAttribute('x', photoX);
-                    imgEl.setAttribute('y', photoY);
-                    imgEl.setAttribute('width', photoSize);
-                    imgEl.setAttribute('height', photoSize);
-                    imgEl.setAttribute('href', photoData);
-                    imgEl.setAttributeNS(xlinkNS, 'xlink:href', photoData);
-                    imgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
-                    imgEl.setAttribute('clip-path', `url(#${clipId})`);
-
-                    // Insert photo after the shape
-                    shape.parentNode.insertBefore(imgEl, shape.nextSibling);
-
-                    // Add thin border around photo
-                    const borderRect = document.createElementNS(svgNS, 'rect');
-                    borderRect.setAttribute('x', photoX);
-                    borderRect.setAttribute('y', photoY);
-                    borderRect.setAttribute('width', photoSize);
-                    borderRect.setAttribute('height', photoSize);
-                    borderRect.setAttribute('rx', '5');
-                    borderRect.setAttribute('ry', '5');
-                    borderRect.setAttribute('fill', 'none');
-                    borderRect.setAttribute('stroke', '#555');
-                    borderRect.setAttribute('stroke-width', '1');
-                    imgEl.parentNode.insertBefore(borderRect, imgEl.nextSibling);
-                });
-            }
-
             // --- Render DOT code ---
             async function renderDot(dotStr) {
                 try {
@@ -452,10 +436,10 @@
                     const svgStr = await viz.renderString(dotStr, { format: 'svg' });
                     graphvizContainer.innerHTML = svgStr;
 
-                    // Post-process: inject photos
+                    // Add node click handlers
                     const svgEl = graphvizContainer.querySelector('svg');
-                    if (svgEl && people.length > 0) {
-                        injectPhotosIntoSVG(svgEl, people);
+                    if (svgEl) {
+                        addNodeClickHandlers(svgEl);
                     }
                 } catch (error) {
                     graphvizContainer.innerHTML = `<p style="color:red">Ошибка рендеринга: ${error.message}</p>`;
@@ -464,37 +448,43 @@
             }
 
             // --- Update photos panel ---
+            // Shows only files that actually exist in pic/ folder (no empty placeholders).
             function updatePhotosPanel() {
                 const grid = document.getElementById('photosGrid');
                 grid.innerHTML = '';
 
-                // Always show defaults first
-                const allFiles = ['dafaultm.png', 'dafaultf.png'];
-                // Add person photos that we tried to load
+                // Build list of files that were checked and found to exist
+                const existingFiles = [];
+
+                // Always include defaults if they exist
+                for (const fn of ['dafaultm.png', 'dafaultf.png']) {
+                    if (photoExistsCache[fn]) existingFiles.push(fn);
+                }
+
+                // Add person photos that exist
                 people.forEach(p => {
                     const fn = p.idA + '.png';
-                    if (!allFiles.includes(fn)) allFiles.push(fn);
+                    if (photoExistsCache[fn] && !existingFiles.includes(fn)) {
+                        existingFiles.push(fn);
+                    }
                 });
 
-                allFiles.forEach(filename => {
-                    const dataUri = photoCache[filename];
+                if (existingFiles.length === 0) {
+                    grid.innerHTML = '<em style="color:#888">Файлы фото не найдены в папке pic/</em>';
+                    return;
+                }
+
+                existingFiles.forEach(filename => {
                     const div = document.createElement('div');
                     div.className = 'photo-item';
 
                     const img = document.createElement('img');
-                    if (dataUri) {
-                        img.src = dataUri;
-                    } else {
-                        // Show a placeholder SVG for missing photos
-                        img.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23eee'/%3E%3Ctext x='30' y='35' font-size='9' text-anchor='middle' fill='%23999'%3Eнет%3C/text%3E%3C/svg%3E`;
-                        img.style.opacity = '0.4';
-                    }
+                    img.src = 'pic/' + filename;
                     img.alt = filename;
-                    img.title = filename + (dataUri ? '' : ' (отсутствует)');
+                    img.title = filename;
 
                     const label = document.createElement('div');
                     label.className = 'path';
-                    // Shorten very long filenames for display
                     const shortName = filename.length > 20 ? filename.substring(0, 18) + '…' : filename;
                     label.textContent = shortName;
                     label.title = filename;
@@ -519,18 +509,198 @@
                 updatePhotosPanel();
             }
 
+            // ================================================================
+            // PROPERTIES PANEL (Свойство объекта диаграммы)
+            // Based on rdf-grapher ver9d implementation
+            // ================================================================
+
+            function showNodeProperties(person) {
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+
+                // If already open for this person, bring to front
+                const existingPanel = openPropertiesPanels.find(p => p.idA === person.idA);
+                if (existingPanel) {
+                    const panel = document.getElementById(existingPanel.panelId);
+                    if (panel) bringPanelToFront(panel);
+                    return;
+                }
+
+                propertiesPanelCounter++;
+                const panelId = 'properties-panel-' + propertiesPanelCounter;
+
+                const offsetMultiplier = openPropertiesPanels.length % 5;
+                const rightOffset = 20 + (offsetMultiplier * 30);
+                const topOffset = 100 + (offsetMultiplier * 30);
+
+                // Build properties content
+                const sex = person.sex || '—';
+                const birth = person.birth || '—';
+                const death = person.death || '—';
+                const photoFile = photoExistsCache[person.idA + '.png'] ? person.idA + '.png' : null;
+
+                let propertiesHtml = '';
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">ID</div><div class="property-value">${person.idA}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Имя</div><div class="property-value">${person.label}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Пол</div><div class="property-value">${sex}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Год рождения</div><div class="property-value">${birth}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Год смерти</div><div class="property-value">${death}</div></div>`;
+                if (person.hasFather) {
+                    const father = people.find(p => p.idA === person.hasFather);
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Отец</div><div class="property-value">${father ? father.label : person.hasFather}</div></div>`;
+                }
+                if (person.hasMother) {
+                    const mother = people.find(p => p.idA === person.hasMother);
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Мать</div><div class="property-value">${mother ? mother.label : person.hasMother}</div></div>`;
+                }
+                if (photoFile) {
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="pic/${photoFile}" alt="${person.label}"></div></div>`;
+                }
+
+                const escapedLabel = person.label.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                const panelHtml = `
+                    <div class="properties-panel visible" id="${panelId}" style="right: ${rightOffset}px; top: ${topOffset}px;">
+                        <div class="properties-header" onmousedown="startDragPanel(event, '${panelId}')">
+                            <div class="properties-header-content">
+                                <div class="properties-header-title">Свойство объекта диаграммы</div>
+                                <h3>${person.label}</h3>
+                                <button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId('${escapedLabel}', this)">Копировать</button>
+                            </div>
+                            <button class="properties-close-btn" onclick="closePropertiesPanel('${panelId}')">&times;</button>
+                        </div>
+                        <div class="properties-content">
+                            ${propertiesHtml}
+                        </div>
+                    </div>
+                `;
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                openPropertiesPanels.push({ panelId: panelId, idA: person.idA });
+
+                const newPanel = document.getElementById(panelId);
+                if (newPanel) bringPanelToFront(newPanel);
+            }
+
+            window.closePropertiesPanel = function(panelId) {
+                const panel = document.getElementById(panelId);
+                if (panel) {
+                    panel.remove();
+                    openPropertiesPanels = openPropertiesPanels.filter(p => p.panelId !== panelId);
+                }
+                if (selectedNodeElement) {
+                    selectedNodeElement.classList.remove('selected');
+                    selectedNodeElement = null;
+                }
+            };
+
+            window.copyObjectId = function(label, btn) {
+                navigator.clipboard.writeText(label).then(() => {
+                    const orig = btn.textContent;
+                    btn.textContent = '✓';
+                    setTimeout(() => { btn.textContent = orig; }, 1500);
+                }).catch(() => {
+                    // Fallback
+                    const el = document.createElement('textarea');
+                    el.value = label;
+                    document.body.appendChild(el);
+                    el.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(el);
+                });
+            };
+
+            function bringPanelToFront(panel) {
+                let maxZIndex = 2000;
+                openPropertiesPanels.forEach(p => {
+                    const el = document.getElementById(p.panelId);
+                    if (el) {
+                        const z = parseInt(el.style.zIndex) || 2000;
+                        if (z > maxZIndex) maxZIndex = z;
+                    }
+                });
+                panel.style.zIndex = maxZIndex + 1;
+            }
+
+            window.startDragPanel = function(event, panelId) {
+                if (event.target.classList.contains('properties-close-btn') ||
+                    event.target.classList.contains('properties-copy-btn')) return;
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+
+                draggedPanel = panel;
+                const rect = panel.getBoundingClientRect();
+                dragOffsetX = event.clientX - rect.left;
+                dragOffsetY = event.clientY - rect.top;
+
+                bringPanelToFront(panel);
+                document.addEventListener('mousemove', dragPanel);
+                document.addEventListener('mouseup', stopDragPanel);
+                event.preventDefault();
+            };
+
+            function dragPanel(event) {
+                if (!draggedPanel) return;
+                const newLeft = event.clientX - dragOffsetX;
+                const newTop = event.clientY - dragOffsetY;
+                draggedPanel.style.left = newLeft + 'px';
+                draggedPanel.style.top = newTop + 'px';
+                draggedPanel.style.right = 'auto';
+            }
+
+            function stopDragPanel() {
+                draggedPanel = null;
+                document.removeEventListener('mousemove', dragPanel);
+                document.removeEventListener('mouseup', stopDragPanel);
+            }
+
+            // --- Add node click handlers to rendered SVG ---
+            function addNodeClickHandlers(svgEl) {
+                const nodes = svgEl.querySelectorAll('g.node');
+                nodes.forEach(node => {
+                    node.style.cursor = 'pointer';
+                    node.addEventListener('click', function(event) {
+                        event.stopPropagation();
+
+                        const titleEl = node.querySelector('title');
+                        if (!titleEl) return;
+                        const nodeId = titleEl.textContent.trim();
+                        const person = people.find(p => p.idA === nodeId);
+                        if (!person) return;
+
+                        // Update selection highlight
+                        if (selectedNodeElement) {
+                            selectedNodeElement.classList.remove('selected');
+                        }
+                        node.classList.add('selected');
+                        selectedNodeElement = node;
+
+                        showNodeProperties(person);
+                    });
+                });
+
+                // Click on empty SVG area: deselect
+                svgEl.addEventListener('click', function() {
+                    if (selectedNodeElement) {
+                        selectedNodeElement.classList.remove('selected');
+                        selectedNodeElement = null;
+                    }
+                });
+            }
+
             // --- Build tree ---
             async function buildTree(peopleArray) {
                 if (!peopleArray.length) return;
                 people = peopleArray;
-                showStatus('⏳ Загрузка фото...');
-                await preloadPhotos(people);
-                dotCode = generateDotCode(people);
+                showStatus('⏳ Проверка наличия фото...');
+                await preloadPhotoChecks(people);
+                showStatus('⏳ Генерация DOT кода...');
+                dotCode = await generateDotCode(people);
                 graphvizOnlineBtn.disabled = false;
                 updateInfoPanels();
                 showStatus('⏳ Построение дерева...');
                 await renderDot(dotCode);
-                showStatus('✅ Дерево построено (со встроенными фото)');
+                showStatus('✅ Дерево построено');
             }
 
             async function loadFromUrl(url) {
