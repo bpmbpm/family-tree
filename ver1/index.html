@@ -130,8 +130,12 @@
             let UNKNOWN_COLOR = '#d5d8dc';
             let BORDER_COLOR = '#2c3e50';
             let EDGE_COLOR = '#5d6d7e';
-            // Photo directory — can be relative or absolute path, will be overridden by config.json
+            // Photo directory — relative path, will be overridden by config.json picDir
             let PIC_DIR = 'pic';
+            // Photo directory type: "relative" (default) or "global" (full absolute path)
+            let PIC_DIR_TYPE = 'relative';
+            // Global (absolute) photo directory path — used when picDirType = "global"
+            let PIC_DIR_GLOBAL = '';
 
             const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
             const statusDiv = document.getElementById('status');
@@ -188,10 +192,25 @@
                             // Normalize: remove trailing slash, support both relative and absolute paths
                             PIC_DIR = config.picDir.trim().replace(/\/+$/, '');
                         }
+                        if (typeof config.picDirType === 'string' && config.picDirType.trim()) {
+                            const t = config.picDirType.trim().toLowerCase();
+                            if (t === 'global' || t === 'relative') PIC_DIR_TYPE = t;
+                        }
+                        if (typeof config.picDirGlobal === 'string' && config.picDirGlobal.trim()) {
+                            PIC_DIR_GLOBAL = config.picDirGlobal.trim().replace(/[/\\]+$/, '');
+                        }
                     }
                 } catch (e) {
                     // config.json is optional; use defaults if not found
                 }
+            }
+
+            // --- Return the active photo directory based on picDirType ---
+            // In "relative" mode: returns PIC_DIR (e.g. "pic")
+            // In "global" mode: returns PIC_DIR_GLOBAL if set, otherwise falls back to PIC_DIR
+            function getActivePicDir() {
+                if (PIC_DIR_TYPE === 'global' && PIC_DIR_GLOBAL) return PIC_DIR_GLOBAL;
+                return PIC_DIR;
             }
 
             // --- Panel toggling ---
@@ -254,10 +273,23 @@
             }
 
             // --- Check if photo exists via HEAD request ---
+            // In "global" mode, fetch() may fail due to browser security restrictions
+            // when using file:// protocol. In that case, we optimistically assume the file
+            // exists (the DOT image= attribute will simply show nothing if the file is absent).
+            // Similarly, when running from file:// protocol in relative mode, fetch() is also
+            // blocked by browsers, so we assume files exist in that case too.
             async function checkPhotoExists(filename) {
                 if (photoExistsCache[filename] !== undefined) return photoExistsCache[filename];
+                const picDir = getActivePicDir();
+                // When using global mode with explicit path, or when running from file:// protocol,
+                // fetch() is blocked by browser security. Optimistically assume photos exist.
+                const isFileProtocol = window.location.protocol === 'file:';
+                if ((PIC_DIR_TYPE === 'global' && PIC_DIR_GLOBAL) || isFileProtocol) {
+                    photoExistsCache[filename] = true;
+                    return true;
+                }
                 try {
-                    const response = await fetch(PIC_DIR + '/' + filename, { method: 'HEAD' });
+                    const response = await fetch(picDir + '/' + filename, { method: 'HEAD' });
                     photoExistsCache[filename] = response.ok;
                     return response.ok;
                 } catch {
@@ -268,11 +300,12 @@
 
             // --- Determine which photo path to use for a person (returns path string or null) ---
             async function getPersonPhotoPath(person) {
+                const picDir = getActivePicDir();
                 const personalFile = person.idA + '.png';
-                if (await checkPhotoExists(personalFile)) return PIC_DIR + '/' + personalFile;
+                if (await checkPhotoExists(personalFile)) return picDir + '/' + personalFile;
                 // Fall back to default
                 const defaultFile = (person.sex === 'Ж' || person.sex === 'F') ? 'dafaultf.png' : 'dafaultm.png';
-                if (await checkPhotoExists(defaultFile)) return PIC_DIR + '/' + defaultFile;
+                if (await checkPhotoExists(defaultFile)) return picDir + '/' + defaultFile;
                 return null;
             }
 
@@ -647,7 +680,7 @@
                     div.className = 'photo-item';
 
                     const img = document.createElement('img');
-                    img.src = PIC_DIR + '/' + filename;
+                    img.src = getActivePicDir() + '/' + filename;
                     img.alt = filename;
                     img.title = filename;
 
@@ -737,7 +770,7 @@
                     propertiesHtml += `<div class="property-item"><div class="property-predicate">Ссылка</div><div class="property-value">${linkHtml}</div></div>`;
                 }
                 if (photoFile) {
-                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="${PIC_DIR}/${photoFile}" alt="${person.label}"></div></div>`;
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="${getActivePicDir()}/${photoFile}" alt="${person.label}"></div></div>`;
                 }
 
                 const escapedLabel = person.label.replace(/'/g, "\\'").replace(/"/g, '&quot;');
