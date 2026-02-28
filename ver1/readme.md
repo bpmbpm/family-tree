@@ -12,3 +12,10 @@
 
 ### also
 - https://bpmbpm.github.io/family-tree/ver1/test_pic1.html
+
+### doc
+Чтобы использовать режим relativeGraphvizOnline (отображение мини-фотографий на https://dreampuf.github.io/GraphvizOnline/ ):
+```
+  "picDirType": "relativeGraphvizOnline",
+  "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver1/pic"
+```
