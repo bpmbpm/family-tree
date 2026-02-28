@@ -20,3 +20,10 @@
   "picDirType": "relativeGraphvizOnline",
   "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver1/pic"
 ```
+
+"picDirType":
+```
+"relative" — HTTP-server, no GraphvizOnline photo support
+"relativeGraphvizOnline" — HTTP-server with absolute URLs for GraphvizOnline DOT code
+"global" — local file:// mode with absolute path
+```
