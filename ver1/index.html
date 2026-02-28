@@ -225,8 +225,8 @@
                     PIC_DIR = config.picDir.trim().replace(/\/+$/, '');
                 }
                 if (typeof config.picDirType === 'string' && config.picDirType.trim()) {
-                    const t = config.picDirType.trim().toLowerCase();
-                    if (t === 'global' || t === 'relative' || t === 'relativegraphvizonline') PIC_DIR_TYPE = t;
+                    const t = config.picDirType.trim();
+                    if (t === 'global' || t === 'relative' || t === 'relativeGraphvizOnline') PIC_DIR_TYPE = t;
                 }
                 if (typeof config.picDirGlobal === 'string' && config.picDirGlobal.trim()) {
                     PIC_DIR_GLOBAL = config.picDirGlobal.trim().replace(/[/\\]+$/, '');
@@ -248,7 +248,7 @@
             // In "relativeGraphvizOnline" mode: returns PIC_DIR_GRAPHVIZ_ONLINE (if set) or PIC_DIR
             // In all other modes: same as getActivePicDir()
             function getGraphvizOnlinePicDir() {
-                if (PIC_DIR_TYPE === 'relativegraphvizonline' && PIC_DIR_GRAPHVIZ_ONLINE) return PIC_DIR_GRAPHVIZ_ONLINE;
+                if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) return PIC_DIR_GRAPHVIZ_ONLINE;
                 return getActivePicDir();
             }
 
@@ -686,16 +686,16 @@
                 const editedDot = dotCodePre.value;
                 if (!editedDot || editedDot === '(код появится после загрузки)') return;
                 showStatus('⏳ Перерисовка диаграммы...');
+                // When editor is updated, use the edited code for both local render and GraphvizOnline link
                 dotCode = editedDot;
-                // When editor is updated, use the edited code for the GraphvizOnline link too
                 dotCodeForGraphvizOnline = editedDot;
                 // Update graphviz link
-                const encoded = encodeURIComponent(dotCode);
+                const encoded = encodeURIComponent(editedDot);
                 graphvizLink = `https://dreampuf.github.io/GraphvizOnline/?engine=dot#${encoded}`;
                 graphvizLinkInput.value = graphvizLink;
                 // Re-render without re-loading images (use already loaded people)
                 const imagesOption = await buildImagesOption(people);
-                await renderDot(dotCode, imagesOption);
+                await renderDot(editedDot, imagesOption);
                 showStatus('✅ Диаграмма обновлена');
             };
 
@@ -750,10 +750,12 @@
             // --- Update info panels ---
             function updateInfoPanels() {
                 if (dotCode) {
-                    dotCodePre.value = dotCode;
-                    // Use dotCodeForGraphvizOnline for the GraphvizOnline link
-                    // (differs from dotCode only in relativeGraphvizOnline mode)
+                    // In relativeGraphvizOnline mode, the DOT panel shows the GraphvizOnline
+                    // code (with absolute photo URLs) so users can copy it for use with GraphvizOnline.
+                    // In all other modes, the panel shows the local DOT code (with relative paths).
                     const codeForLink = dotCodeForGraphvizOnline || dotCode;
+                    const showGraphvizCode = PIC_DIR_TYPE === 'relativeGraphvizOnline' && dotCodeForGraphvizOnline && dotCodeForGraphvizOnline !== dotCode;
+                    dotCodePre.value = showGraphvizCode ? dotCodeForGraphvizOnline : dotCode;
                     const encoded = encodeURIComponent(codeForLink);
                     graphvizLink = `https://dreampuf.github.io/GraphvizOnline/?engine=dot#${encoded}`;
                     graphvizLinkInput.value = graphvizLink;
@@ -970,7 +972,7 @@
                 // Generate local DOT code (always uses relative pic dir for rendering)
                 dotCode = await generateDotCode(people, marriagesArray);
                 // In relativeGraphvizOnline mode, generate a separate DOT code with the GraphvizOnline pic dir
-                if (PIC_DIR_TYPE === 'relativegraphvizonline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) {
                     dotCodeForGraphvizOnline = await generateDotCode(people, marriagesArray, PIC_DIR_GRAPHVIZ_ONLINE);
                 } else {
                     dotCodeForGraphvizOnline = dotCode;

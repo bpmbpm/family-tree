@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Config Load Test</title></head>
+<body>
+<h1>Config Loading Test</h1>
+<pre id="output">Testing...</pre>
+<script>
+const out = document.getElementById('output');
+function log(msg) {
+    out.textContent += msg + '\n';
+}
+
+async function testConfigLoading() {
+    log('Protocol: ' + window.location.protocol);
+    log('URL: ' + window.location.href);
+    log('');
+    
+    // Test 1: fetch
+    log('=== Test 1: fetch() ===');
+    try {
+        const resp = await fetch('config.json');
+        log('fetch succeeded: ok=' + resp.ok + ' status=' + resp.status);
+        if (resp.ok || resp.status === 0) {
+            try {
+                const data = await resp.json();
+                log('config loaded via fetch: picDirType=' + data.picDirType);
+            } catch(e) {
+                log('fetch JSON parse error: ' + e.message);
+            }
+        }
+    } catch(e) {
+        log('fetch error: ' + e.message);
+    }
+    
+    log('');
+    log('=== Test 2: XHR ===');
+    try {
+        const data = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', 'config.json', true);
+            xhr.onload = () => {
+                log('XHR status: ' + xhr.status);
+                log('XHR responseText length: ' + xhr.responseText.length);
+                if (xhr.status === 200 || xhr.status === 0) {
+                    try {
+                        resolve(JSON.parse(xhr.responseText));
+                    } catch(e) {
+                        log('XHR JSON parse error: ' + e.message);
+                        reject(e);
+                    }
+                } else {
+                    reject(new Error('XHR status ' + xhr.status));
+                }
+            };
+            xhr.onerror = () => {
+                log('XHR onerror fired');
+                reject(new Error('XHR error'));
+            };
+            xhr.send();
+        });
+        log('config loaded via XHR: picDirType=' + data.picDirType);
+        log('nodeWidth=' + data.nodeWidth + ' nodeHeight=' + data.nodeHeight);
+    } catch(e) {
+        log('XHR exception: ' + e.message);
+    }
+}
+
+testConfigLoading();
+</script>
+</body>
+</html>

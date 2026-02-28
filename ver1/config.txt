@@ -9,27 +9,60 @@ picDir      — путь к папке с фото персон (по умолч
               Значение по умолчанию: "pic" (папка pic рядом с index.html).
 
 picDirType  — режим работы с папкой фото (по умолчанию: "relative")
-              Допустимые значения:
-                "relative"              — использует picDir как относительный путь; работает
-                                         при открытии через HTTP-сервер.
-                "global"                — использует picDirGlobal как полный абсолютный путь;
-                                         работает при открытии через file:// и в DOT-коде
-                                         для локального Graphviz.
-                "relativeGraphvizOnline" — работает как "relative" при локальном отображении,
-                                         но в DOT-коде для кнопки «Показать в окне GraphvizOnline»
-                                         подставляет значение picDirGraphvizOnline (URL к фото
-                                         в интернете). Позволяет получить минифото на
-                                         https://dreampuf.github.io/GraphvizOnline/
+              Три режима:
 
-picDirGlobal — полный абсолютный путь к папке с фото; используется когда picDirType = "global"
+                "relative"              — только относительный путь picDir.
+                                         Работает при запуске через HTTP-сервер
+                                         (GitHub Pages, локальный веб-сервер).
+                                         Фото отображаются локально, но НЕ отображаются
+                                         в GraphvizOnline (сайт не может загрузить
+                                         локальные относительные пути).
+                                         Пример:
+                                           "picDir": "pic"
+                                           "picDirType": "relative"
+
+                "relativeGraphvizOnline" — запуск через HTTP-сервер (GitHub Pages).
+                                         Локальное отображение использует picDir
+                                         (относительный путь).
+                                         В панели «Код DOT» и в ссылке на GraphvizOnline
+                                         подставляется picDirGraphvizOnline (полный URL).
+                                         Важно: dreampuf.github.io/GraphvizOnline НЕ
+                                         отображает фото по URL — это ограничение сервиса
+                                         (браузерная версия Graphviz не умеет загружать
+                                         изображения по HTTP). DOT-код с полными URL
+                                         полезен для локального Graphviz, VS Code и
+                                         других инструментов, поддерживающих внешние URL.
+                                         Пример:
+                                           "picDir": "pic"
+                                           "picDirType": "relativeGraphvizOnline"
+                                           "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver1/pic"
+
+                "global"                — запуск с локального диска через file://.
+                                         Использует picDirGlobal как полный
+                                         абсолютный путь к папке с фото.
+                                         Пример для Windows:
+                                           "picDir": "pic"
+                                           "picDirType": "global"
+                                           "picDirGlobal": "C:/Users/YourName/Desktop/ver1/pic"
+                                         Пример для Linux/Mac:
+                                           "picDir": "pic"
+                                           "picDirType": "global"
+                                           "picDirGlobal": "/home/user/family-tree/ver1/pic"
+
+picDirGlobal — полный абсолютный путь к папке с фото; используется в режиме "global"
               Пример для Windows: "C:/Users/YourName/Desktop/ver1/pic"
               Пример для Linux/Mac: "/home/user/family-tree/ver1/pic"
               Значение по умолчанию: "" (не задано).
 
-picDirGraphvizOnline — URL к папке с фото для GraphvizOnline; используется когда
-              picDirType = "relativeGraphvizOnline"
+picDirGraphvizOnline — URL к папке с фото для GraphvizOnline; используется в режиме "relativeGraphvizOnline"
               Пример: "https://bpmbpm.github.io/family-tree/ver1/pic"
               Значение по умолчанию: "" (не задано).
+              Примечание: GraphvizOnline (dreampuf.github.io) — это веб-приложение, которое
+              рендерит граф прямо в браузере. Из-за ограничений безопасности браузера
+              изображения по HTTP-ссылкам (image="https://...") в самом GraphvizOnline
+              НЕ отображаются — это ограничение самого сервиса GraphvizOnline, а не нашего кода.
+              Тем не менее, абсолютный URL в DOT-коде сохраняется корректно и может быть
+              использован в других инструментах Graphviz (локальном dot, VS Code и т.д.).
 
 # --- Размеры узлов (в дюймах, при 72 DPI) ---
 
