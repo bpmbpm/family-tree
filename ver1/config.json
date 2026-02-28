@@ -11,7 +11,7 @@
   "borderColor": "darkslategray",
   "edgeColor": "slategray",
   "picDir": "pic",
-  "picDirType": "server",
+  "picDirType": "relativeGraphvizOnline",
   "picDirGlobal": "",
   "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver1/pic"
 }
