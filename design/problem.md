@@ -1,6 +1,8 @@
 ## problem
 ### 1 GraphvizOnlin  
- см.  https://github.com/bpmbpm/family-tree/blob/main/ver1/readme.md#graphvizonline
+dreampuf.github.io/GraphvizOnline не понимает  
+image=  
+УЖАС, см.  https://github.com/bpmbpm/family-tree/blob/main/ver1/readme.md#graphvizonline
 ### 2 CORS
 Старая проблема (хотя были времена, когда ее не было и было "счастье") CORS.  
 Понятно, что для чтения локального файла tree.xlsx нужно подтверждение, однако нужно было считывать еще и config.json  
