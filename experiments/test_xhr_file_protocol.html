@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>XHR Test</title></head>
+<body>
+<script>
+// Test if XHR works for loading config.json in file:// protocol
+async function testLoad() {
+    const result = document.createElement('pre');
+    document.body.appendChild(result);
+    
+    // Test fetch
+    try {
+        const resp = await fetch('config.json');
+        result.textContent += 'fetch status: ' + resp.status + ' ok: ' + resp.ok + '\n';
+        if (resp.ok) {
+            const data = await resp.json();
+            result.textContent += 'fetch data: ' + JSON.stringify(data) + '\n';
+        }
+    } catch(e) {
+        result.textContent += 'fetch error: ' + e.message + '\n';
+    }
+    
+    // Test XHR
+    try {
+        const data = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', 'config.json', true);
+            xhr.onload = () => {
+                result.textContent += 'XHR status: ' + xhr.status + '\n';
+                if (xhr.status === 200 || xhr.status === 0) {
+                    try { resolve(JSON.parse(xhr.responseText)); } catch(e) { reject(e); }
+                } else {
+                    reject(new Error('XHR status ' + xhr.status));
+                }
+            };
+            xhr.onerror = () => {
+                result.textContent += 'XHR onerror\n';
+                reject(new Error('XHR error'));
+            };
+            xhr.send();
+        });
+        result.textContent += 'XHR data: ' + JSON.stringify(data) + '\n';
+    } catch(e) {
+        result.textContent += 'XHR exception: ' + e.message + '\n';
+    }
+}
+testLoad();
+</script>
+</body>
+</html>
