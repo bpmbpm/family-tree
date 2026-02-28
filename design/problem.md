@@ -1,7 +1,7 @@
 ## problem
 ### 1 GraphvizOnlin  
 dreampuf.github.io/GraphvizOnline не понимает  
-`image=  `
+`image=  `  
 УЖАС, см.  https://github.com/bpmbpm/family-tree/blob/main/ver1/readme.md#graphvizonline
 ### 2 CORS
 Старая проблема (хотя были времена, когда ее не было и было "счастье") CORS.  
