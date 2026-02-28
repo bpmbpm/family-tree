@@ -10,5 +10,7 @@
   "unknownColor": "lightgrey",
   "borderColor": "darkslategray",
   "edgeColor": "slategray",
-  "picDir": "pic"
+  "picDir": "pic",
+  "picDirType": "relative",
+  "picDirGlobal": ""
 }
