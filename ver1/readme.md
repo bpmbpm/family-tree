@@ -14,6 +14,14 @@
 ### also
 - https://bpmbpm.github.io/family-tree/ver1/test_pic1.html
 
+### config
+Настройки хранятся в `config.js` (рекомендуется) или `config.json`.
+
+`config.js` загружается через `<script src="config.js">` и работает при открытии по `file://` без ошибок CORS.
+Он экспортирует глобальную переменную `const CONFIG = { ... }` с теми же ключами, что и `config.json`.
+
+`config.json` поддерживается как запасной вариант при работе через HTTP/HTTPS.
+
 ### doc
 Чтобы использовать режим relativeGraphvizOnline (отображение мини-фотографий на https://dreampuf.github.io/GraphvizOnline/ ):
 ```

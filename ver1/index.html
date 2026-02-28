@@ -7,6 +7,10 @@
     <script src="https://unpkg.com/@viz-js/viz@3.4.0/lib/viz-standalone.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="styles.css">
+    <!-- config.js задаёт глобальную переменную CONFIG с параметрами.
+         Загрузка через <script> работает в том числе по протоколу file://
+         (без ошибок CORS, в отличие от fetch/XMLHttpRequest для config.json). -->
+    <script src="config.js"></script>
 </head>
 <body>
     <div class="container">
@@ -153,20 +157,32 @@
             const graphvizLinkInput = document.getElementById('graphvizLinkInput');
             const dotCodePre = document.getElementById('dotCodePre');
 
-            // --- Load config.json ---
-            // Tries fetch() first; falls back to XMLHttpRequest for file:// protocol compatibility.
+            // --- Load config ---
+            // Priority order:
+            // 1. window.CONFIG — global variable from config.js loaded via <script src="config.js">.
+            //    Works in file:// protocol without CORS errors (recommended approach).
+            // 2. fetch('config.json') — works when served over HTTP/HTTPS.
+            // 3. async XMLHttpRequest for config.json — fallback for HTTP/HTTPS.
+            // 4. synchronous XMLHttpRequest for config.json — last resort (file:// in some browsers).
+            // config.js / config.json are both optional; built-in defaults are used if neither is found.
             async function loadConfig() {
                 let config = null;
-                // Try fetch() first
-                try {
-                    const response = await fetch('config.json');
-                    if (response.ok) {
-                        config = await response.json();
-                    }
-                } catch (e) {
-                    // fetch() may be blocked in file:// protocol; try XMLHttpRequest as fallback
+                // 1. Check for config.js (global CONFIG variable injected via <script src="config.js">)
+                if (typeof window.CONFIG === 'object' && window.CONFIG !== null) {
+                    config = window.CONFIG;
                 }
-                // Fallback: XMLHttpRequest (synchronous, works in file:// in some browsers)
+                // 2. Try fetch('config.json') — works over HTTP/HTTPS
+                if (!config) {
+                    try {
+                        const response = await fetch('config.json');
+                        if (response.ok) {
+                            config = await response.json();
+                        }
+                    } catch (e) {
+                        // fetch() may be blocked in file:// protocol; try XMLHttpRequest as fallback
+                    }
+                }
+                // 3. Fallback: async XMLHttpRequest for config.json
                 if (!config) {
                     try {
                         config = await new Promise((resolve, reject) => {
@@ -183,21 +199,34 @@
                             xhr.send();
                         });
                     } catch (e) {
+                        // async XHR may also fail in file:// protocol; try synchronous XHR as last resort
+                    }
+                }
+                // 4. Last resort: synchronous XMLHttpRequest (works for local file:// in all browsers)
+                if (!config) {
+                    try {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('GET', 'config.json', false);
+                        xhr.send();
+                        if (xhr.status === 200 || xhr.status === 0) {
+                            config = JSON.parse(xhr.responseText);
+                        }
+                    } catch (e) {
                         // config.json is optional; use defaults if not found
                     }
                 }
                 if (!config) return;
-                if (typeof config.nodeWidth === 'number' && config.nodeWidth > 0) {
-                    NODE_WIDTH_IN = config.nodeWidth;
+                if (typeof config.width === 'number' && config.width > 0) {
+                    NODE_WIDTH_IN = config.width;
                 }
-                if (typeof config.nodeHeight === 'number' && config.nodeHeight > 0) {
-                    NODE_HEIGHT_IN = config.nodeHeight;
+                if (typeof config.height === 'number' && config.height > 0) {
+                    NODE_HEIGHT_IN = config.height;
                 }
-                if (typeof config.fontName === 'string' && config.fontName.trim()) {
-                    FONT_NAME = config.fontName.trim();
+                if (typeof config.fontname === 'string' && config.fontname.trim()) {
+                    FONT_NAME = config.fontname.trim();
                 }
-                if (typeof config.fontSize === 'number' && config.fontSize > 0) {
-                    FONT_SIZE = config.fontSize;
+                if (typeof config.fontsize === 'number' && config.fontsize > 0) {
+                    FONT_SIZE = config.fontsize;
                 }
                 if (typeof config.lineSpacing === 'number' && config.lineSpacing > 0) {
                     LINE_SPACING = config.lineSpacing;
