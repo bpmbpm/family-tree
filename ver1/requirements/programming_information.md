@@ -1,7 +1,8 @@
 ## current project
 https://github.com/bpmbpm/family-tree/tree/main/ver1
 ## code
-Браузерный JS
+Браузерный JS  
+Код должен быть хорошо читаемым человеку с низким уровнем знания js.
 ## dot
 1. Не используй: 
 ```
