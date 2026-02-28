@@ -27,3 +27,7 @@
 "relativeGraphvizOnline" — HTTP-server with absolute URLs for GraphvizOnline DOT code
 "global" — local file:// mode with absolute path
 ```
+Проблему с GraphvizOnline см. https://github.com/bpmbpm/family-tree/pull/30  
+Причина: dreampuf.github.io/GraphvizOnline запускает Graphviz, скомпилированный в WebAssembly (WASM) прямо в браузере. Атрибут image= в Graphviz предназначен для чтения файлов с файловой системы, а не для загрузки по HTTP. WASM-версия Graphviz имеет виртуальную файловую систему и не может загружать изображения по URL.
+
+
