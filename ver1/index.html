@@ -988,6 +988,7 @@
             async function loadFromUrl(url) {
                 try {
                     showStatus('⏳ Загрузка...');
+                    await configPromise;
                     const response = await fetch(url);
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const data = parseExcel(await response.arrayBuffer());
@@ -1001,6 +1002,7 @@
                 const reader = new FileReader();
                 reader.onload = async (e) => {
                     try {
+                        await configPromise;
                         const data = parseExcel(e.target.result);
                         await buildTree(data);
                     } catch (err) {
@@ -1021,8 +1023,11 @@
                 if (graphvizLink) window.open(graphvizLink, '_blank');
             });
 
-            // Load config first, then start loading tree data
-            loadConfig().then(() => loadFromUrl('tree.xlsx'));
+            // Load config first, then start loading tree data.
+            // configPromise is also awaited in loadFromFile to ensure config is applied
+            // before building the tree when a file is chosen via "Choose file" button.
+            const configPromise = loadConfig();
+            configPromise.then(() => loadFromUrl('tree.xlsx'));
         })();
     </script>
 </body>
