@@ -2,10 +2,10 @@
 // Загружается через <script src="config.js"> в index.html, что позволяет
 // читать настройки через file:// без ошибок CORS.
 //
-// Переменная CONFIG доступна глобально и читается в loadConfig() из index.html.
+// Переменная window.CONFIG доступна глобально и читается в loadConfig() из index.html.
 // Если этот файл отсутствует, используются значения по умолчанию из index.html.
 
-const CONFIG = {
+window.CONFIG = {
     "width": 1.1,
     "height": 1.9,
     "fontname": "Arial",
