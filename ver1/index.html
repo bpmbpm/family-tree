@@ -100,6 +100,7 @@
         (function() {
             let people = [];
             let dotCode = '';
+            let dotCodeForGraphvizOnline = ''; // separate DOT code for GraphvizOnline (used in relativeGraphvizOnline mode)
             let graphvizLink = '';
             let currentScale = 1.0;
 
@@ -132,10 +133,13 @@
             let EDGE_COLOR = '#5d6d7e';
             // Photo directory — relative path, will be overridden by config.json picDir
             let PIC_DIR = 'pic';
-            // Photo directory type: "relative" (default) or "global" (full absolute path)
+            // Photo directory type: "relative" (default), "global" (full absolute path),
+            // or "relativeGraphvizOnline" (relative for local render, picDirGraphvizOnline for GraphvizOnline DOT code)
             let PIC_DIR_TYPE = 'relative';
             // Global (absolute) photo directory path — used when picDirType = "global"
             let PIC_DIR_GLOBAL = '';
+            // GraphvizOnline photo directory path — used in DOT code for GraphvizOnline when picDirType = "relativeGraphvizOnline"
+            let PIC_DIR_GRAPHVIZ_ONLINE = '';
 
             const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
             const statusDiv = document.getElementById('status');
@@ -150,67 +154,102 @@
             const dotCodePre = document.getElementById('dotCodePre');
 
             // --- Load config.json ---
+            // Tries fetch() first; falls back to XMLHttpRequest for file:// protocol compatibility.
             async function loadConfig() {
+                let config = null;
+                // Try fetch() first
                 try {
                     const response = await fetch('config.json');
                     if (response.ok) {
-                        const config = await response.json();
-                        if (typeof config.nodeWidth === 'number' && config.nodeWidth > 0) {
-                            NODE_WIDTH_IN = config.nodeWidth;
-                        }
-                        if (typeof config.nodeHeight === 'number' && config.nodeHeight > 0) {
-                            NODE_HEIGHT_IN = config.nodeHeight;
-                        }
-                        if (typeof config.fontName === 'string' && config.fontName.trim()) {
-                            FONT_NAME = config.fontName.trim();
-                        }
-                        if (typeof config.fontSize === 'number' && config.fontSize > 0) {
-                            FONT_SIZE = config.fontSize;
-                        }
-                        if (typeof config.lineSpacing === 'number' && config.lineSpacing > 0) {
-                            LINE_SPACING = config.lineSpacing;
-                        }
-                        if (typeof config.lineSpacingSurName2 === 'number' && config.lineSpacingSurName2 > 0) {
-                            LINE_SPACING_SURNAME2 = config.lineSpacingSurName2;
-                        }
-                        if (typeof config.maleColor === 'string' && config.maleColor.trim()) {
-                            MALE_COLOR = config.maleColor.trim();
-                        }
-                        if (typeof config.femaleColor === 'string' && config.femaleColor.trim()) {
-                            FEMALE_COLOR = config.femaleColor.trim();
-                        }
-                        if (typeof config.unknownColor === 'string' && config.unknownColor.trim()) {
-                            UNKNOWN_COLOR = config.unknownColor.trim();
-                        }
-                        if (typeof config.borderColor === 'string' && config.borderColor.trim()) {
-                            BORDER_COLOR = config.borderColor.trim();
-                        }
-                        if (typeof config.edgeColor === 'string' && config.edgeColor.trim()) {
-                            EDGE_COLOR = config.edgeColor.trim();
-                        }
-                        if (typeof config.picDir === 'string' && config.picDir.trim()) {
-                            // Normalize: remove trailing slash, support both relative and absolute paths
-                            PIC_DIR = config.picDir.trim().replace(/\/+$/, '');
-                        }
-                        if (typeof config.picDirType === 'string' && config.picDirType.trim()) {
-                            const t = config.picDirType.trim().toLowerCase();
-                            if (t === 'global' || t === 'relative') PIC_DIR_TYPE = t;
-                        }
-                        if (typeof config.picDirGlobal === 'string' && config.picDirGlobal.trim()) {
-                            PIC_DIR_GLOBAL = config.picDirGlobal.trim().replace(/[/\\]+$/, '');
-                        }
+                        config = await response.json();
                     }
                 } catch (e) {
-                    // config.json is optional; use defaults if not found
+                    // fetch() may be blocked in file:// protocol; try XMLHttpRequest as fallback
+                }
+                // Fallback: XMLHttpRequest (synchronous, works in file:// in some browsers)
+                if (!config) {
+                    try {
+                        config = await new Promise((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.open('GET', 'config.json', true);
+                            xhr.onload = () => {
+                                if (xhr.status === 200 || xhr.status === 0) {
+                                    try { resolve(JSON.parse(xhr.responseText)); } catch (e) { reject(e); }
+                                } else {
+                                    reject(new Error('XHR status ' + xhr.status));
+                                }
+                            };
+                            xhr.onerror = () => reject(new Error('XHR error'));
+                            xhr.send();
+                        });
+                    } catch (e) {
+                        // config.json is optional; use defaults if not found
+                    }
+                }
+                if (!config) return;
+                if (typeof config.nodeWidth === 'number' && config.nodeWidth > 0) {
+                    NODE_WIDTH_IN = config.nodeWidth;
+                }
+                if (typeof config.nodeHeight === 'number' && config.nodeHeight > 0) {
+                    NODE_HEIGHT_IN = config.nodeHeight;
+                }
+                if (typeof config.fontName === 'string' && config.fontName.trim()) {
+                    FONT_NAME = config.fontName.trim();
+                }
+                if (typeof config.fontSize === 'number' && config.fontSize > 0) {
+                    FONT_SIZE = config.fontSize;
+                }
+                if (typeof config.lineSpacing === 'number' && config.lineSpacing > 0) {
+                    LINE_SPACING = config.lineSpacing;
+                }
+                if (typeof config.lineSpacingSurName2 === 'number' && config.lineSpacingSurName2 > 0) {
+                    LINE_SPACING_SURNAME2 = config.lineSpacingSurName2;
+                }
+                if (typeof config.maleColor === 'string' && config.maleColor.trim()) {
+                    MALE_COLOR = config.maleColor.trim();
+                }
+                if (typeof config.femaleColor === 'string' && config.femaleColor.trim()) {
+                    FEMALE_COLOR = config.femaleColor.trim();
+                }
+                if (typeof config.unknownColor === 'string' && config.unknownColor.trim()) {
+                    UNKNOWN_COLOR = config.unknownColor.trim();
+                }
+                if (typeof config.borderColor === 'string' && config.borderColor.trim()) {
+                    BORDER_COLOR = config.borderColor.trim();
+                }
+                if (typeof config.edgeColor === 'string' && config.edgeColor.trim()) {
+                    EDGE_COLOR = config.edgeColor.trim();
+                }
+                if (typeof config.picDir === 'string' && config.picDir.trim()) {
+                    // Normalize: remove trailing slash, support both relative and absolute paths
+                    PIC_DIR = config.picDir.trim().replace(/\/+$/, '');
+                }
+                if (typeof config.picDirType === 'string' && config.picDirType.trim()) {
+                    const t = config.picDirType.trim().toLowerCase();
+                    if (t === 'global' || t === 'relative' || t === 'relativegraphvizonline') PIC_DIR_TYPE = t;
+                }
+                if (typeof config.picDirGlobal === 'string' && config.picDirGlobal.trim()) {
+                    PIC_DIR_GLOBAL = config.picDirGlobal.trim().replace(/[/\\]+$/, '');
+                }
+                if (typeof config.picDirGraphvizOnline === 'string' && config.picDirGraphvizOnline.trim()) {
+                    PIC_DIR_GRAPHVIZ_ONLINE = config.picDirGraphvizOnline.trim().replace(/\/+$/, '');
                 }
             }
 
             // --- Return the active photo directory based on picDirType ---
-            // In "relative" mode: returns PIC_DIR (e.g. "pic")
+            // In "relative" / "relativeGraphvizOnline" mode: returns PIC_DIR (e.g. "pic")
             // In "global" mode: returns PIC_DIR_GLOBAL if set, otherwise falls back to PIC_DIR
             function getActivePicDir() {
                 if (PIC_DIR_TYPE === 'global' && PIC_DIR_GLOBAL) return PIC_DIR_GLOBAL;
                 return PIC_DIR;
+            }
+
+            // --- Return the photo directory to use in DOT code for GraphvizOnline ---
+            // In "relativeGraphvizOnline" mode: returns PIC_DIR_GRAPHVIZ_ONLINE (if set) or PIC_DIR
+            // In all other modes: same as getActivePicDir()
+            function getGraphvizOnlinePicDir() {
+                if (PIC_DIR_TYPE === 'relativegraphvizonline' && PIC_DIR_GRAPHVIZ_ONLINE) return PIC_DIR_GRAPHVIZ_ONLINE;
+                return getActivePicDir();
             }
 
             // --- Panel toggling ---
@@ -272,24 +311,28 @@
                 statusDiv.style.borderLeftColor = isError ? '#e74c3c' : '#f1c40f';
             }
 
-            // --- Check if photo exists via HEAD request ---
-            // In "global" mode, fetch() may fail due to browser security restrictions
-            // when using file:// protocol. In that case, we optimistically assume the file
-            // exists (the DOT image= attribute will simply show nothing if the file is absent).
-            // Similarly, when running from file:// protocol in relative mode, fetch() is also
-            // blocked by browsers, so we assume files exist in that case too.
+            // --- Check if photo exists ---
+            // In "global" mode or file:// protocol, fetch() is blocked by browser security.
+            // Instead, we use an <img> element to test file existence: it loads the image and
+            // resolves true on success or false on error. This works for both file:// and http://.
             async function checkPhotoExists(filename) {
                 if (photoExistsCache[filename] !== undefined) return photoExistsCache[filename];
                 const picDir = getActivePicDir();
-                // When using global mode with explicit path, or when running from file:// protocol,
-                // fetch() is blocked by browser security. Optimistically assume photos exist.
+                const filePath = picDir + '/' + filename;
                 const isFileProtocol = window.location.protocol === 'file:';
-                if ((PIC_DIR_TYPE === 'global' && PIC_DIR_GLOBAL) || isFileProtocol) {
-                    photoExistsCache[filename] = true;
-                    return true;
+                if (isFileProtocol || (PIC_DIR_TYPE === 'global' && PIC_DIR_GLOBAL)) {
+                    // Use <img> element to check existence in file:// or global mode
+                    const exists = await new Promise(resolve => {
+                        const img = new Image();
+                        img.onload = () => resolve(true);
+                        img.onerror = () => resolve(false);
+                        img.src = filePath;
+                    });
+                    photoExistsCache[filename] = exists;
+                    return exists;
                 }
                 try {
-                    const response = await fetch(picDir + '/' + filename, { method: 'HEAD' });
+                    const response = await fetch(filePath, { method: 'HEAD' });
                     photoExistsCache[filename] = response.ok;
                     return response.ok;
                 } catch {
@@ -299,13 +342,17 @@
             }
 
             // --- Determine which photo path to use for a person (returns path string or null) ---
-            async function getPersonPhotoPath(person) {
+            // Optional picDirOverride: if provided, use this directory instead of getActivePicDir().
+            // Photo existence is always checked against getActivePicDir() (local files);
+            // picDirOverride only affects the path string in the returned value.
+            async function getPersonPhotoPath(person, picDirOverride) {
                 const picDir = getActivePicDir();
+                const outputDir = picDirOverride !== undefined ? picDirOverride : picDir;
                 const personalFile = person.idA + '.png';
-                if (await checkPhotoExists(personalFile)) return picDir + '/' + personalFile;
+                if (await checkPhotoExists(personalFile)) return outputDir + '/' + personalFile;
                 // Fall back to default
                 const defaultFile = (person.sex === 'Ж' || person.sex === 'F') ? 'dafaultf.png' : 'dafaultm.png';
-                if (await checkPhotoExists(defaultFile)) return picDir + '/' + defaultFile;
+                if (await checkPhotoExists(defaultFile)) return outputDir + '/' + defaultFile;
                 return null;
             }
 
@@ -416,7 +463,9 @@
             // imagepos=tc places photo at top-center; labelloc=b places text at bottom.
             // No <<TABLE>> labels — readable plain DOT code only.
             // Spaces in label names are replaced with \n for better layout.
-            async function generateDotCode(peopleList, marriages) {
+            // Optional picDirOverride: if provided, use this directory for image paths in DOT code
+            // (used in relativeGraphvizOnline mode to generate DOT code for GraphvizOnline with absolute URLs).
+            async function generateDotCode(peopleList, marriages, picDirOverride) {
                 const nodes = [];
                 const edges = [];
                 const clusters = [];
@@ -447,7 +496,7 @@
                         : FONT_SIZE;
                     const fontSizeAttr = nodeFontSize !== FONT_SIZE ? `, fontsize=${nodeFontSize}` : '';
 
-                    const photoPath = await getPersonPhotoPath(p);
+                    const photoPath = await getPersonPhotoPath(p, picDirOverride);
                     if (photoPath) {
                         // Portrait node: photo at top-center at its registered size, text at bottom.
                         // fixedsize=true locks the node to exactly width×height so layout is consistent.
@@ -638,6 +687,8 @@
                 if (!editedDot || editedDot === '(код появится после загрузки)') return;
                 showStatus('⏳ Перерисовка диаграммы...');
                 dotCode = editedDot;
+                // When editor is updated, use the edited code for the GraphvizOnline link too
+                dotCodeForGraphvizOnline = editedDot;
                 // Update graphviz link
                 const encoded = encodeURIComponent(dotCode);
                 graphvizLink = `https://dreampuf.github.io/GraphvizOnline/?engine=dot#${encoded}`;
@@ -700,7 +751,10 @@
             function updateInfoPanels() {
                 if (dotCode) {
                     dotCodePre.value = dotCode;
-                    const encoded = encodeURIComponent(dotCode);
+                    // Use dotCodeForGraphvizOnline for the GraphvizOnline link
+                    // (differs from dotCode only in relativeGraphvizOnline mode)
+                    const codeForLink = dotCodeForGraphvizOnline || dotCode;
+                    const encoded = encodeURIComponent(codeForLink);
                     graphvizLink = `https://dreampuf.github.io/GraphvizOnline/?engine=dot#${encoded}`;
                     graphvizLinkInput.value = graphvizLink;
                 } else {
@@ -913,7 +967,14 @@
                 showStatus('⏳ Проверка наличия фото...');
                 await preloadPhotoChecks(people);
                 showStatus('⏳ Генерация DOT кода...');
+                // Generate local DOT code (always uses relative pic dir for rendering)
                 dotCode = await generateDotCode(people, marriagesArray);
+                // In relativeGraphvizOnline mode, generate a separate DOT code with the GraphvizOnline pic dir
+                if (PIC_DIR_TYPE === 'relativegraphvizonline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                    dotCodeForGraphvizOnline = await generateDotCode(people, marriagesArray, PIC_DIR_GRAPHVIZ_ONLINE);
+                } else {
+                    dotCodeForGraphvizOnline = dotCode;
+                }
                 graphvizOnlineBtn.disabled = false;
                 updateInfoPanels();
                 showStatus('⏳ Построение дерева...');

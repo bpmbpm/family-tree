@@ -8,6 +8,29 @@ picDir      — путь к папке с фото персон (по умолч
               так и полный абсолютный путь (например "/home/user/photos").
               Значение по умолчанию: "pic" (папка pic рядом с index.html).
 
+picDirType  — режим работы с папкой фото (по умолчанию: "relative")
+              Допустимые значения:
+                "relative"              — использует picDir как относительный путь; работает
+                                         при открытии через HTTP-сервер.
+                "global"                — использует picDirGlobal как полный абсолютный путь;
+                                         работает при открытии через file:// и в DOT-коде
+                                         для локального Graphviz.
+                "relativeGraphvizOnline" — работает как "relative" при локальном отображении,
+                                         но в DOT-коде для кнопки «Показать в окне GraphvizOnline»
+                                         подставляет значение picDirGraphvizOnline (URL к фото
+                                         в интернете). Позволяет получить минифото на
+                                         https://dreampuf.github.io/GraphvizOnline/
+
+picDirGlobal — полный абсолютный путь к папке с фото; используется когда picDirType = "global"
+              Пример для Windows: "C:/Users/YourName/Desktop/ver1/pic"
+              Пример для Linux/Mac: "/home/user/family-tree/ver1/pic"
+              Значение по умолчанию: "" (не задано).
+
+picDirGraphvizOnline — URL к папке с фото для GraphvizOnline; используется когда
+              picDirType = "relativeGraphvizOnline"
+              Пример: "https://bpmbpm.github.io/family-tree/ver1/pic"
+              Значение по умолчанию: "" (не задано).
+
 # --- Размеры узлов (в дюймах, при 72 DPI) ---
 
 nodeWidth   — ширина узла в дюймах (по умолчанию: 1.1)
