@@ -128,8 +128,7 @@
             // Rendering parameters — will be overridden by config.json values if available.
             let FONT_NAME = 'Arial';
             let FONT_SIZE = 11;
-            let LINE_SPACING = 1.0;
-            let LINE_SPACING_SURNAME2 = 0.8;
+            let FONT_SIZE_SURNAME2 = 9.9;
             let MALE_COLOR = '#a3c4f3';
             let FEMALE_COLOR = '#fbb9c0';
             let UNKNOWN_COLOR = '#d5d8dc';
@@ -228,11 +227,8 @@
                 if (typeof config.fontsize === 'number' && config.fontsize > 0) {
                     FONT_SIZE = config.fontsize;
                 }
-                if (typeof config.lineSpacing === 'number' && config.lineSpacing > 0) {
-                    LINE_SPACING = config.lineSpacing;
-                }
-                if (typeof config.lineSpacingSurName2 === 'number' && config.lineSpacingSurName2 > 0) {
-                    LINE_SPACING_SURNAME2 = config.lineSpacingSurName2;
+                if (typeof config.fontsizeSurName2 === 'number' && config.fontsizeSurName2 > 0) {
+                    FONT_SIZE_SURNAME2 = config.fontsizeSurName2;
                 }
                 if (typeof config.maleColor === 'string' && config.maleColor.trim()) {
                     MALE_COLOR = config.maleColor.trim();
@@ -517,12 +513,10 @@
                     }
                     const labelText = `${labelName}\\n${birthYear}–${deathYear}`;
 
-                    // For surName2 nodes, scale fontsize by LINE_SPACING_SURNAME2 to produce compact text layout.
+                    // For surName2 nodes, use FONT_SIZE_SURNAME2 to produce compact text layout.
                     // The margin attribute alone has no effect on fixedsize=true nodes, so fontsize is used
-                    // to visibly reflect the lineSpacingSurName2 config: lower value → smaller font → more compact.
-                    const nodeFontSize = p.surName2
-                        ? +(FONT_SIZE * LINE_SPACING_SURNAME2).toFixed(1)
-                        : FONT_SIZE;
+                    // to reflect the fontsizeSurName2 config: smaller value → more compact text.
+                    const nodeFontSize = p.surName2 ? FONT_SIZE_SURNAME2 : FONT_SIZE;
                     const fontSizeAttr = nodeFontSize !== FONT_SIZE ? `, fontsize=${nodeFontSize}` : '';
 
                     const photoPath = await getPersonPhotoPath(p, picDirOverride);
@@ -864,7 +858,7 @@
                     <div class="properties-panel visible" id="${panelId}" style="right: ${rightOffset}px; top: ${topOffset}px;">
                         <div class="properties-header" onmousedown="startDragPanel(event, '${panelId}')">
                             <div class="properties-header-content">
-                                <div class="properties-header-title">Свойство объекта диаграммы</div>
+                                <div class="properties-header-title">Основные свойства person</div>
                                 <h3>${person.label}</h3>
                                 <button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId('${escapedLabel}', this)">Копировать</button>
                             </div>
