@@ -13,3 +13,10 @@ Family (семейная пара, лист family)
 - Кластер пара
   - Основные свойства family
   - Все свойства family
+
+- foto
+  - foto_person
+  - foto_family
+  - foto_group
+ 
+- foto location 
