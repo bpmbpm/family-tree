@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Семейное древо на excel + Graphviz (с фото)</title>
+    <script src="https://unpkg.com/@viz-js/viz@3.4.0/lib/viz-standalone.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <!-- config.js задаёт глобальную переменную CONFIG с параметрами.
+         Загрузка через <script> работает в том числе по протоколу file://
+         (без ошибок CORS, в отличие от fetch/XMLHttpRequest для config.json). -->
+    <script src="config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🌳 Семейное древо на excel + Graphviz (с фото)</h1>
+        <div class="toolbar">
+            <button id="loadBtn">📂 Загрузить tree.xlsx</button>
+            <button id="manualBtn">📁 Выбрать файл</button>
+            <button id="graphvizOnlineBtn" disabled>🔗 Показать в окне GraphvizOnline</button>
+            <input type="file" id="fileInput" accept=".xlsx, .xls">
+        </div>
+        <div id="status" class="status">⏳ Ожидание загрузки файла...</div>
+
+        <!-- Информационные панели -->
+        <div class="info-panels">
+            <div class="panel" id="panel-link">
+                <div class="panel-header" onclick="togglePanel('panel-link-content')">
+                    <span>🔗 Ссылка на GraphvizOnline</span>
+                    <span class="toggle-icon">▶</span>
+                </div>
+                <div class="panel-content" id="panel-link-content">
+                    <div class="link-box">
+                        <input type="text" id="graphvizLinkInput" readonly value="(сгенерируется после загрузки)" />
+                        <button onclick="copyLink()">📋 Копировать</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" id="panel-placeholders">
+                <div class="panel-header" onclick="togglePanel('panel-placeholders-content')">
+                    <span>🖼️ Фото персон</span>
+                    <span class="toggle-icon">▶</span>
+                </div>
+                <div class="panel-content" id="panel-placeholders-content">
+                    <div class="photos-grid" id="photosGrid">
+                        <em style="color:#888">Загрузите Excel для отображения фото</em>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" id="panel-code">
+                <div class="panel-header" onclick="togglePanel('panel-code-content')">
+                    <span>📄 Код DOT</span>
+                    <span class="toggle-icon">▶</span>
+                </div>
+                <div class="panel-content" id="panel-code-content">
+                    <textarea id="dotCodePre" class="dot-code">(код появится после загрузки)</textarea>
+                    <div class="dot-code-find-replace">
+                        <input type="text" id="dotFindInput" placeholder="Найти..." class="dot-find-input">
+                        <input type="text" id="dotReplaceInput" placeholder="Заменить на..." class="dot-find-input">
+                        <div class="dot-find-buttons">
+                            <button onclick="dotFindFirst()">🔍 Найти</button>
+                            <button onclick="dotFindNext()">⏭ Далее</button>
+                            <button onclick="dotReplaceOne()">✏️ Заменить</button>
+                            <button onclick="dotReplaceAll()">🔁 Заменить все</button>
+                            <span id="dotFindStatus" class="dot-find-status"></span>
+                        </div>
+                    </div>
+                    <div class="dot-code-toolbar">
+                        <button onclick="refreshDiagramFromEditor()">🔄 Обновить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diagram panel: zoom container on top, zoom controls at bottom -->
+        <div class="diagram-panel">
+            <div class="diagram-panel-header">
+                <span class="diagram-panel-title">📊 Диаграмма</span>
+            </div>
+            <div class="zoom-container" id="zoomContainer">
+                <div class="zoom-content" id="zoomContent">
+                    <div id="graphvizContainer">Дерево будет построено здесь...</div>
+                </div>
+            </div>
+            <div class="zoom-controls" id="zoom-controls">
+                <button onclick="zoomIn()" title="Увеличить">+</button>
+                <span id="zoom-level">100%</span>
+                <button onclick="zoomOut()" title="Уменьшить">−</button>
+                <button onclick="zoomReset()" title="Сбросить масштаб">Сброс</button>
+                <button onclick="zoomFit()" title="Вписать в окно">Вписать</button>
+            </div>
+        </div>
+
+        <footer>Фото из папки <code>pic/</code> (idA.png). Узел: <code>image=</code>, <code>fixedsize=true</code>, <code>imagepos=tc</code>, <code>labelloc=b</code> — фото сверху, имя и годы снизу, без наложения. Для мужчин рамка синяя, для женщин — розовая.</footer>
+    </div>
+
+    <!-- Properties panels container (fixed positioning) -->
+    <div id="properties-panels-container"></div>
+
+    <script>
+        (function() {
+            let people = [];
+            let dotCode = '';
+            let dotCodeForGraphvizOnline = ''; // separate DOT code for GraphvizOnline (used in relativeGraphvizOnline mode)
+            let graphvizLink = '';
+            let currentScale = 1.0;
+
+            // Properties panel state
+            let openPropertiesPanels = [];
+            let propertiesPanelCounter = 0;
+            let selectedNodeElement = null;
+            let draggedPanel = null;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+
+            // Cache: filename -> true (exists) or false (not found)
+            const photoExistsCache = {};
+
+            // Node dimensions for Graphviz (in inches, at 72 DPI = 1 inch).
+            // Will be overridden by config.json values if available.
+            const PHOTO_SIZE_PX = 100;
+            let NODE_WIDTH_IN = 2.0;
+            let NODE_HEIGHT_IN = ((PHOTO_SIZE_PX + 32) / 72).toFixed(2) * 1; // ~1.83in
+
+            // Rendering parameters — will be overridden by config.json values if available.
+            let FONT_NAME = 'Arial';
+            let FONT_SIZE = 11;
+            let FONT_SIZE_SURNAME2 = 9.9;
+            let MALE_COLOR = '#a3c4f3';
+            let FEMALE_COLOR = '#fbb9c0';
+            let UNKNOWN_COLOR = '#d5d8dc';
+            let BORDER_COLOR = '#2c3e50';
+            let EDGE_COLOR = '#5d6d7e';
+            // Photo directory — relative path, will be overridden by config.json picDir
+            let PIC_DIR = 'pic';
+            // Photo directory type: "relative" (default), "global" (full absolute path),
+            // or "relativeGraphvizOnline" (relative for local render, picDirGraphvizOnline for GraphvizOnline DOT code)
+            let PIC_DIR_TYPE = 'relative';
+            // Global (absolute) photo directory path — used when picDirType = "global"
+            let PIC_DIR_GLOBAL = '';
+            // GraphvizOnline photo directory path — used in DOT code for GraphvizOnline when picDirType = "relativeGraphvizOnline"
+            let PIC_DIR_GRAPHVIZ_ONLINE = '';
+
+            const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
+            const statusDiv = document.getElementById('status');
+            const graphvizContainer = document.getElementById('graphvizContainer');
+            const zoomContent = document.getElementById('zoomContent');
+            const zoomContainer = document.getElementById('zoomContainer');
+            const zoomLevelSpan = document.getElementById('zoom-level');
+            const loadBtn = document.getElementById('loadBtn');
+            const manualBtn = document.getElementById('manualBtn');
+            const fileInput = document.getElementById('fileInput');
+            const graphvizLinkInput = document.getElementById('graphvizLinkInput');
+            const dotCodePre = document.getElementById('dotCodePre');
+
+            // --- Load config ---
+            // Priority order:
+            // 1. window.CONFIG — global variable from config.js loaded via <script src="config.js">.
+            //    Works in file:// protocol without CORS errors (recommended approach).
+            // 2. fetch('config.json') — works when served over HTTP/HTTPS.
+            // 3. async XMLHttpRequest for config.json — fallback for HTTP/HTTPS.
+            // 4. synchronous XMLHttpRequest for config.json — last resort (file:// in some browsers).
+            // config.js / config.json are both optional; built-in defaults are used if neither is found.
+            async function loadConfig() {
+                let config = null;
+                // 1. Check for config.js (global CONFIG variable injected via <script src="config.js">)
+                if (typeof window.CONFIG === 'object' && window.CONFIG !== null) {
+                    config = window.CONFIG;
+                }
+                // 2. Try fetch('config.json') — works over HTTP/HTTPS
+                if (!config) {
+                    try {
+                        const response = await fetch('config.json');
+                        if (response.ok) {
+                            config = await response.json();
+                        }
+                    } catch (e) {
+                        // fetch() may be blocked in file:// protocol; try XMLHttpRequest as fallback
+                    }
+                }
+                // 3. Fallback: async XMLHttpRequest for config.json
+                if (!config) {
+                    try {
+                        config = await new Promise((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.open('GET', 'config.json', true);
+                            xhr.onload = () => {
+                                if (xhr.status === 200 || xhr.status === 0) {
+                                    try { resolve(JSON.parse(xhr.responseText)); } catch (e) { reject(e); }
+                                } else {
+                                    reject(new Error('XHR status ' + xhr.status));
+                                }
+                            };
+                            xhr.onerror = () => reject(new Error('XHR error'));
+                            xhr.send();
+                        });
+                    } catch (e) {
+                        // async XHR may also fail in file:// protocol; try synchronous XHR as last resort
+                    }
+                }
+                // 4. Last resort: synchronous XMLHttpRequest (works for local file:// in all browsers)
+                if (!config) {
+                    try {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('GET', 'config.json', false);
+                        xhr.send();
+                        if (xhr.status === 200 || xhr.status === 0) {
+                            config = JSON.parse(xhr.responseText);
+                        }
+                    } catch (e) {
+                        // config.json is optional; use defaults if not found
+                    }
+                }
+                if (!config) return;
+                if (typeof config.width === 'number' && config.width > 0) {
+                    NODE_WIDTH_IN = config.width;
+                }
+                if (typeof config.height === 'number' && config.height > 0) {
+                    NODE_HEIGHT_IN = config.height;
+                }
+                if (typeof config.fontname === 'string' && config.fontname.trim()) {
+                    FONT_NAME = config.fontname.trim();
+                }
+                if (typeof config.fontsize === 'number' && config.fontsize > 0) {
+                    FONT_SIZE = config.fontsize;
+                }
+                if (typeof config.fontsizeSurName2 === 'number' && config.fontsizeSurName2 > 0) {
+                    FONT_SIZE_SURNAME2 = config.fontsizeSurName2;
+                }
+                if (typeof config.maleColor === 'string' && config.maleColor.trim()) {
+                    MALE_COLOR = config.maleColor.trim();
+                }
+                if (typeof config.femaleColor === 'string' && config.femaleColor.trim()) {
+                    FEMALE_COLOR = config.femaleColor.trim();
+                }
+                if (typeof config.unknownColor === 'string' && config.unknownColor.trim()) {
+                    UNKNOWN_COLOR = config.unknownColor.trim();
+                }
+                if (typeof config.borderColor === 'string' && config.borderColor.trim()) {
+                    BORDER_COLOR = config.borderColor.trim();
+                }
+                if (typeof config.edgeColor === 'string' && config.edgeColor.trim()) {
+                    EDGE_COLOR = config.edgeColor.trim();
+                }
+                if (typeof config.picDir === 'string' && config.picDir.trim()) {
+                    // Normalize: remove trailing slash, support both relative and absolute paths
+                    PIC_DIR = config.picDir.trim().replace(/\/+$/, '');
+                }
+                if (typeof config.picDirType === 'string' && config.picDirType.trim()) {
+                    const t = config.picDirType.trim();
+                    if (t === 'global' || t === 'relative' || t === 'relativeGraphvizOnline') PIC_DIR_TYPE = t;
+                }
+                if (typeof config.picDirGlobal === 'string' && config.picDirGlobal.trim()) {
+                    PIC_DIR_GLOBAL = config.picDirGlobal.trim().replace(/[/\\]+$/, '');
+                }
+                if (typeof config.picDirGraphvizOnline === 'string' && config.picDirGraphvizOnline.trim()) {
+                    PIC_DIR_GRAPHVIZ_ONLINE = config.picDirGraphvizOnline.trim().replace(/\/+$/, '');
+                }
+            }
+
+            // --- Return the active photo directory based on picDirType ---
+            // In "relative" / "relativeGraphvizOnline" mode: returns PIC_DIR (e.g. "pic")
+            // In "global" mode: returns PIC_DIR_GLOBAL if set, otherwise falls back to PIC_DIR
+            function getActivePicDir() {
+                if (PIC_DIR_TYPE === 'global' && PIC_DIR_GLOBAL) return PIC_DIR_GLOBAL;
+                return PIC_DIR;
+            }
+
+            // --- Return the photo directory to use in DOT code for GraphvizOnline ---
+            // In "relativeGraphvizOnline" mode: returns PIC_DIR_GRAPHVIZ_ONLINE (if set) or PIC_DIR
+            // In all other modes: same as getActivePicDir()
+            function getGraphvizOnlinePicDir() {
+                if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) return PIC_DIR_GRAPHVIZ_ONLINE;
+                return getActivePicDir();
+            }
+
+            // --- Panel toggling ---
+            window.togglePanel = function(contentId) {
+                const content = document.getElementById(contentId);
+                const icon = content.previousElementSibling.querySelector('.toggle-icon');
+                content.classList.toggle('visible');
+                icon.textContent = content.classList.contains('visible') ? '▼' : '▶';
+            };
+
+            window.copyLink = function() {
+                graphvizLinkInput.select();
+                document.execCommand('copy');
+                alert('Ссылка скопирована!');
+            };
+
+            // --- Zoom controls ---
+            function applyZoom() {
+                zoomContent.style.transform = `scale(${currentScale})`;
+                zoomLevelSpan.textContent = Math.round(currentScale * 100) + '%';
+            }
+
+            window.zoomIn = function() {
+                if (currentScale < 5.0) { currentScale = Math.min(5.0, currentScale + 0.1); applyZoom(); }
+            };
+            window.zoomOut = function() {
+                if (currentScale > 0.1) { currentScale = Math.max(0.1, currentScale - 0.1); applyZoom(); }
+            };
+            window.zoomReset = function() {
+                currentScale = 1.0;
+                applyZoom();
+            };
+            window.zoomFit = function() {
+                const svg = graphvizContainer.querySelector('svg');
+                if (!svg) return;
+                const containerW = zoomContainer.clientWidth - 20;
+                const containerH = zoomContainer.clientHeight - 20;
+                const svgW = svg.getBoundingClientRect().width / currentScale;
+                const svgH = svg.getBoundingClientRect().height / currentScale;
+                if (svgW <= 0 || svgH <= 0) return;
+                const scaleX = containerW / svgW;
+                const scaleY = containerH / svgH;
+                currentScale = Math.min(scaleX, scaleY, 1.0);
+                applyZoom();
+            };
+
+            // Mouse wheel zoom
+            zoomContainer.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                currentScale = Math.min(5.0, Math.max(0.1, currentScale + delta));
+                applyZoom();
+            }, { passive: false });
+
+            // --- Status ---
+            function showStatus(msg, isError = false) {
+                statusDiv.textContent = msg;
+                statusDiv.style.backgroundColor = isError ? '#fadbd8' : '#fff8e5';
+                statusDiv.style.borderLeftColor = isError ? '#e74c3c' : '#f1c40f';
+            }
+
+            // --- Check if photo exists ---
+            // In "global" mode or file:// protocol, fetch() is blocked by browser security.
+            // Instead, we use an <img> element to test file existence: it loads the image and
+            // resolves true on success or false on error. This works for both file:// and http://.
+            async function checkPhotoExists(filename) {
+                if (photoExistsCache[filename] !== undefined) return photoExistsCache[filename];
+                const picDir = getActivePicDir();
+                const filePath = picDir + '/' + filename;
+                const isFileProtocol = window.location.protocol === 'file:';
+                if (isFileProtocol || (PIC_DIR_TYPE === 'global' && PIC_DIR_GLOBAL)) {
+                    // Use <img> element to check existence in file:// or global mode
+                    const exists = await new Promise(resolve => {
+                        const img = new Image();
+                        img.onload = () => resolve(true);
+                        img.onerror = () => resolve(false);
+                        img.src = filePath;
+                    });
+                    photoExistsCache[filename] = exists;
+                    return exists;
+                }
+                try {
+                    const response = await fetch(filePath, { method: 'HEAD' });
+                    photoExistsCache[filename] = response.ok;
+                    return response.ok;
+                } catch {
+                    photoExistsCache[filename] = false;
+                    return false;
+                }
+            }
+
+            // --- Determine which photo path to use for a person (returns path string or null) ---
+            // Optional picDirOverride: if provided, use this directory instead of getActivePicDir().
+            // Photo existence is always checked against getActivePicDir() (local files);
+            // picDirOverride only affects the path string in the returned value.
+            async function getPersonPhotoPath(person, picDirOverride) {
+                const picDir = getActivePicDir();
+                const outputDir = picDirOverride !== undefined ? picDirOverride : picDir;
+                const personalFile = person.idA + '.png';
+                if (await checkPhotoExists(personalFile)) return outputDir + '/' + personalFile;
+                // Fall back to default
+                const defaultFile = (person.sex === 'Ж' || person.sex === 'F') ? 'dafaultf.png' : 'dafaultm.png';
+                if (await checkPhotoExists(defaultFile)) return outputDir + '/' + defaultFile;
+                return null;
+            }
+
+            // --- Preload / check photo existence for all people ---
+            async function preloadPhotoChecks(peopleList) {
+                const filenames = new Set(['dafaultm.png', 'dafaultf.png']);
+                peopleList.forEach(p => { if (p.idA) filenames.add(p.idA + '.png'); });
+                await Promise.all(Array.from(filenames).map(fn => checkPhotoExists(fn)));
+            }
+
+            // --- Parse Excel ---
+            function parseExcel(arrayBuffer) {
+                try {
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+                    // Parse person sheet
+                    const personSheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('person')) || workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[personSheetName];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                    if (rows.length < 2) throw new Error('Нет данных на листе person');
+
+                    // Detect column indices by header names (robust to column order changes)
+                    const headerRow = rows[0].map(h => (h || '').toString().trim().toLowerCase());
+                    const colIdx = {
+                        idA: headerRow.indexOf('ida'),
+                        label: headerRow.indexOf('label'),
+                        sex: headerRow.indexOf('sex'),
+                        surName2: headerRow.indexOf('surname2'),
+                        hasFather: headerRow.indexOf('hasfather'),
+                        hasMother: headerRow.indexOf('hasmother'),
+                        birth: headerRow.indexOf('birth'),
+                        death: headerRow.indexOf('death'),
+                        hyperLink: headerRow.indexOf('hyperlink')
+                    };
+                    // Fallback to positional if header not found
+                    if (colIdx.idA < 0) colIdx.idA = 0;
+                    if (colIdx.label < 0) colIdx.label = 1;
+                    if (colIdx.sex < 0) colIdx.sex = 2;
+                    if (colIdx.surName2 < 0) colIdx.surName2 = 3;
+                    if (colIdx.hasFather < 0) colIdx.hasFather = 4;
+                    if (colIdx.hasMother < 0) colIdx.hasMother = 5;
+                    if (colIdx.birth < 0) colIdx.birth = 6;
+                    if (colIdx.death < 0) colIdx.death = 7;
+                    // hyperLink may not exist, leave as -1 if not found
+
+                    const dataRows = rows.slice(1).filter(row => row[colIdx.label] && row[colIdx.label].toString().trim() !== '');
+                    const peopleList = dataRows.map(row => {
+                        const label = row[colIdx.label] ? row[colIdx.label].toString().trim() : '';
+                        // idA may be a formula (not evaluated by SheetJS) — derive from label if empty or formula
+                        let idA = row[colIdx.idA] ? row[colIdx.idA].toString().trim() : '';
+                        if (!idA || idA.startsWith('=')) {
+                            idA = label.replace(/ /g, '_');
+                        }
+                        return {
+                            idA,
+                            label,
+                            sex: row[colIdx.sex] ? row[colIdx.sex].toString().trim() : '',
+                            surName2: (colIdx.surName2 >= 0 && row[colIdx.surName2]) ? row[colIdx.surName2].toString().trim() : '',
+                            hasFather: row[colIdx.hasFather] ? row[colIdx.hasFather].toString().trim() : '',
+                            hasMother: row[colIdx.hasMother] ? row[colIdx.hasMother].toString().trim() : '',
+                            birth: row[colIdx.birth] ? row[colIdx.birth].toString().trim() : '',
+                            death: row[colIdx.death] ? row[colIdx.death].toString().trim() : '',
+                            hyperLink: (colIdx.hyperLink >= 0 && row[colIdx.hyperLink]) ? row[colIdx.hyperLink].toString().trim() : ''
+                        };
+                    }).filter(p => p.idA && p.label);
+                    if (peopleList.length === 0) throw new Error('Нет записей с idA и label');
+
+                    // Parse family sheet (marriages)
+                    const familySheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('family'));
+                    let marriages = [];
+                    if (familySheetName) {
+                        const familySheet = workbook.Sheets[familySheetName];
+                        const familyRows = XLSX.utils.sheet_to_json(familySheet, { header: 1, defval: '' });
+                        if (familyRows.length > 1) {
+                            const famHeader = familyRows[0].map(h => (h || '').toString().trim().toLowerCase());
+                            const famIdx = {
+                                husband: famHeader.indexOf('husband'),
+                                wife: famHeader.indexOf('wife'),
+                                marriage: famHeader.indexOf('marriage')
+                            };
+                            if (famIdx.husband < 0) famIdx.husband = 1;
+                            if (famIdx.wife < 0) famIdx.wife = 2;
+                            // marriage is optional
+                            familyRows.slice(1).forEach(row => {
+                                const husband = row[famIdx.husband] ? row[famIdx.husband].toString().trim() : '';
+                                const wife = row[famIdx.wife] ? row[famIdx.wife].toString().trim() : '';
+                                if (husband && wife) {
+                                    marriages.push({
+                                        husband,
+                                        wife,
+                                        marriage: (famIdx.marriage >= 0 && row[famIdx.marriage]) ? row[famIdx.marriage].toString().trim() : ''
+                                    });
+                                }
+                            });
+                        }
+                    }
+
+                    return { people: peopleList, marriages };
+                } catch (e) {
+                    showStatus('Ошибка парсинга Excel: ' + e.message, true);
+                    throw e;
+                }
+            }
+
+            // --- Generate DOT code using native image= attribute ---
+            // Each node is portrait-oriented: photo at top, text label at bottom.
+            // Uses fixedsize=true with width/height so Graphviz reserves exact space.
+            // imagepos=tc places photo at top-center; labelloc=b places text at bottom.
+            // No <<TABLE>> labels — readable plain DOT code only.
+            // Spaces in label names are replaced with \n for better layout.
+            // Optional picDirOverride: if provided, use this directory for image paths in DOT code
+            // (used in relativeGraphvizOnline mode to generate DOT code for GraphvizOnline with absolute URLs).
+            async function generateDotCode(peopleList, marriages, picDirOverride) {
+                const nodes = [];
+                const edges = [];
+                const clusters = [];
+                // Set of all person idA values for membership check
+                const personIdSet = new Set(peopleList.map(p => p.idA));
+
+                for (const p of peopleList) {
+                    const birthYear = p.birth || '?';
+                    const deathYear = p.death || '?';
+
+                    let fillcolor = UNKNOWN_COLOR;
+                    if (p.sex === 'М' || p.sex === 'M') fillcolor = MALE_COLOR;
+                    else if (p.sex === 'Ж' || p.sex === 'F') fillcolor = FEMALE_COLOR;
+
+                    const nodeId = p.idA;
+                    // Build label: start with surName2 if present, then the full name, then years
+                    let labelName = p.label.replace(/ /g, '\\n');
+                    if (p.surName2) {
+                        labelName = p.surName2.replace(/ /g, '\\n') + '\\n' + labelName;
+                    }
+                    const labelText = `${labelName}\\n${birthYear}–${deathYear}`;
+
+                    // For surName2 nodes, use FONT_SIZE_SURNAME2 to produce compact text layout.
+                    // The margin attribute alone has no effect on fixedsize=true nodes, so fontsize is used
+                    // to reflect the fontsizeSurName2 config: smaller value → more compact text.
+                    const nodeFontSize = p.surName2 ? FONT_SIZE_SURNAME2 : FONT_SIZE;
+                    const fontSizeAttr = nodeFontSize !== FONT_SIZE ? `, fontsize=${nodeFontSize}` : '';
+
+                    const photoPath = await getPersonPhotoPath(p, picDirOverride);
+                    if (photoPath) {
+                        // Portrait node: photo at top-center at its registered size, text at bottom.
+                        // fixedsize=true locks the node to exactly width×height so layout is consistent.
+                        // imagescale=false keeps photo at registered PHOTO_SIZE_PX so it doesn't
+                        // stretch over the text area; labelloc=b places text at bottom inside node.
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}",`);
+                        nodes.push(`    label="${labelText}", image="${photoPath}",`);
+                        nodes.push(`    fixedsize=true, width=${NODE_WIDTH_IN}, height=${NODE_HEIGHT_IN}${fontSizeAttr},`);
+                        nodes.push(`    imagepos=tc, imagescale=false, labelloc=b];`);
+                    } else {
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}", label="${labelText}"${fontSizeAttr}];`);
+                    }
+                }
+
+                // Parent relationships
+                peopleList.forEach(p => {
+                    const childId = p.idA;
+                    if (p.hasFather) edges.push(`  ${p.hasFather} -> ${childId};`);
+                    if (p.hasMother) edges.push(`  ${p.hasMother} -> ${childId};`);
+                });
+
+                // Marriage clusters from family sheet
+                // Only include couples where both husband and wife are in the current graph
+                let clusterIdx = 0;
+                (marriages || []).forEach(m => {
+                    if (personIdSet.has(m.husband) && personIdSet.has(m.wife)) {
+                        const clusterLines = [];
+                        clusterLines.push(`  subgraph cluster_marriage_${clusterIdx} {`);
+                        if (m.marriage) {
+                            clusterLines.push(`    label="${m.marriage}";`);
+                        } else {
+                            clusterLines.push(`    label="";`);
+                        }
+                        clusterLines.push(`    rank=same;`);
+                        clusterLines.push(`    style=dashed;`);
+                        clusterLines.push(`    color="${EDGE_COLOR}";`);
+                        clusterLines.push(`    ${m.husband};`);
+                        clusterLines.push(`    ${m.wife};`);
+                        clusterLines.push(`  }`);
+                        clusters.push(clusterLines.join('\n'));
+                        clusterIdx++;
+                    }
+                });
+
+                const clusterSection = clusters.length > 0 ? '\n' + clusters.join('\n') + '\n' : '';
+                return `digraph G {\n  rankdir=TB;\n  node [fontname="${FONT_NAME}", fontsize=${FONT_SIZE}];\n  edge [color="${EDGE_COLOR}"];\n\n${nodes.join('\n')}\n${clusterSection}\n${edges.join('\n')}\n}`;
+            }
+
+            // --- Build images array for viz.renderString() images option ---
+            // Collects all unique photo paths used in the DOT code and registers them
+            // with square dimensions matching the node width so the photo fills the top portion.
+            async function buildImagesOption(peopleList) {
+                const imageMap = new Map(); // path -> true (deduplicate)
+                for (const p of peopleList) {
+                    const photoPath = await getPersonPhotoPath(p);
+                    if (photoPath) imageMap.set(photoPath, true);
+                }
+                return Array.from(imageMap.keys()).map(path => ({
+                    name: path,
+                    width: PHOTO_SIZE_PX,
+                    height: PHOTO_SIZE_PX
+                }));
+            }
+
+            // --- Render DOT code ---
+            async function renderDot(dotStr, imagesOption) {
+                try {
+                    const viz = await Viz.instance();
+                    const svgStr = await viz.renderString(dotStr, {
+                        format: 'svg',
+                        images: imagesOption
+                    });
+                    graphvizContainer.innerHTML = svgStr;
+
+                    // Add node click handlers
+                    const svgEl = graphvizContainer.querySelector('svg');
+                    if (svgEl) {
+                        addNodeClickHandlers(svgEl);
+                    }
+                } catch (error) {
+                    graphvizContainer.innerHTML = `<p style="color:red">Ошибка рендеринга: ${error.message}</p>`;
+                    console.error(error);
+                }
+            }
+
+            // --- Find/Replace in DOT editor ---
+            let dotFindLastIndex = -1;
+            let dotFindLastTerm = '';
+
+            function getDotFindTerm() {
+                return document.getElementById('dotFindInput').value;
+            }
+
+            function getDotReplaceTerm() {
+                return document.getElementById('dotReplaceInput').value;
+            }
+
+            function setDotFindStatus(msg) {
+                document.getElementById('dotFindStatus').textContent = msg;
+            }
+
+            window.dotFindFirst = function() {
+                const term = getDotFindTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                const idx = text.indexOf(term);
+                if (idx === -1) {
+                    setDotFindStatus('Не найдено');
+                    dotFindLastIndex = -1;
+                } else {
+                    dotCodePre.focus();
+                    dotCodePre.setSelectionRange(idx, idx + term.length);
+                    dotFindLastIndex = idx;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('');
+                }
+            };
+
+            window.dotFindNext = function() {
+                const term = getDotFindTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                // If term changed, start from beginning
+                const startFrom = (term === dotFindLastTerm && dotFindLastIndex !== -1)
+                    ? dotFindLastIndex + 1 : 0;
+                const idx = text.indexOf(term, startFrom);
+                if (idx === -1) {
+                    // Wrap around
+                    const idxWrap = text.indexOf(term, 0);
+                    if (idxWrap === -1) {
+                        setDotFindStatus('Не найдено');
+                        dotFindLastIndex = -1;
+                    } else {
+                        dotCodePre.focus();
+                        dotCodePre.setSelectionRange(idxWrap, idxWrap + term.length);
+                        dotFindLastIndex = idxWrap;
+                        dotFindLastTerm = term;
+                        setDotFindStatus('С начала');
+                    }
+                } else {
+                    dotCodePre.focus();
+                    dotCodePre.setSelectionRange(idx, idx + term.length);
+                    dotFindLastIndex = idx;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('');
+                }
+            };
+
+            window.dotReplaceOne = function() {
+                const term = getDotFindTerm();
+                const replacement = getDotReplaceTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                // Replace only at the current selection if it matches
+                const selStart = dotCodePre.selectionStart;
+                const selEnd = dotCodePre.selectionEnd;
+                if (selEnd - selStart === term.length && text.substring(selStart, selEnd) === term) {
+                    dotCodePre.value = text.substring(0, selStart) + replacement + text.substring(selEnd);
+                    dotFindLastIndex = selStart + replacement.length - 1;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('Заменено');
+                    // Move to next match
+                    window.dotFindNext();
+                } else {
+                    // Just find first
+                    window.dotFindFirst();
+                }
+            };
+
+            window.dotReplaceAll = function() {
+                const term = getDotFindTerm();
+                const replacement = getDotReplaceTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                const count = (text.split(term).length - 1);
+                if (count === 0) {
+                    setDotFindStatus('Не найдено');
+                    return;
+                }
+                dotCodePre.value = text.split(term).join(replacement);
+                dotFindLastIndex = -1;
+                setDotFindStatus(`Заменено: ${count}`);
+            };
+
+            // --- Refresh diagram from DOT editor ---
+            window.refreshDiagramFromEditor = async function() {
+                const editedDot = dotCodePre.value;
+                if (!editedDot || editedDot === '(код появится после загрузки)') return;
+                showStatus('⏳ Перерисовка диаграммы...');
+                // When editor is updated, use the edited code for both local render and GraphvizOnline link
+                dotCode = editedDot;
+                dotCodeForGraphvizOnline = editedDot;
+                // Update graphviz link
+                const encoded = encodeURIComponent(editedDot);
+                graphvizLink = `https://dreampuf.github.io/GraphvizOnline/?engine=dot#${encoded}`;
+                graphvizLinkInput.value = graphvizLink;
+                // Re-render without re-loading images (use already loaded people)
+                const imagesOption = await buildImagesOption(people);
+                await renderDot(editedDot, imagesOption);
+                showStatus('✅ Диаграмма обновлена');
+            };
+
+            // --- Update photos panel ---
+            // Shows only files that actually exist in pic/ folder (no empty placeholders).
+            function updatePhotosPanel() {
+                const grid = document.getElementById('photosGrid');
+                grid.innerHTML = '';
+
+                // Build list of files that were checked and found to exist
+                const existingFiles = [];
+
+                // Always include defaults if they exist
+                for (const fn of ['dafaultm.png', 'dafaultf.png']) {
+                    if (photoExistsCache[fn]) existingFiles.push(fn);
+                }
+
+                // Add person photos that exist
+                people.forEach(p => {
+                    const fn = p.idA + '.png';
+                    if (photoExistsCache[fn] && !existingFiles.includes(fn)) {
+                        existingFiles.push(fn);
+                    }
+                });
+
+                if (existingFiles.length === 0) {
+                    grid.innerHTML = '<em style="color:#888">Файлы фото не найдены в папке pic/</em>';
+                    return;
+                }
+
+                existingFiles.forEach(filename => {
+                    const div = document.createElement('div');
+                    div.className = 'photo-item';
+
+                    const img = document.createElement('img');
+                    img.src = getActivePicDir() + '/' + filename;
+                    img.alt = filename;
+                    img.title = filename;
+
+                    const label = document.createElement('div');
+                    label.className = 'path';
+                    const shortName = filename.length > 20 ? filename.substring(0, 18) + '…' : filename;
+                    label.textContent = shortName;
+                    label.title = filename;
+
+                    div.appendChild(img);
+                    div.appendChild(label);
+                    grid.appendChild(div);
+                });
+            }
+
+            // --- Update info panels ---
+            function updateInfoPanels() {
+                if (dotCode) {
+                    // In relativeGraphvizOnline mode, the DOT panel shows the GraphvizOnline
+                    // code (with absolute photo URLs) so users can copy it for use with GraphvizOnline.
+                    // In all other modes, the panel shows the local DOT code (with relative paths).
+                    const codeForLink = dotCodeForGraphvizOnline || dotCode;
+                    const showGraphvizCode = PIC_DIR_TYPE === 'relativeGraphvizOnline' && dotCodeForGraphvizOnline && dotCodeForGraphvizOnline !== dotCode;
+                    dotCodePre.value = showGraphvizCode ? dotCodeForGraphvizOnline : dotCode;
+                    const encoded = encodeURIComponent(codeForLink);
+                    graphvizLink = `https://dreampuf.github.io/GraphvizOnline/?engine=dot#${encoded}`;
+                    graphvizLinkInput.value = graphvizLink;
+                } else {
+                    dotCodePre.value = '(код появится после загрузки)';
+                    graphvizLinkInput.value = '(сгенерируется после загрузки)';
+                }
+                updatePhotosPanel();
+            }
+
+            // ================================================================
+            // PROPERTIES PANEL (Свойство объекта диаграммы)
+            // Based on rdf-grapher ver9d implementation
+            // ================================================================
+
+            function showNodeProperties(person) {
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+
+                // If already open for this person, bring to front
+                const existingPanel = openPropertiesPanels.find(p => p.idA === person.idA);
+                if (existingPanel) {
+                    const panel = document.getElementById(existingPanel.panelId);
+                    if (panel) bringPanelToFront(panel);
+                    return;
+                }
+
+                propertiesPanelCounter++;
+                const panelId = 'properties-panel-' + propertiesPanelCounter;
+
+                const offsetMultiplier = openPropertiesPanels.length % 5;
+                const rightOffset = 20 + (offsetMultiplier * 30);
+                const topOffset = 100 + (offsetMultiplier * 30);
+
+                // Build properties content
+                const sex = person.sex || '—';
+                const birth = person.birth || '—';
+                const death = person.death || '—';
+                const photoFile = photoExistsCache[person.idA + '.png'] ? person.idA + '.png' : null;
+
+                let propertiesHtml = '';
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">ID</div><div class="property-value">${person.idA}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Имя</div><div class="property-value">${person.label}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Пол</div><div class="property-value">${sex}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Год рождения</div><div class="property-value">${birth}</div></div>`;
+                propertiesHtml += `<div class="property-item"><div class="property-predicate">Год смерти</div><div class="property-value">${death}</div></div>`;
+                if (person.hasFather) {
+                    const father = people.find(p => p.idA === person.hasFather);
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Отец</div><div class="property-value">${father ? father.label : person.hasFather}</div></div>`;
+                }
+                if (person.hasMother) {
+                    const mother = people.find(p => p.idA === person.hasMother);
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Мать</div><div class="property-value">${mother ? mother.label : person.hasMother}</div></div>`;
+                }
+                if (person.hyperLink) {
+                    const links = person.hyperLink.split(';').map(s => s.trim()).filter(s => s);
+                    const linkHtml = links.map(href => {
+                        const safeHref = href.replace(/"/g, '&quot;');
+                        let displayText = href;
+                        try {
+                            const url = new URL(href);
+                            // Show only the second-level domain (e.g. ruwiki.ru from ru.wikipedia.org)
+                            const hostParts = url.hostname.replace(/^www\./, '').split('.');
+                            displayText = hostParts.length >= 2 ? hostParts.slice(-2).join('.') : url.hostname;
+                        } catch (e) { /* not a valid URL, show as-is */ }
+                        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${displayText}</a>`;
+                    }).join(' ');
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Ссылка</div><div class="property-value">${linkHtml}</div></div>`;
+                }
+                if (photoFile) {
+                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="${getActivePicDir()}/${photoFile}" alt="${person.label}"></div></div>`;
+                }
+
+                const escapedLabel = person.label.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                const panelHtml = `
+                    <div class="properties-panel visible" id="${panelId}" style="right: ${rightOffset}px; top: ${topOffset}px;">
+                        <div class="properties-header" onmousedown="startDragPanel(event, '${panelId}')">
+                            <div class="properties-header-content">
+                                <div class="properties-header-title">Основные свойства person</div>
+                                <h3>${person.label}</h3>
+                                <button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId('${escapedLabel}', this)">Копировать</button>
+                            </div>
+                            <button class="properties-close-btn" onclick="closePropertiesPanel('${panelId}')">&times;</button>
+                        </div>
+                        <div class="properties-content">
+                            ${propertiesHtml}
+                        </div>
+                    </div>
+                `;
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                openPropertiesPanels.push({ panelId: panelId, idA: person.idA });
+
+                const newPanel = document.getElementById(panelId);
+                if (newPanel) bringPanelToFront(newPanel);
+            }
+
+            window.closePropertiesPanel = function(panelId) {
+                const panel = document.getElementById(panelId);
+                if (panel) {
+                    panel.remove();
+                    openPropertiesPanels = openPropertiesPanels.filter(p => p.panelId !== panelId);
+                }
+                if (selectedNodeElement) {
+                    selectedNodeElement.classList.remove('selected');
+                    selectedNodeElement = null;
+                }
+            };
+
+            window.copyObjectId = function(label, btn) {
+                navigator.clipboard.writeText(label).then(() => {
+                    const orig = btn.textContent;
+                    btn.textContent = '✓';
+                    setTimeout(() => { btn.textContent = orig; }, 1500);
+                }).catch(() => {
+                    // Fallback
+                    const el = document.createElement('textarea');
+                    el.value = label;
+                    document.body.appendChild(el);
+                    el.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(el);
+                });
+            };
+
+            function bringPanelToFront(panel) {
+                let maxZIndex = 2000;
+                openPropertiesPanels.forEach(p => {
+                    const el = document.getElementById(p.panelId);
+                    if (el) {
+                        const z = parseInt(el.style.zIndex) || 2000;
+                        if (z > maxZIndex) maxZIndex = z;
+                    }
+                });
+                panel.style.zIndex = maxZIndex + 1;
+            }
+
+            window.startDragPanel = function(event, panelId) {
+                if (event.target.classList.contains('properties-close-btn') ||
+                    event.target.classList.contains('properties-copy-btn')) return;
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+
+                draggedPanel = panel;
+                const rect = panel.getBoundingClientRect();
+                dragOffsetX = event.clientX - rect.left;
+                dragOffsetY = event.clientY - rect.top;
+
+                bringPanelToFront(panel);
+                document.addEventListener('mousemove', dragPanel);
+                document.addEventListener('mouseup', stopDragPanel);
+                event.preventDefault();
+            };
+
+            function dragPanel(event) {
+                if (!draggedPanel) return;
+                const newLeft = event.clientX - dragOffsetX;
+                const newTop = event.clientY - dragOffsetY;
+                draggedPanel.style.left = newLeft + 'px';
+                draggedPanel.style.top = newTop + 'px';
+                draggedPanel.style.right = 'auto';
+            }
+
+            function stopDragPanel() {
+                draggedPanel = null;
+                document.removeEventListener('mousemove', dragPanel);
+                document.removeEventListener('mouseup', stopDragPanel);
+            }
+
+            // --- Add node click handlers to rendered SVG ---
+            function addNodeClickHandlers(svgEl) {
+                const nodes = svgEl.querySelectorAll('g.node');
+                nodes.forEach(node => {
+                    node.style.cursor = 'pointer';
+                    node.addEventListener('click', function(event) {
+                        event.stopPropagation();
+
+                        const titleEl = node.querySelector('title');
+                        if (!titleEl) return;
+                        const nodeId = titleEl.textContent.trim();
+                        const person = people.find(p => p.idA === nodeId);
+                        if (!person) return;
+
+                        // Update selection highlight
+                        if (selectedNodeElement) {
+                            selectedNodeElement.classList.remove('selected');
+                        }
+                        node.classList.add('selected');
+                        selectedNodeElement = node;
+
+                        showNodeProperties(person);
+                    });
+                });
+
+                // Click on empty SVG area: deselect
+                svgEl.addEventListener('click', function() {
+                    if (selectedNodeElement) {
+                        selectedNodeElement.classList.remove('selected');
+                        selectedNodeElement = null;
+                    }
+                });
+            }
+
+            // --- Build tree ---
+            async function buildTree(parsedData) {
+                const peopleArray = parsedData.people || parsedData;
+                const marriagesArray = parsedData.marriages || [];
+                if (!peopleArray.length) return;
+                people = peopleArray;
+                showStatus('⏳ Проверка наличия фото...');
+                await preloadPhotoChecks(people);
+                showStatus('⏳ Генерация DOT кода...');
+                // Generate local DOT code (always uses relative pic dir for rendering)
+                dotCode = await generateDotCode(people, marriagesArray);
+                // In relativeGraphvizOnline mode, generate a separate DOT code with the GraphvizOnline pic dir
+                if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                    dotCodeForGraphvizOnline = await generateDotCode(people, marriagesArray, PIC_DIR_GRAPHVIZ_ONLINE);
+                } else {
+                    dotCodeForGraphvizOnline = dotCode;
+                }
+                graphvizOnlineBtn.disabled = false;
+                updateInfoPanels();
+                showStatus('⏳ Построение дерева...');
+                const imagesOption = await buildImagesOption(people);
+                await renderDot(dotCode, imagesOption);
+                showStatus('✅ Дерево построено');
+            }
+
+            async function loadFromUrl(url) {
+                try {
+                    showStatus('⏳ Загрузка...');
+                    await configPromise;
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = parseExcel(await response.arrayBuffer());
+                    await buildTree(data);
+                } catch (e) {
+                    showStatus('Ошибка загрузки: ' + e.message, true);
+                }
+            }
+
+            function loadFromFile(file) {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        await configPromise;
+                        const data = parseExcel(e.target.result);
+                        await buildTree(data);
+                    } catch (err) {
+                        showStatus('Ошибка чтения: ' + err.message, true);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            loadBtn.addEventListener('click', () => loadFromUrl('tree.xlsx'));
+            manualBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files[0]) loadFromFile(e.target.files[0]);
+                fileInput.value = '';
+            });
+
+            graphvizOnlineBtn.addEventListener('click', () => {
+                if (graphvizLink) window.open(graphvizLink, '_blank');
+            });
+
+            // Load config first, then start loading tree data.
+            // configPromise is also awaited in loadFromFile to ensure config is applied
+            // before building the tree when a file is chosen via "Choose file" button.
+            const configPromise = loadConfig();
+            configPromise.then(() => loadFromUrl('tree.xlsx'));
+        })();
+    </script>
+</body>
+</html>
