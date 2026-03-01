@@ -1,5 +1,7 @@
+### Верcия 2
+Добавлен просмотр фото
 ### run
-- https://bpmbpm.github.io/family-tree/ver1/index.html
+- https://bpmbpm.github.io/family-tree/ver2/index.html
 
 ### dot
 - https://graphviz.org/docs/attrs/image/
