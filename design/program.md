@@ -1,2 +1,2 @@
 ## solve
-- /solve https://github.com/bpmbpm/family-tree/issues/143 
+- /solve https://github.com/bpmbpm/family-tree/issues/ 
