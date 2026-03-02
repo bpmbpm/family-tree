@@ -1,4 +1,4 @@
-// foto.js — логика работы с фотогалереями семей и персон.
+// foto.js — логика работы с фотогалереями семей, персон и групп.
 // Подключается через <script src="foto.js"> в index.html.
 // Работает как по протоколу file://, так и через HTTP/HTTPS (GitHub Pages).
 //
@@ -7,8 +7,11 @@
 //     — открывает окно галереи фотографий для указанной семьи.
 //   FOTO.showPersonGallery(personIdA, fotoPersonRows, fotoPersonDir)
 //     — открывает окно галереи фотографий для указанной персоны.
+//   FOTO.showGroupGallery(personIdA, fotoGroupRows, fotoGroupDir)
+//     — открывает окно галереи групповых фотографий, в которых присутствует персона.
+//     Поле id_personAll содержит перечень idA через ';' (пробелы вокруг ';' допустимы).
 //
-// Поля foto_family, отображаемые в окне галереи (суффикс _):
+// Поля foto_family/foto_person/foto_group, отображаемые в окне галереи (суффикс _):
 //   title_, location_, date_, person_label_, hyperLink_, suffix_
 //
 // Структура файла:
@@ -17,6 +20,7 @@
 //   3. buildGalleryWindow(entityIdA, photos, dir, headerTitle) — построение окна галереи
 //   4. showFamilyGallery(...)           — точка входа для семьи
 //   5. showPersonGallery(...)           — точка входа для персоны
+//   6. showGroupGallery(...)            — точка входа для групповых фото
 
 (function () {
 
@@ -234,10 +238,51 @@
         buildGalleryWindow(personIdA, photos, fotoPersonDir, 'foto_person');
     }
 
+    // --- Основная точка входа: открыть галерею групповых фото для персоны ---
+    // personIdA — idA персоны (из листа person)
+    // fotoGroupRows — все строки листа foto_group (массив объектов, ключи — имена колонок)
+    // fotoGroupDir — путь к папке с фото (например 'foto_group')
+    // Фото попадает в галерею, если personIdA встречается в поле id_personAll,
+    // где перечень idA разделён ';' (пробелы вокруг разделителя допустимы).
+    function showGroupGallery(personIdA, fotoGroupRows, fotoGroupDir) {
+        if (!fotoGroupDir) fotoGroupDir = 'foto_group';
+
+        // Отфильтровать строки, в которых personIdA присутствует в id_personAll
+        var matchingRows = [];
+        for (var i = 0; i < fotoGroupRows.length; i++) {
+            var row = fotoGroupRows[i];
+            if (!row.idA) continue;
+            var idPersonAll = row.id_personAll || '';
+            // Разбиваем по ';', убираем пробелы вокруг каждого элемента
+            var ids = idPersonAll.split(';').map(function(s) { return s.trim(); });
+            if (ids.indexOf(personIdA) !== -1) {
+                matchingRows.push(row);
+            }
+        }
+
+        // Подготовить данные для фото: отдельно хранить поля с суффиксом _
+        var photos = [];
+        for (var j = 0; j < matchingRows.length; j++) {
+            var r = matchingRows[j];
+            var descFields = {};
+            var keys = Object.keys(r);
+            for (var k = 0; k < keys.length; k++) {
+                var key = keys[k];
+                if (key.endsWith('_') && r[key] !== null && r[key] !== undefined && r[key] !== '') {
+                    descFields[key] = r[key];
+                }
+            }
+            photos.push({ idA: r.idA, descFields: descFields });
+        }
+
+        buildGalleryWindow(personIdA, photos, fotoGroupDir, 'foto_group');
+    }
+
     // --- Публичное API ---
     window.FOTO = {
         showFamilyGallery: showFamilyGallery,
         showPersonGallery: showPersonGallery,
+        showGroupGallery: showGroupGallery,
         // _openThumbPhoto используется из onclick строк галереи
         _openThumbPhoto: openThumbPhoto
     };
