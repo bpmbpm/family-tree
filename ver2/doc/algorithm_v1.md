@@ -12,7 +12,7 @@
 | Файл | Назначение |
 |------|-----------|
 | `index.html` | Основная логика: загрузка Excel, генерация DOT-кода, рендеринг SVG, панели свойств |
-| `foto.js` | Логика галерей фотографий (`foto_family/`, `foto_person/`) |
+| `foto.js` | Логика галерей фотографий (`foto_family/`, `foto_person/`, `foto_group/`) |
 | `config.js` | Параметры конфигурации (цвета, размеры, пути к фото) |
 | `styles.css` | Стили интерфейса |
 
@@ -65,6 +65,19 @@
 | `hyperLink_` | `FOTO._openThumbPhoto` | Ссылки |
 | `suffix_` | хранится в `extraFields` | Порядковый суффикс фото |
 
+### Лист `foto_group`
+
+| Поле Excel | Используется в | Назначение |
+|------------|---------------|------------|
+| `id_personAll` | `FOTO.showGroupGallery` | Перечень idA персон через `;` (пробелы вокруг `;` допустимы). Фото попадает в галерею каждой из перечисленных персон. |
+| `idA` | `FOTO.showGroupGallery`, `FOTO._openThumbPhoto` | Имя файла фото (с расширением, например `...-1918.jpg`) |
+| `title_` | `FOTO._openThumbPhoto` | Заголовок фото (показывается под миниатюрой и в полноэкранном окне) |
+| `location_` | `FOTO._openThumbPhoto` | Место съёмки |
+| `date_` | `FOTO._openThumbPhoto` | Дата съёмки |
+| `person_label_` | `FOTO._openThumbPhoto` | Подпись людей на фото |
+| `hyperLink_` | `FOTO._openThumbPhoto` | Ссылки |
+| `suffix_` | хранится в `extraFields` | Порядковый суффикс фото |
+
 ---
 
 ## Работа на GitHub Pages (HTTP/HTTPS) и локально (file://)
@@ -86,10 +99,11 @@
 - Режим `picDirType = "global"`: абсолютный путь, используется для Graphviz рендеринга с полными путями.
 - Режим `picDirType = "relativeGraphvizOnline"`: для локального рендеринга используется `pic/`, для GraphvizOnline — `picDirGraphvizOnline` (абсолютный URL GitHub Pages).
 
-### Галерея `foto_family`
-- Пути к фото всегда относительные: `foto_family/<idA>`.
+### Галереи `foto_family`, `foto_person`, `foto_group`
+- Пути к фото всегда относительные: `foto_family/<idA>`, `foto_person/<idA>`, `foto_group/<idA>`.
 - Проверка существования — через `<img>` (file://) или `fetch HEAD` (HTTP).
 - Открытие полноэкранного фото — `window.open()` с HTML-документом.
+- Все три режима (relative, relativeGraphvizOnline, global) работают корректно в desktop (file://) режиме.
 
 ---
 
@@ -101,6 +115,8 @@
    - Лист `person`: строит массив `people[]` с полями и `extraFields` (поля с `_`).
    - Лист `family`: строит массив `marriages[]` с полями и `extraFields`.
    - Лист `foto_family`: строит массив `fotoFamilyRows[]`.
+   - Лист `foto_person`: строит массив `fotoPersonRows[]`.
+   - Лист `foto_group`: строит массив `fotoGroupRows[]`.
 4. **Проверка фото** (`preloadPhotoChecks`) — кешируются результаты в `photoExistsCache`.
 5. **Генерация DOT-кода** (`generateDotCode`) — строит текст в формате Graphviz DOT.
 6. **Рендеринг SVG** (`renderDot`) — вызывает viz.js, вставляет SVG в DOM.
@@ -108,7 +124,9 @@
    - `g.node` → `showNodeProperties(person)` — панель «Основные свойства person».
    - `g.cluster` → `showFamilyProperties(family)` — панель «Основные свойства family».
 8. **Клик по кнопке `foto_family`** → `openFamilyGallery(idA)` → `FOTO.showFamilyGallery(...)` — галерея миниатюр.
-9. **Клик по миниатюре** → `FOTO._openThumbPhoto(...)` — полноэкранное фото в новом окне.
+9. **Клик по кнопке `foto_person`** → `openPersonGallery(idA)` → `FOTO.showPersonGallery(...)` — галерея миниатюр.
+10. **Клик по кнопке `foto_group`** → `openGroupGallery(idA)` → `FOTO.showGroupGallery(...)` — галерея групповых фото, отфильтрованных по `id_personAll`.
+11. **Клик по миниатюре** → `FOTO._openThumbPhoto(...)` — полноэкранное фото в новом окне.
 
 ---
 
@@ -124,6 +142,12 @@
 
 ## Добавление новых фотографий
 
+### foto_family
 1. Добавить строку в лист `foto_family` с заполненными полями `id_family`, `idA`, и `_`-полями.
 2. Поместить файл фото в папку `foto_family/` с именем, соответствующим `idA`.
 3. Всё остальное работает автоматически.
+
+### foto_group
+1. Добавить строку в лист `foto_group` с заполненным полем `id_personAll` (перечень idA через `;`), `idA`, и `_`-полями.
+2. Поместить файл фото в папку `foto_group/` с именем, соответствующим `idA`.
+3. Кнопка `foto_group` в панели «Основные свойства person» откроет галерею со всеми фото, в которых персона присутствует в `id_personAll`.

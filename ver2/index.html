@@ -107,6 +107,7 @@
             let marriages = []; // массив браков (с полями idA, husband, wife, extraFields)
             let fotoFamilyRows = []; // строки листа foto_family
             let fotoPersonRows = []; // строки листа foto_person
+            let fotoGroupRows = []; // строки листа foto_group
             let dotCode = '';
             let dotCodeForGraphvizOnline = ''; // отдельный DOT-код для GraphvizOnline (в режиме relativeGraphvizOnline)
             let graphvizLink = '';
@@ -566,7 +567,29 @@
                         }
                     }
 
-                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList, fotoPersonRows: fotoPersonRowsList };
+                    // --- Лист foto_group ---
+                    const fotoGroupSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'foto_group'; });
+                    let fotoGroupRowsList = [];
+                    if (fotoGroupSheetName) {
+                        const fgSheet = workbook.Sheets[fotoGroupSheetName];
+                        const fgRows = XLSX.utils.sheet_to_json(fgSheet, { header: 1, defval: '' });
+                        if (fgRows.length > 1) {
+                            const fgRawHeaders = fgRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            fgRows.slice(1).forEach(function(row) {
+                                // Пропускаем строки без id_personAll
+                                const idPersonAllIdx = fgRawHeaders.map(function(h) { return h.toLowerCase(); }).indexOf('id_personall');
+                                const idPersonAllVal = idPersonAllIdx >= 0 ? row[idPersonAllIdx] : '';
+                                if (!idPersonAllVal || idPersonAllVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < fgRawHeaders.length; ci++) {
+                                    obj[fgRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                fotoGroupRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList, fotoPersonRows: fotoPersonRowsList, fotoGroupRows: fotoGroupRowsList };
                 } catch (e) {
                     showStatus('Ошибка парсинга Excel: ' + e.message, true);
                     throw e;
@@ -961,6 +984,7 @@
                     '<div class="properties-header-buttons">' +
                     '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
                     '<button class="foto-person-btn" onclick="event.stopPropagation(); openPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_person</button>' +
+                    '<button class="foto-group-btn" onclick="event.stopPropagation(); openGroupGallery(\'' + escapedIdAForOnclick + '\')">foto_group</button>' +
                     '</div>' +
                     '</div>' +
                     '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
@@ -1061,6 +1085,13 @@
                 }
             };
 
+            // --- Открыть галерею foto_group по idA персоны ---
+            window.openGroupGallery = function(personIdA) {
+                if (window.FOTO && window.FOTO.showGroupGallery) {
+                    window.FOTO.showGroupGallery(personIdA, fotoGroupRows, 'foto_group');
+                }
+            };
+
             window.closePropertiesPanel = function(panelId) {
                 const panel = document.getElementById(panelId);
                 if (panel) {
@@ -1107,7 +1138,8 @@
                 if (event.target.classList.contains('properties-close-btn') ||
                     event.target.classList.contains('properties-copy-btn') ||
                     event.target.classList.contains('foto-family-btn') ||
-                    event.target.classList.contains('foto-person-btn')) return;
+                    event.target.classList.contains('foto-person-btn') ||
+                    event.target.classList.contains('foto-group-btn')) return;
                 const panel = document.getElementById(panelId);
                 if (!panel) return;
 
@@ -1220,6 +1252,7 @@
                 marriages = marriagesArray;
                 fotoFamilyRows = parsedData.fotoFamilyRows || [];
                 fotoPersonRows = parsedData.fotoPersonRows || [];
+                fotoGroupRows = parsedData.fotoGroupRows || [];
                 showStatus('⏳ Проверка наличия фото...');
                 await preloadPhotoChecks(people);
                 showStatus('⏳ Генерация DOT кода...');
