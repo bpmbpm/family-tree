@@ -10,8 +10,14 @@
 //   FOTO.showGroupGallery(personIdA, fotoGroupRows, fotoGroupDir)
 //     — открывает окно галереи групповых фотографий, в которых присутствует персона.
 //     Поле id_personAll содержит перечень idA через ';' (пробелы вокруг ';' допустимы).
+//   FOTO.showLocationPersonGallery(personIdA, fotoLocationRows, fotoLocationDir)
+//     — открывает окно галереи фотографий мест для указанной персоны.
+//     Поле id_personAll содержит перечень idA через ';' (пробелы вокруг ';' допустимы).
+//   FOTO.showLocationFamilyGallery(familyIdA, fotoLocationRows, fotoLocationDir)
+//     — открывает окно галереи фотографий мест для указанной семьи.
+//     Поле id_familyAll содержит перечень idA через ';' (пробелы вокруг ';' допустимы).
 //
-// Поля foto_family/foto_person/foto_group, отображаемые в окне галереи (суффикс _):
+// Поля foto_family/foto_person/foto_group/foto_location, отображаемые в окне галереи (суффикс _):
 //   title_, location_, date_, person_label_, hyperLink_, suffix_
 //
 // Структура файла:
@@ -21,6 +27,8 @@
 //   4. showFamilyGallery(...)           — точка входа для семьи
 //   5. showPersonGallery(...)           — точка входа для персоны
 //   6. showGroupGallery(...)            — точка входа для групповых фото
+//   7. showLocationPersonGallery(...)   — точка входа для фото мест (по персоне)
+//   8. showLocationFamilyGallery(...)   — точка входа для фото мест (по семье)
 
 (function () {
 
@@ -278,11 +286,93 @@
         buildGalleryWindow(personIdA, photos, fotoGroupDir, 'foto_group');
     }
 
+    // --- Основная точка входа: открыть галерею фото мест для персоны ---
+    // personIdA — idA персоны (из листа person)
+    // fotoLocationRows — все строки листа foto_location (массив объектов, ключи — имена колонок)
+    // fotoLocationDir — путь к папке с фото (например 'foto_location')
+    // Фото попадает в галерею, если personIdA встречается в поле id_personAll,
+    // где перечень idA разделён ';' (пробелы вокруг разделителя допустимы).
+    function showLocationPersonGallery(personIdA, fotoLocationRows, fotoLocationDir) {
+        if (!fotoLocationDir) fotoLocationDir = 'foto_location';
+
+        // Отфильтровать строки, в которых personIdA присутствует в id_personAll
+        var matchingRows = [];
+        for (var i = 0; i < fotoLocationRows.length; i++) {
+            var row = fotoLocationRows[i];
+            if (!row.idA) continue;
+            var idPersonAll = row.id_personAll || '';
+            // Разбиваем по ';', убираем пробелы вокруг каждого элемента
+            var ids = idPersonAll.split(';').map(function(s) { return s.trim(); });
+            if (ids.indexOf(personIdA) !== -1) {
+                matchingRows.push(row);
+            }
+        }
+
+        // Подготовить данные для фото: отдельно хранить поля с суффиксом _
+        var photos = [];
+        for (var j = 0; j < matchingRows.length; j++) {
+            var r = matchingRows[j];
+            var descFields = {};
+            var keys = Object.keys(r);
+            for (var k = 0; k < keys.length; k++) {
+                var key = keys[k];
+                if (key.endsWith('_') && r[key] !== null && r[key] !== undefined && r[key] !== '') {
+                    descFields[key] = r[key];
+                }
+            }
+            photos.push({ idA: r.idA, descFields: descFields });
+        }
+
+        buildGalleryWindow(personIdA, photos, fotoLocationDir, 'foto_location');
+    }
+
+    // --- Основная точка входа: открыть галерею фото мест для семьи ---
+    // familyIdA — idA семьи (из листа family)
+    // fotoLocationRows — все строки листа foto_location (массив объектов, ключи — имена колонок)
+    // fotoLocationDir — путь к папке с фото (например 'foto_location')
+    // Фото попадает в галерею, если familyIdA встречается в поле id_familyAll,
+    // где перечень idA разделён ';' (пробелы вокруг разделителя допустимы).
+    function showLocationFamilyGallery(familyIdA, fotoLocationRows, fotoLocationDir) {
+        if (!fotoLocationDir) fotoLocationDir = 'foto_location';
+
+        // Отфильтровать строки, в которых familyIdA присутствует в id_familyAll
+        var matchingRows = [];
+        for (var i = 0; i < fotoLocationRows.length; i++) {
+            var row = fotoLocationRows[i];
+            if (!row.idA) continue;
+            var idFamilyAll = row.id_familyAll || '';
+            // Разбиваем по ';', убираем пробелы вокруг каждого элемента
+            var ids = idFamilyAll.split(';').map(function(s) { return s.trim(); });
+            if (ids.indexOf(familyIdA) !== -1) {
+                matchingRows.push(row);
+            }
+        }
+
+        // Подготовить данные для фото: отдельно хранить поля с суффиксом _
+        var photos = [];
+        for (var j = 0; j < matchingRows.length; j++) {
+            var r = matchingRows[j];
+            var descFields = {};
+            var keys = Object.keys(r);
+            for (var k = 0; k < keys.length; k++) {
+                var key = keys[k];
+                if (key.endsWith('_') && r[key] !== null && r[key] !== undefined && r[key] !== '') {
+                    descFields[key] = r[key];
+                }
+            }
+            photos.push({ idA: r.idA, descFields: descFields });
+        }
+
+        buildGalleryWindow(familyIdA, photos, fotoLocationDir, 'foto_location');
+    }
+
     // --- Публичное API ---
     window.FOTO = {
         showFamilyGallery: showFamilyGallery,
         showPersonGallery: showPersonGallery,
         showGroupGallery: showGroupGallery,
+        showLocationPersonGallery: showLocationPersonGallery,
+        showLocationFamilyGallery: showLocationFamilyGallery,
         // _openThumbPhoto используется из onclick строк галереи
         _openThumbPhoto: openThumbPhoto
     };
