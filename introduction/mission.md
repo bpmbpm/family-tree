@@ -7,3 +7,8 @@
 
 ### visualization
 JS, лучше браузерный JS с обеспечением работы с файлами одновремнно в режиме статического web-server (github pages) и локального размещения index.html / папок с файлами (desktop режим).
+
+### AI coding
+Испрользуется https://github.com/link-assistant/hive-mind
+
+
