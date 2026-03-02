@@ -236,3 +236,15 @@ footer { margin-top: 25px; text-align: center; color: #5d6d7e; font-size: 0.9rem
     font-size: 13px;
     padding: 8px 0;
 }
+
+/* Кнопка foto_location в панели свойств персоны и семьи */
+.foto-location-btn {
+    background: #e67e22;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    font-size: 11px;
+}
+.foto-location-btn:hover { background: #ca6f1e; }

@@ -108,6 +108,7 @@
             let fotoFamilyRows = []; // строки листа foto_family
             let fotoPersonRows = []; // строки листа foto_person
             let fotoGroupRows = []; // строки листа foto_group
+            let fotoLocationRows = []; // строки листа foto_location
             let dotCode = '';
             let dotCodeForGraphvizOnline = ''; // отдельный DOT-код для GraphvizOnline (в режиме relativeGraphvizOnline)
             let graphvizLink = '';
@@ -589,7 +590,30 @@
                         }
                     }
 
-                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList, fotoPersonRows: fotoPersonRowsList, fotoGroupRows: fotoGroupRowsList };
+                    // --- Лист foto_location ---
+                    const fotoLocationSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'foto_location'; });
+                    let fotoLocationRowsList = [];
+                    if (fotoLocationSheetName) {
+                        const flSheet = workbook.Sheets[fotoLocationSheetName];
+                        const flRows = XLSX.utils.sheet_to_json(flSheet, { header: 1, defval: '' });
+                        if (flRows.length > 1) {
+                            const flRawHeaders = flRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const flHeaderLower = flRawHeaders.map(function(h) { return h.toLowerCase(); });
+                            flRows.slice(1).forEach(function(row) {
+                                // Пропускаем строки без id_loc
+                                const idLocIdx = flHeaderLower.indexOf('id_loc');
+                                const idLocVal = idLocIdx >= 0 ? row[idLocIdx] : '';
+                                if (!idLocVal || idLocVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < flRawHeaders.length; ci++) {
+                                    obj[flRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                fotoLocationRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList, fotoPersonRows: fotoPersonRowsList, fotoGroupRows: fotoGroupRowsList, fotoLocationRows: fotoLocationRowsList };
                 } catch (e) {
                     showStatus('Ошибка парсинга Excel: ' + e.message, true);
                     throw e;
@@ -985,6 +1009,7 @@
                     '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
                     '<button class="foto-person-btn" onclick="event.stopPropagation(); openPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_person</button>' +
                     '<button class="foto-group-btn" onclick="event.stopPropagation(); openGroupGallery(\'' + escapedIdAForOnclick + '\')">foto_group</button>' +
+                    '<button class="foto-location-btn" onclick="event.stopPropagation(); openLocationPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_location</button>' +
                     '</div>' +
                     '</div>' +
                     '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
@@ -1055,6 +1080,7 @@
                     '<div class="properties-header-buttons">' +
                     '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
                     '<button class="foto-family-btn" onclick="event.stopPropagation(); openFamilyGallery(\'' + escapedIdAForOnclick + '\')">foto_family</button>' +
+                    '<button class="foto-location-btn" onclick="event.stopPropagation(); openLocationFamilyGallery(\'' + escapedIdAForOnclick + '\')">foto_location</button>' +
                     '</div>' +
                     '</div>' +
                     '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
@@ -1089,6 +1115,20 @@
             window.openGroupGallery = function(personIdA) {
                 if (window.FOTO && window.FOTO.showGroupGallery) {
                     window.FOTO.showGroupGallery(personIdA, fotoGroupRows, 'foto_group');
+                }
+            };
+
+            // --- Открыть галерею foto_location по idA персоны ---
+            window.openLocationPersonGallery = function(personIdA) {
+                if (window.FOTO && window.FOTO.showLocationPersonGallery) {
+                    window.FOTO.showLocationPersonGallery(personIdA, fotoLocationRows, 'foto_location');
+                }
+            };
+
+            // --- Открыть галерею foto_location по idA семьи ---
+            window.openLocationFamilyGallery = function(familyIdA) {
+                if (window.FOTO && window.FOTO.showLocationFamilyGallery) {
+                    window.FOTO.showLocationFamilyGallery(familyIdA, fotoLocationRows, 'foto_location');
                 }
             };
 
@@ -1139,7 +1179,8 @@
                     event.target.classList.contains('properties-copy-btn') ||
                     event.target.classList.contains('foto-family-btn') ||
                     event.target.classList.contains('foto-person-btn') ||
-                    event.target.classList.contains('foto-group-btn')) return;
+                    event.target.classList.contains('foto-group-btn') ||
+                    event.target.classList.contains('foto-location-btn')) return;
                 const panel = document.getElementById(panelId);
                 if (!panel) return;
 
@@ -1253,6 +1294,7 @@
                 fotoFamilyRows = parsedData.fotoFamilyRows || [];
                 fotoPersonRows = parsedData.fotoPersonRows || [];
                 fotoGroupRows = parsedData.fotoGroupRows || [];
+                fotoLocationRows = parsedData.fotoLocationRows || [];
                 showStatus('⏳ Проверка наличия фото...');
                 await preloadPhotoChecks(people);
                 showStatus('⏳ Генерация DOT кода...');
