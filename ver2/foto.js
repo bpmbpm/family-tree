@@ -81,6 +81,10 @@
         newWin.document.close();
     }
 
+    // Хранилище данных фото для передачи через onclick без встраивания JSON в HTML-атрибуты
+    var _photoStore = {};
+    var _photoStoreCounter = 0;
+
     // --- Построить и показать окно галереи ---
     // familyIdA — idA семьи (строка), например 'Ульянов_Илья_Николаевич-Бланк_Мария_Александровна'
     // photos — массив записей foto_family для данной семьи (уже отфильтрованный)
@@ -110,10 +114,11 @@
             for (var i = 0; i < photos.length; i++) {
                 var photo = photos[i];
                 var src = fotoFamilyDir + '/' + photo.idA;
-                var safeIdA = photo.idA.replace(/'/g, "\\'");
-                var safeFields = JSON.stringify(photo.descFields).replace(/'/g, "\\'");
+                // Сохраняем данные фото в хранилище, чтобы не встраивать JSON в HTML-атрибут onclick
+                var storeKey = 'p' + (++_photoStoreCounter);
+                _photoStore[storeKey] = { idA: photo.idA, fields: photo.descFields, dir: fotoFamilyDir };
                 thumbsHtml +=
-                    '<div class="fg-thumb" onclick="window.FOTO._openThumbPhoto(\'' + safeIdA + '\', \'' + safeFields + '\', \'' + fotoFamilyDir + '\')">' +
+                    '<div class="fg-thumb" onclick="window.FOTO._openThumbPhoto(\'' + storeKey + '\')">' +
                     '<img src="' + src + '" alt="' + photo.idA + '" title="' + photo.idA + '">' +
                     '<div class="fg-thumb-label">' + (photo.descFields.title_ || photo.idA) + '</div>' +
                     '</div>';
@@ -149,18 +154,12 @@
 
     // --- Вспомогательная функция для клика по миниатюре ---
     // Вызывается из onclick в HTML строке галереи.
-    // photoIdA — idA (имя файла) фотографии
-    // fieldsJson — строка JSON с полями описания (с суффиксом _)
-    // fotoFamilyDir — путь к папке foto_family
-    function openThumbPhoto(photoIdA, fieldsJson, fotoFamilyDir) {
-        var fields;
-        try {
-            fields = JSON.parse(fieldsJson);
-        } catch (e) {
-            fields = {};
-        }
-        var src = fotoFamilyDir + '/' + photoIdA;
-        openFullPhoto(src, photoIdA, fields);
+    // storeKey — ключ в _photoStore с данными фото (idA, fields, dir)
+    function openThumbPhoto(storeKey) {
+        var data = _photoStore[storeKey];
+        if (!data) return;
+        var src = data.dir + '/' + data.idA;
+        openFullPhoto(src, data.idA, data.fields);
     }
 
     // --- Основная точка входа: открыть галерею семьи ---
