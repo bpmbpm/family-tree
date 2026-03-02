@@ -11,6 +11,7 @@
          Загрузка через <script> работает в том числе по протоколу file://
          (без ошибок CORS, в отличие от fetch/XMLHttpRequest для config.json). -->
     <script src="config.js"></script>
+    <script src="foto.js"></script>
 </head>
 <body>
     <div class="container">
@@ -103,8 +104,10 @@
     <script>
         (function() {
             let people = [];
+            let marriages = []; // массив браков (с полями idA, husband, wife, extraFields)
+            let fotoFamilyRows = []; // строки листа foto_family
             let dotCode = '';
-            let dotCodeForGraphvizOnline = ''; // separate DOT code for GraphvizOnline (used in relativeGraphvizOnline mode)
+            let dotCodeForGraphvizOnline = ''; // отдельный DOT-код для GraphvizOnline (в режиме relativeGraphvizOnline)
             let graphvizLink = '';
             let currentScale = 1.0;
 
@@ -389,30 +392,35 @@
             }
 
             // --- Parse Excel ---
+            // Возвращает: { people, marriages, familyRows, fotoFamilyRows }
+            // people — массив персон с полями idA, label, sex, surName2, hasFather, hasMother,
+            //           birth, death, а также extraFields (объект с полями, имя которых заканчивается на _)
+            // marriages — массив браков с полями idA, husband, wife, а также extraFields (_-поля)
+            // familyRows — сырые строки листа family (объекты с именами колонок)
+            // fotoFamilyRows — строки листа foto_family (объекты с именами колонок)
             function parseExcel(arrayBuffer) {
                 try {
                     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
 
-                    // Parse person sheet
-                    const personSheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('person')) || workbook.SheetNames[0];
+                    // --- Лист person ---
+                    const personSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase().includes('person'); }) || workbook.SheetNames[0];
                     const sheet = workbook.Sheets[personSheetName];
                     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
                     if (rows.length < 2) throw new Error('Нет данных на листе person');
 
-                    // Detect column indices by header names (robust to column order changes)
-                    const headerRow = rows[0].map(h => (h || '').toString().trim().toLowerCase());
+                    // Определяем индексы колонок по имени заголовка (нечувствительно к регистру)
+                    const headerRow = rows[0].map(function(h) { return (h || '').toString().trim().toLowerCase(); });
                     const colIdx = {
                         idA: headerRow.indexOf('ida'),
-                        label: headerRow.indexOf('label'),
+                        label: headerRow.findIndex(function(h) { return h === 'label' || h === 'label_'; }),
                         sex: headerRow.indexOf('sex'),
-                        surName2: headerRow.indexOf('surname2'),
+                        surName2: headerRow.findIndex(function(h) { return h === 'surname2' || h === 'surname2_'; }),
                         hasFather: headerRow.indexOf('hasfather'),
                         hasMother: headerRow.indexOf('hasmother'),
-                        birth: headerRow.indexOf('birth'),
-                        death: headerRow.indexOf('death'),
-                        hyperLink: headerRow.indexOf('hyperlink')
+                        birth: headerRow.findIndex(function(h) { return h === 'birth' && !h.includes('full'); }),
+                        death: headerRow.findIndex(function(h) { return h === 'death' && !h.includes('full'); })
                     };
-                    // Fallback to positional if header not found
+                    // Запасные позиционные значения
                     if (colIdx.idA < 0) colIdx.idA = 0;
                     if (colIdx.label < 0) colIdx.label = 1;
                     if (colIdx.sex < 0) colIdx.sex = 2;
@@ -421,61 +429,120 @@
                     if (colIdx.hasMother < 0) colIdx.hasMother = 5;
                     if (colIdx.birth < 0) colIdx.birth = 6;
                     if (colIdx.death < 0) colIdx.death = 7;
-                    // hyperLink may not exist, leave as -1 if not found
 
-                    const dataRows = rows.slice(1).filter(row => row[colIdx.label] && row[colIdx.label].toString().trim() !== '');
-                    const peopleList = dataRows.map(row => {
+                    // Исходные (сырые) имена колонок листа person (до приведения к нижнему регистру)
+                    const personRawHeaders = rows[0].map(function(h) { return (h || '').toString().trim(); });
+
+                    const dataRows = rows.slice(1).filter(function(row) { return row[colIdx.label] && row[colIdx.label].toString().trim() !== ''; });
+                    const peopleList = dataRows.map(function(row) {
                         const label = row[colIdx.label] ? row[colIdx.label].toString().trim() : '';
-                        // idA may be a formula (not evaluated by SheetJS) — derive from label if empty or formula
+                        // idA может быть формулой (SheetJS не вычисляет) — тогда берём из label
                         let idA = row[colIdx.idA] ? row[colIdx.idA].toString().trim() : '';
                         if (!idA || idA.startsWith('=')) {
                             idA = label.replace(/ /g, '_');
                         }
+                        // Собираем поля с суффиксом _ (для отображения в панели свойств)
+                        const extraFields = {};
+                        for (let ci = 0; ci < personRawHeaders.length; ci++) {
+                            const colName = personRawHeaders[ci];
+                            if (colName.endsWith('_')) {
+                                const val = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                if (val) extraFields[colName] = val;
+                            }
+                        }
                         return {
-                            idA,
-                            label,
+                            idA: idA,
+                            label: label,
                             sex: row[colIdx.sex] ? row[colIdx.sex].toString().trim() : '',
                             surName2: (colIdx.surName2 >= 0 && row[colIdx.surName2]) ? row[colIdx.surName2].toString().trim() : '',
                             hasFather: row[colIdx.hasFather] ? row[colIdx.hasFather].toString().trim() : '',
                             hasMother: row[colIdx.hasMother] ? row[colIdx.hasMother].toString().trim() : '',
                             birth: row[colIdx.birth] ? row[colIdx.birth].toString().trim() : '',
                             death: row[colIdx.death] ? row[colIdx.death].toString().trim() : '',
-                            hyperLink: (colIdx.hyperLink >= 0 && row[colIdx.hyperLink]) ? row[colIdx.hyperLink].toString().trim() : ''
+                            extraFields: extraFields
                         };
-                    }).filter(p => p.idA && p.label);
+                    }).filter(function(p) { return p.idA && p.label; });
                     if (peopleList.length === 0) throw new Error('Нет записей с idA и label');
 
-                    // Parse family sheet (marriages)
-                    const familySheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('family'));
-                    let marriages = [];
+                    // --- Лист family ---
+                    const familySheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'family'; });
+                    let marriagesList = [];
+                    let familyRawRows = []; // сырые объекты строк family (ключи = имена колонок)
                     if (familySheetName) {
                         const familySheet = workbook.Sheets[familySheetName];
                         const familyRows = XLSX.utils.sheet_to_json(familySheet, { header: 1, defval: '' });
                         if (familyRows.length > 1) {
-                            const famHeader = familyRows[0].map(h => (h || '').toString().trim().toLowerCase());
+                            const famRawHeaders = familyRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const famHeader = famRawHeaders.map(function(h) { return h.toLowerCase(); });
                             const famIdx = {
+                                idA: famHeader.indexOf('ida'),
                                 husband: famHeader.indexOf('husband'),
                                 wife: famHeader.indexOf('wife'),
-                                marriage: famHeader.indexOf('marriage')
+                                marriage: famHeader.findIndex(function(h) { return h === 'marriage' || h === 'marriage_'; })
                             };
+                            if (famIdx.idA < 0) famIdx.idA = 0;
                             if (famIdx.husband < 0) famIdx.husband = 1;
                             if (famIdx.wife < 0) famIdx.wife = 2;
-                            // marriage is optional
-                            familyRows.slice(1).forEach(row => {
+                            familyRows.slice(1).forEach(function(row) {
                                 const husband = row[famIdx.husband] ? row[famIdx.husband].toString().trim() : '';
                                 const wife = row[famIdx.wife] ? row[famIdx.wife].toString().trim() : '';
                                 if (husband && wife) {
-                                    marriages.push({
-                                        husband,
-                                        wife,
-                                        marriage: (famIdx.marriage >= 0 && row[famIdx.marriage]) ? row[famIdx.marriage].toString().trim() : ''
+                                    // Собираем idA семьи
+                                    let familyIdA = (famIdx.idA >= 0 && row[famIdx.idA]) ? row[famIdx.idA].toString().trim() : '';
+                                    if (!familyIdA || familyIdA.startsWith('=')) {
+                                        familyIdA = husband + '-' + wife;
+                                    }
+                                    // Собираем поля с суффиксом _ для панели свойств
+                                    const extraFields = {};
+                                    for (let ci = 0; ci < famRawHeaders.length; ci++) {
+                                        const colName = famRawHeaders[ci];
+                                        if (colName.endsWith('_')) {
+                                            const val = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                            if (val) extraFields[colName] = val;
+                                        }
+                                    }
+                                    // Значение marriage для метки кластера в DOT-коде
+                                    const marriageLabel = (famIdx.marriage >= 0 && row[famIdx.marriage]) ? row[famIdx.marriage].toString().trim() : '';
+                                    marriagesList.push({
+                                        idA: familyIdA,
+                                        husband: husband,
+                                        wife: wife,
+                                        marriage: marriageLabel,
+                                        extraFields: extraFields
                                     });
+                                    // Сохраняем сырую строку с именами колонок для поиска по idA
+                                    const rawObj = { idA: familyIdA };
+                                    for (let ci = 0; ci < famRawHeaders.length; ci++) {
+                                        rawObj[famRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                    }
+                                    familyRawRows.push(rawObj);
                                 }
                             });
                         }
                     }
 
-                    return { people: peopleList, marriages };
+                    // --- Лист foto_family ---
+                    const fotoFamilySheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'foto_family'; });
+                    let fotoFamilyRowsList = [];
+                    if (fotoFamilySheetName) {
+                        const ffSheet = workbook.Sheets[fotoFamilySheetName];
+                        const ffRows = XLSX.utils.sheet_to_json(ffSheet, { header: 1, defval: '' });
+                        if (ffRows.length > 1) {
+                            const ffRawHeaders = ffRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            ffRows.slice(1).forEach(function(row) {
+                                // Пропускаем пустые строки
+                                const idFamilyVal = row[ffRawHeaders.map(function(h) { return h.toLowerCase(); }).indexOf('id_family')];
+                                if (!idFamilyVal || idFamilyVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < ffRawHeaders.length; ci++) {
+                                    obj[ffRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                fotoFamilyRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList };
                 } catch (e) {
                     showStatus('Ошибка парсинга Excel: ' + e.message, true);
                     throw e;
@@ -794,12 +861,32 @@
             // Based on rdf-grapher ver9d implementation
             // ================================================================
 
+            // --- Построить HTML ссылки/ссылок из строки hyperLink (через ;) ---
+            function buildLinksHtml(hyperLinkStr) {
+                if (!hyperLinkStr) return '';
+                const links = hyperLinkStr.split(';').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+                return links.map(function(href) {
+                    const safeHref = href.replace(/"/g, '&quot;');
+                    let displayText = href;
+                    try {
+                        const url = new URL(href);
+                        // Показываем только домен второго уровня (например ruwiki.ru из ru.wikipedia.org)
+                        const hostParts = url.hostname.replace(/^www\./, '').split('.');
+                        displayText = hostParts.length >= 2 ? hostParts.slice(-2).join('.') : url.hostname;
+                    } catch (e) { /* не URL — показываем как есть */ }
+                    return '<a href="' + safeHref + '" target="_blank" rel="noopener noreferrer">' + displayText + '</a>';
+                }).join(' ');
+            }
+
+            // --- Панель свойств персоны ---
+            // Показывает только поля с суффиксом _ (из extraFields) плюс мини-фото.
+            // Заголовок: "Основные свойства person", затем idA персоны.
             function showNodeProperties(person) {
                 const container = document.getElementById('properties-panels-container');
                 if (!container) return;
 
-                // If already open for this person, bring to front
-                const existingPanel = openPropertiesPanels.find(p => p.idA === person.idA);
+                // Если панель уже открыта — вывести на передний план
+                const existingPanel = openPropertiesPanels.find(function(p) { return p.idA === person.idA; });
                 if (existingPanel) {
                     const panel = document.getElementById(existingPanel.panelId);
                     if (panel) bringPanelToFront(panel);
@@ -813,62 +900,46 @@
                 const rightOffset = 20 + (offsetMultiplier * 30);
                 const topOffset = 100 + (offsetMultiplier * 30);
 
-                // Build properties content
-                const sex = person.sex || '—';
-                const birth = person.birth || '—';
-                const death = person.death || '—';
+                // Мини-фото (если есть)
                 const photoFile = photoExistsCache[person.idA + '.png'] ? person.idA + '.png' : null;
 
+                // Строим строки свойств только из полей с суффиксом _
                 let propertiesHtml = '';
-                propertiesHtml += `<div class="property-item"><div class="property-predicate">ID</div><div class="property-value">${person.idA}</div></div>`;
-                propertiesHtml += `<div class="property-item"><div class="property-predicate">Имя</div><div class="property-value">${person.label}</div></div>`;
-                propertiesHtml += `<div class="property-item"><div class="property-predicate">Пол</div><div class="property-value">${sex}</div></div>`;
-                propertiesHtml += `<div class="property-item"><div class="property-predicate">Год рождения</div><div class="property-value">${birth}</div></div>`;
-                propertiesHtml += `<div class="property-item"><div class="property-predicate">Год смерти</div><div class="property-value">${death}</div></div>`;
-                if (person.hasFather) {
-                    const father = people.find(p => p.idA === person.hasFather);
-                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Отец</div><div class="property-value">${father ? father.label : person.hasFather}</div></div>`;
-                }
-                if (person.hasMother) {
-                    const mother = people.find(p => p.idA === person.hasMother);
-                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Мать</div><div class="property-value">${mother ? mother.label : person.hasMother}</div></div>`;
-                }
-                if (person.hyperLink) {
-                    const links = person.hyperLink.split(';').map(s => s.trim()).filter(s => s);
-                    const linkHtml = links.map(href => {
-                        const safeHref = href.replace(/"/g, '&quot;');
-                        let displayText = href;
-                        try {
-                            const url = new URL(href);
-                            // Show only the second-level domain (e.g. ruwiki.ru from ru.wikipedia.org)
-                            const hostParts = url.hostname.replace(/^www\./, '').split('.');
-                            displayText = hostParts.length >= 2 ? hostParts.slice(-2).join('.') : url.hostname;
-                        } catch (e) { /* not a valid URL, show as-is */ }
-                        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${displayText}</a>`;
-                    }).join(' ');
-                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Ссылка</div><div class="property-value">${linkHtml}</div></div>`;
+                if (person.extraFields) {
+                    const fieldNames = Object.keys(person.extraFields);
+                    for (let fi = 0; fi < fieldNames.length; fi++) {
+                        const key = fieldNames[fi];
+                        let val = person.extraFields[key];
+                        if (!val) continue;
+                        const labelText = key.replace(/_$/, ''); // убрать суффикс _
+                        let valHtml = val;
+                        // Поля hyperLink_ — делаем кликабельные ссылки
+                        if (key.toLowerCase().includes('hyperlink')) {
+                            valHtml = buildLinksHtml(val) || val;
+                        }
+                        propertiesHtml += '<div class="property-item"><div class="property-predicate">' + labelText + '</div><div class="property-value">' + valHtml + '</div></div>';
+                    }
                 }
                 if (photoFile) {
-                    propertiesHtml += `<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="${getActivePicDir()}/${photoFile}" alt="${person.label}"></div></div>`;
+                    propertiesHtml += '<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="' + getActivePicDir() + '/' + photoFile + '" alt="' + person.label + '"></div></div>';
                 }
 
-                const escapedLabel = person.label.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const escapedIdA = person.idA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
-                const panelHtml = `
-                    <div class="properties-panel visible" id="${panelId}" style="right: ${rightOffset}px; top: ${topOffset}px;">
-                        <div class="properties-header" onmousedown="startDragPanel(event, '${panelId}')">
-                            <div class="properties-header-content">
-                                <div class="properties-header-title">Основные свойства person</div>
-                                <h3>${person.label}</h3>
-                                <button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId('${escapedLabel}', this)">Копировать</button>
-                            </div>
-                            <button class="properties-close-btn" onclick="closePropertiesPanel('${panelId}')">&times;</button>
-                        </div>
-                        <div class="properties-content">
-                            ${propertiesHtml}
-                        </div>
-                    </div>
-                `;
+                const panelHtml =
+                    '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">Основные свойства person</div>' +
+                    '<h3>' + person.idA + '</h3>' +
+                    '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    propertiesHtml +
+                    '</div>' +
+                    '</div>';
 
                 container.insertAdjacentHTML('beforeend', panelHtml);
                 openPropertiesPanels.push({ panelId: panelId, idA: person.idA });
@@ -876,6 +947,83 @@
                 const newPanel = document.getElementById(panelId);
                 if (newPanel) bringPanelToFront(newPanel);
             }
+
+            // --- Панель свойств семьи ---
+            // Открывается по клику на кластер (субграф) в SVG.
+            // Показывает только поля с суффиксом _ из листа family.
+            // Заголовок: "Основные свойства family", затем idA семьи.
+            // Внизу — кнопка "foto_family" для открытия галереи.
+            function showFamilyProperties(familyObj) {
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+
+                // Если панель уже открыта — вывести на передний план
+                const existingKey = 'family-' + familyObj.idA;
+                const existingPanel = openPropertiesPanels.find(function(p) { return p.idA === existingKey; });
+                if (existingPanel) {
+                    const panel = document.getElementById(existingPanel.panelId);
+                    if (panel) bringPanelToFront(panel);
+                    return;
+                }
+
+                propertiesPanelCounter++;
+                const panelId = 'properties-panel-' + propertiesPanelCounter;
+
+                const offsetMultiplier = openPropertiesPanels.length % 5;
+                const rightOffset = 20 + (offsetMultiplier * 30);
+                const topOffset = 100 + (offsetMultiplier * 30);
+
+                // Строим строки свойств только из полей с суффиксом _
+                let propertiesHtml = '';
+                if (familyObj.extraFields) {
+                    const fieldNames = Object.keys(familyObj.extraFields);
+                    for (let fi = 0; fi < fieldNames.length; fi++) {
+                        const key = fieldNames[fi];
+                        let val = familyObj.extraFields[key];
+                        if (!val) continue;
+                        const labelText = key.replace(/_$/, '');
+                        let valHtml = val;
+                        if (key.toLowerCase().includes('hyperlink')) {
+                            valHtml = buildLinksHtml(val) || val;
+                        }
+                        propertiesHtml += '<div class="property-item"><div class="property-predicate">' + labelText + '</div><div class="property-value">' + valHtml + '</div></div>';
+                    }
+                }
+
+                const escapedIdA = familyObj.idA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const escapedIdAForOnclick = familyObj.idA.replace(/'/g, "\\'");
+
+                const panelHtml =
+                    '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">Основные свойства family</div>' +
+                    '<h3>' + familyObj.idA + '</h3>' +
+                    '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    propertiesHtml +
+                    '<div class="property-item">' +
+                    '<button class="foto-family-btn" onclick="openFamilyGallery(\'' + escapedIdAForOnclick + '\')">foto_family</button>' +
+                    '</div>' +
+                    '</div>' +
+                    '</div>';
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                openPropertiesPanels.push({ panelId: panelId, idA: existingKey });
+
+                const newPanel = document.getElementById(panelId);
+                if (newPanel) bringPanelToFront(newPanel);
+            }
+
+            // --- Открыть галерею foto_family по idA семьи ---
+            window.openFamilyGallery = function(familyIdA) {
+                if (window.FOTO && window.FOTO.showFamilyGallery) {
+                    window.FOTO.showFamilyGallery(familyIdA, fotoFamilyRows, 'foto_family');
+                }
+            };
 
             window.closePropertiesPanel = function(panelId) {
                 const panel = document.getElementById(panelId);
@@ -907,7 +1055,7 @@
 
             function bringPanelToFront(panel) {
                 let maxZIndex = 2000;
-                openPropertiesPanels.forEach(p => {
+                openPropertiesPanels.forEach(function(p) {
                     const el = document.getElementById(p.panelId);
                     if (el) {
                         const z = parseInt(el.style.zIndex) || 2000;
@@ -916,6 +1064,8 @@
                 });
                 panel.style.zIndex = maxZIndex + 1;
             }
+            // Делаем bringPanelToFront доступной из foto.js
+            window.bringPanelToFront = bringPanelToFront;
 
             window.startDragPanel = function(event, panelId) {
                 if (event.target.classList.contains('properties-close-btn') ||
@@ -949,10 +1099,18 @@
                 document.removeEventListener('mouseup', stopDragPanel);
             }
 
-            // --- Add node click handlers to rendered SVG ---
+            // --- Добавить обработчики кликов на узлы и кластеры SVG ---
             function addNodeClickHandlers(svgEl) {
+                // Graphviz добавляет белый фоновый polygon в корневой группе (#graph0).
+                // Он перекрывает весь SVG и перехватывает pointer-события кластеров.
+                // Отключаем pointer-events на нём, чтобы клики доходили до кластеров и узлов.
+                svgEl.querySelectorAll('g#graph0 > polygon[fill="white"]').forEach(function(poly) {
+                    poly.style.pointerEvents = 'none';
+                });
+
+                // Клики по узлам персон (g.node)
                 const nodes = svgEl.querySelectorAll('g.node');
-                nodes.forEach(node => {
+                nodes.forEach(function(node) {
                     node.style.cursor = 'pointer';
                     node.addEventListener('click', function(event) {
                         event.stopPropagation();
@@ -960,10 +1118,10 @@
                         const titleEl = node.querySelector('title');
                         if (!titleEl) return;
                         const nodeId = titleEl.textContent.trim();
-                        const person = people.find(p => p.idA === nodeId);
+                        const person = people.find(function(p) { return p.idA === nodeId; });
                         if (!person) return;
 
-                        // Update selection highlight
+                        // Обновить подсветку выбранного узла
                         if (selectedNodeElement) {
                             selectedNodeElement.classList.remove('selected');
                         }
@@ -974,7 +1132,39 @@
                     });
                 });
 
-                // Click on empty SVG area: deselect
+                // Клики по кластерам (субграфам) браков (g.cluster или g.graph)
+                // Graphviz рендерит subgraph cluster_* как <g class="cluster"> в SVG
+                const clusters = svgEl.querySelectorAll('g.cluster');
+                clusters.forEach(function(clusterEl) {
+                    clusterEl.style.cursor = 'pointer';
+                    // Белый фоновый polygon Graphviz перехватывает pointer-события.
+                    // Отключаем pointer-events на нём, чтобы клик доходил до g.cluster.
+                    clusterEl.querySelectorAll('polygon').forEach(function(poly) {
+                        var fillAttr = poly.getAttribute('fill');
+                        if (fillAttr === 'white' || fillAttr === '#ffffff') {
+                            poly.style.pointerEvents = 'none';
+                        }
+                    });
+                    clusterEl.addEventListener('click', function(event) {
+                        event.stopPropagation();
+
+                        // Название кластера берём из <title> (например cluster_marriage_0)
+                        const titleEl = clusterEl.querySelector('title');
+                        if (!titleEl) return;
+                        const clusterName = titleEl.textContent.trim();
+
+                        // Извлекаем индекс кластера из имени вида cluster_marriage_N
+                        const match = clusterName.match(/cluster_marriage_(\d+)/);
+                        if (!match) return;
+                        const clusterIdx = parseInt(match[1], 10);
+                        if (clusterIdx >= marriages.length) return;
+
+                        const familyObj = marriages[clusterIdx];
+                        showFamilyProperties(familyObj);
+                    });
+                });
+
+                // Клик по пустой области SVG — снять выделение
                 svgEl.addEventListener('click', function() {
                     if (selectedNodeElement) {
                         selectedNodeElement.classList.remove('selected');
@@ -989,6 +1179,8 @@
                 const marriagesArray = parsedData.marriages || [];
                 if (!peopleArray.length) return;
                 people = peopleArray;
+                marriages = marriagesArray;
+                fotoFamilyRows = parsedData.fotoFamilyRows || [];
                 showStatus('⏳ Проверка наличия фото...');
                 await preloadPhotoChecks(people);
                 showStatus('⏳ Генерация DOT кода...');

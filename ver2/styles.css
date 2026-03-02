@@ -151,3 +151,68 @@ footer { margin-top: 25px; text-align: center; color: #5d6d7e; font-size: 0.9rem
     stroke-width: 3 !important;
     stroke: #e74c3c !important;
 }
+
+/* Cluster hover style (кластеры браков) */
+.cluster { cursor: pointer; }
+/* Белый фоновый polygon внутри кластера не должен перехватывать клики —
+   иначе клик по кластеру не доходит до родительского g.cluster */
+.cluster polygon[fill="white"] { pointer-events: none; }
+.cluster:hover polygon, .cluster:hover path, .cluster:hover rect {
+    stroke-width: 2 !important;
+    stroke: #8e44ad !important;
+}
+
+/* Кнопка foto_family в панели свойств семьи */
+.foto-family-btn {
+    margin-top: 8px;
+    background: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.foto-family-btn:hover { background: #1e8449; }
+
+/* Галерея foto_family */
+.fg-family-id {
+    font-size: 12px;
+    color: #cce;
+    margin-bottom: 4px;
+    word-break: break-all;
+}
+.fg-thumbs-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 4px 0;
+}
+.fg-thumb {
+    text-align: center;
+    cursor: pointer;
+    max-width: 110px;
+}
+.fg-thumb img {
+    width: 100px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 2px solid #bbb;
+    display: block;
+    transition: border-color 0.15s;
+}
+.fg-thumb:hover img { border-color: #27ae60; }
+.fg-thumb-label {
+    font-size: 11px;
+    color: #555;
+    margin-top: 3px;
+    word-break: break-word;
+    max-width: 100px;
+}
+.fg-empty {
+    color: #888;
+    font-style: italic;
+    font-size: 13px;
+    padding: 8px 0;
+}
