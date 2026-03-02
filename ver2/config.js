@@ -17,7 +17,7 @@ window.CONFIG = {
     "borderColor": "darkslategray",
     "edgeColor": "slategray",
     "picDir": "pic",
-    "picDirType": "relativeGraphvizOnline",
+    "picDirType": "relative",
     "picDirGlobal": "",
     "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver2/pic"
 };
