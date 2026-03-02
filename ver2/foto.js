@@ -5,6 +5,8 @@
 // Экспортируемые функции (доступны через объект window.FOTO):
 //   FOTO.showFamilyGallery(familyIdA, fotoFamilyRows, fotoFamilyDir)
 //     — открывает окно галереи фотографий для указанной семьи.
+//   FOTO.showPersonGallery(personIdA, fotoPersonRows, fotoPersonDir)
+//     — открывает окно галереи фотографий для указанной персоны.
 //
 // Поля foto_family, отображаемые в окне галереи (суффикс _):
 //   title_, location_, date_, person_label_, hyperLink_, suffix_
@@ -12,8 +14,9 @@
 // Структура файла:
 //   1. checkFotoExists(dir, filename)  — проверка существования файла (img/fetch)
 //   2. openFullPhoto(src, title, fields) — открытие фото в новом окне с описанием
-//   3. buildGalleryWindow(familyIdA, photos, fotoFamilyDir) — построение окна галереи
-//   4. showFamilyGallery(...)           — точка входа
+//   3. buildGalleryWindow(entityIdA, photos, dir, headerTitle) — построение окна галереи
+//   4. showFamilyGallery(...)           — точка входа для семьи
+//   5. showPersonGallery(...)           — точка входа для персоны
 
 (function () {
 
@@ -86,12 +89,13 @@
     var _photoStoreCounter = 0;
 
     // --- Построить и показать окно галереи ---
-    // familyIdA — idA семьи (строка), например 'Ульянов_Илья_Николаевич-Бланк_Мария_Александровна'
-    // photos — массив записей foto_family для данной семьи (уже отфильтрованный)
-    // fotoFamilyDir — относительный путь к папке foto_family (например 'foto_family')
-    function buildGalleryWindow(familyIdA, photos, fotoFamilyDir) {
-        // Удалить предыдущее окно галереи для этой семьи, если оно уже открыто
-        var existingId = 'foto-gallery-' + familyIdA.replace(/[^a-zA-Z0-9_-]/g, '_');
+    // entityIdA — idA сущности (семьи или персоны)
+    // photos — массив записей foto_family/foto_person для данной сущности (уже отфильтрованный)
+    // dir — относительный путь к папке фото (например 'foto_family' или 'foto_person')
+    // headerTitle — заголовок окна (например 'foto_family' или 'foto_person')
+    function buildGalleryWindow(entityIdA, photos, dir, headerTitle) {
+        // Удалить предыдущее окно галереи для этой сущности, если оно уже открыто
+        var existingId = 'foto-gallery-' + entityIdA.replace(/[^a-zA-Z0-9_-]/g, '_');
         var existingWin = document.getElementById(existingId);
         if (existingWin) {
             existingWin.remove();
@@ -113,10 +117,10 @@
         } else {
             for (var i = 0; i < photos.length; i++) {
                 var photo = photos[i];
-                var src = fotoFamilyDir + '/' + photo.idA;
+                var src = dir + '/' + photo.idA;
                 // Сохраняем данные фото в хранилище, чтобы не встраивать JSON в HTML-атрибут onclick
                 var storeKey = 'p' + (++_photoStoreCounter);
-                _photoStore[storeKey] = { idA: photo.idA, fields: photo.descFields, dir: fotoFamilyDir };
+                _photoStore[storeKey] = { idA: photo.idA, fields: photo.descFields, dir: dir };
                 thumbsHtml +=
                     '<div class="fg-thumb" onclick="window.FOTO._openThumbPhoto(\'' + storeKey + '\')">' +
                     '<img src="' + src + '" alt="' + photo.idA + '" title="' + photo.idA + '">' +
@@ -125,16 +129,16 @@
             }
         }
 
-        // Экранируем familyIdA для кнопки копирования
-        var escapedFamilyIdA = familyIdA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        // Экранируем entityIdA для кнопки копирования
+        var escapedEntityIdA = entityIdA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
         var panelHtml =
             '<div class="properties-panel visible fg-panel" id="' + galleryId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px; min-width: 340px; max-width: 520px;">' +
             '<div class="properties-header" onmousedown="window.startDragPanel(event, \'' + galleryId + '\')">' +
             '<div class="properties-header-content">' +
-            '<div class="properties-header-title">foto_family</div>' +
-            '<div class="fg-family-id">' + familyIdA + '</div>' +
-            '<button class="properties-copy-btn" onclick="event.stopPropagation(); window.copyObjectId(\'' + escapedFamilyIdA + '\', this)">Копировать</button>' +
+            '<div class="properties-header-title">' + (headerTitle || 'foto') + '</div>' +
+            '<div class="fg-family-id">' + entityIdA + '</div>' +
+            '<button class="properties-copy-btn" onclick="event.stopPropagation(); window.copyObjectId(\'' + escapedEntityIdA + '\', this)">Копировать</button>' +
             '</div>' +
             '<button class="properties-close-btn" onclick="document.getElementById(\'' + galleryId + '\').remove()">&times;</button>' +
             '</div>' +
@@ -193,12 +197,47 @@
             photos.push({ idA: r.idA, descFields: descFields });
         }
 
-        buildGalleryWindow(familyIdA, photos, fotoFamilyDir);
+        buildGalleryWindow(familyIdA, photos, fotoFamilyDir, 'foto_family');
+    }
+
+    // --- Основная точка входа: открыть галерею персоны ---
+    // personIdA — idA персоны
+    // fotoPersonRows — все строки листа foto_person (массив объектов, ключи — имена колонок)
+    // fotoPersonDir — путь к папке с фото (например 'foto_person')
+    function showPersonGallery(personIdA, fotoPersonRows, fotoPersonDir) {
+        if (!fotoPersonDir) fotoPersonDir = 'foto_person';
+
+        // Отфильтровать строки по id_person == personIdA
+        var matchingRows = [];
+        for (var i = 0; i < fotoPersonRows.length; i++) {
+            var row = fotoPersonRows[i];
+            if (row.id_person === personIdA && row.idA) {
+                matchingRows.push(row);
+            }
+        }
+
+        // Подготовить данные для фото: отдельно хранить поля с суффиксом _
+        var photos = [];
+        for (var j = 0; j < matchingRows.length; j++) {
+            var r = matchingRows[j];
+            var descFields = {};
+            var keys = Object.keys(r);
+            for (var k = 0; k < keys.length; k++) {
+                var key = keys[k];
+                if (key.endsWith('_') && r[key] !== null && r[key] !== undefined && r[key] !== '') {
+                    descFields[key] = r[key];
+                }
+            }
+            photos.push({ idA: r.idA, descFields: descFields });
+        }
+
+        buildGalleryWindow(personIdA, photos, fotoPersonDir, 'foto_person');
     }
 
     // --- Публичное API ---
     window.FOTO = {
         showFamilyGallery: showFamilyGallery,
+        showPersonGallery: showPersonGallery,
         // _openThumbPhoto используется из onclick строк галереи
         _openThumbPhoto: openThumbPhoto
     };
