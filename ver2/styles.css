@@ -162,18 +162,38 @@ footer { margin-top: 25px; text-align: center; color: #5d6d7e; font-size: 0.9rem
     stroke: #8e44ad !important;
 }
 
+/* Контейнер кнопок в заголовке панели свойств (Копировать + foto_*) */
+.properties-header-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+    align-items: center;
+}
+
 /* Кнопка foto_family в панели свойств семьи */
 .foto-family-btn {
-    margin-top: 8px;
     background: #27ae60;
     color: white;
     border: none;
-    border-radius: 5px;
-    padding: 6px 14px;
+    border-radius: 4px;
+    padding: 3px 8px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 11px;
 }
 .foto-family-btn:hover { background: #1e8449; }
+
+/* Кнопка foto_person в панели свойств персоны */
+.foto-person-btn {
+    background: #2980b9;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    font-size: 11px;
+}
+.foto-person-btn:hover { background: #1a5276; }
 
 /* Галерея foto_family */
 .fg-family-id {

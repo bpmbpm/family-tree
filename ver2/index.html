@@ -106,6 +106,7 @@
             let people = [];
             let marriages = []; // массив браков (с полями idA, husband, wife, extraFields)
             let fotoFamilyRows = []; // строки листа foto_family
+            let fotoPersonRows = []; // строки листа foto_person
             let dotCode = '';
             let dotCodeForGraphvizOnline = ''; // отдельный DOT-код для GraphvizOnline (в режиме relativeGraphvizOnline)
             let graphvizLink = '';
@@ -392,12 +393,13 @@
             }
 
             // --- Parse Excel ---
-            // Возвращает: { people, marriages, familyRows, fotoFamilyRows }
+            // Возвращает: { people, marriages, familyRows, fotoFamilyRows, fotoPersonRows }
             // people — массив персон с полями idA, label, sex, surName2, hasFather, hasMother,
             //           birth, death, а также extraFields (объект с полями, имя которых заканчивается на _)
             // marriages — массив браков с полями idA, husband, wife, а также extraFields (_-поля)
             // familyRows — сырые строки листа family (объекты с именами колонок)
             // fotoFamilyRows — строки листа foto_family (объекты с именами колонок)
+            // fotoPersonRows — строки листа foto_person (объекты с именами колонок)
             function parseExcel(arrayBuffer) {
                 try {
                     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
@@ -542,7 +544,29 @@
                         }
                     }
 
-                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList };
+                    // --- Лист foto_person ---
+                    const fotoPersonSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'foto_person'; });
+                    let fotoPersonRowsList = [];
+                    if (fotoPersonSheetName) {
+                        const fpSheet = workbook.Sheets[fotoPersonSheetName];
+                        const fpRows = XLSX.utils.sheet_to_json(fpSheet, { header: 1, defval: '' });
+                        if (fpRows.length > 1) {
+                            const fpRawHeaders = fpRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            fpRows.slice(1).forEach(function(row) {
+                                // Пропускаем строки без id_person
+                                const idPersonIdx = fpRawHeaders.map(function(h) { return h.toLowerCase(); }).indexOf('id_person');
+                                const idPersonVal = idPersonIdx >= 0 ? row[idPersonIdx] : '';
+                                if (!idPersonVal || idPersonVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < fpRawHeaders.length; ci++) {
+                                    obj[fpRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                fotoPersonRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList, fotoPersonRows: fotoPersonRowsList };
                 } catch (e) {
                     showStatus('Ошибка парсинга Excel: ' + e.message, true);
                     throw e;
@@ -926,13 +950,18 @@
 
                 const escapedIdA = person.idA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
+                const escapedIdAForOnclick = person.idA.replace(/'/g, "\\'");
+
                 const panelHtml =
                     '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
                     '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
                     '<div class="properties-header-content">' +
                     '<div class="properties-header-title">Основные свойства person</div>' +
                     '<h3>' + person.idA + '</h3>' +
+                    '<div class="properties-header-buttons">' +
                     '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
+                    '<button class="foto-person-btn" onclick="event.stopPropagation(); openPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_person</button>' +
+                    '</div>' +
                     '</div>' +
                     '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
                     '</div>' +
@@ -952,7 +981,7 @@
             // Открывается по клику на кластер (субграф) в SVG.
             // Показывает только поля с суффиксом _ из листа family.
             // Заголовок: "Основные свойства family", затем idA семьи.
-            // Внизу — кнопка "foto_family" для открытия галереи.
+            // В заголовке рядом с кнопкой Копировать — кнопка "foto_family" для открытия галереи.
             function showFamilyProperties(familyObj) {
                 const container = document.getElementById('properties-panels-container');
                 if (!container) return;
@@ -999,15 +1028,15 @@
                     '<div class="properties-header-content">' +
                     '<div class="properties-header-title">Основные свойства family</div>' +
                     '<h3>' + familyObj.idA + '</h3>' +
+                    '<div class="properties-header-buttons">' +
                     '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
+                    '<button class="foto-family-btn" onclick="event.stopPropagation(); openFamilyGallery(\'' + escapedIdAForOnclick + '\')">foto_family</button>' +
+                    '</div>' +
                     '</div>' +
                     '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
                     '</div>' +
                     '<div class="properties-content">' +
                     propertiesHtml +
-                    '<div class="property-item">' +
-                    '<button class="foto-family-btn" onclick="openFamilyGallery(\'' + escapedIdAForOnclick + '\')">foto_family</button>' +
-                    '</div>' +
                     '</div>' +
                     '</div>';
 
@@ -1022,6 +1051,13 @@
             window.openFamilyGallery = function(familyIdA) {
                 if (window.FOTO && window.FOTO.showFamilyGallery) {
                     window.FOTO.showFamilyGallery(familyIdA, fotoFamilyRows, 'foto_family');
+                }
+            };
+
+            // --- Открыть галерею foto_person по idA персоны ---
+            window.openPersonGallery = function(personIdA) {
+                if (window.FOTO && window.FOTO.showPersonGallery) {
+                    window.FOTO.showPersonGallery(personIdA, fotoPersonRows, 'foto_person');
                 }
             };
 
@@ -1069,7 +1105,9 @@
 
             window.startDragPanel = function(event, panelId) {
                 if (event.target.classList.contains('properties-close-btn') ||
-                    event.target.classList.contains('properties-copy-btn')) return;
+                    event.target.classList.contains('properties-copy-btn') ||
+                    event.target.classList.contains('foto-family-btn') ||
+                    event.target.classList.contains('foto-person-btn')) return;
                 const panel = document.getElementById(panelId);
                 if (!panel) return;
 
@@ -1181,6 +1219,7 @@
                 people = peopleArray;
                 marriages = marriagesArray;
                 fotoFamilyRows = parsedData.fotoFamilyRows || [];
+                fotoPersonRows = parsedData.fotoPersonRows || [];
                 showStatus('⏳ Проверка наличия фото...');
                 await preloadPhotoChecks(people);
                 showStatus('⏳ Генерация DOT кода...');
