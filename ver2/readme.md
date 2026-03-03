@@ -3,6 +3,10 @@
 ### run
 - https://bpmbpm.github.io/family-tree/ver2/index.html
 
+### info
+- Взаимосвязь полей Excel и папок проекта (v1) https://github.com/bpmbpm/family-tree/blob/main/design/relationship_between_fields_and_folders_v1.md
+- Предлагаемые новые функции (v1) https://github.com/bpmbpm/family-tree/blob/main/design/prototype/new_v1.md
+  
 ### dot
 - https://graphviz.org/docs/attrs/image/
 - [Как вывести многострочный текст в ноде Graphviz](https://ru.stackoverflow.com/questions/1130998/%D0%9A%D0%B0%D0%BA-%D0%B2%D1%8B%D0%B2%D0%B5%D1%81%D1%82%D0%B8-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%81%D1%82%D1%80%D0%BE%D1%87%D0%BD%D1%8B%D0%B9-%D1%82%D0%B5%D0%BA%D1%81%D1%82-%D0%B2-%D0%BD%D0%BE%D0%B4%D0%B5-graphviz)
