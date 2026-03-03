@@ -5,6 +5,9 @@
 // Экспортируемые функции (доступны через объект window.FOTO):
 //   FOTO.showFamilyGallery(familyIdA, fotoFamilyRows, fotoFamilyDir)
 //     — открывает окно галереи фотографий для указанной семьи.
+//   FOTO.showFamilyGalleryForPerson(personIdA, fotoFamilyRows, fotoFamilyDir)
+//     — открывает окно галереи семейных фотографий, в которых присутствует персона.
+//     Поле id_personAll содержит перечень idA через ';' (пробелы вокруг ';' допустимы).
 //   FOTO.showPersonGallery(personIdA, fotoPersonRows, fotoPersonDir)
 //     — открывает окно галереи фотографий для указанной персоны.
 //   FOTO.showGroupGallery(personIdA, fotoGroupRows, fotoGroupDir)
@@ -24,15 +27,16 @@
 //   title_, location_, date_, person_label_, hyperLink_, suffix_
 //
 // Структура файла:
-//   1. checkFotoExists(dir, filename)  — проверка существования файла (img/fetch)
+//   1. checkFotoExists(dir, filename)      — проверка существования файла (img/fetch)
 //   2. openFullPhoto(src, title, fields, sheetName) — открытие фото в новом окне с описанием
 //   3. buildGalleryWindow(entityIdA, photos, dir, headerTitle, sheetName) — построение окна галереи
-//   4. showFamilyGallery(...)           — точка входа для семьи
-//   5. showPersonGallery(...)           — точка входа для персоны
-//   6. showGroupGallery(...)            — точка входа для групповых фото
-//   7. showLocationPersonGallery(...)   — точка входа для фото мест (по персоне)
-//   8. showLocationFamilyGallery(...)   — точка входа для фото мест (по семье)
-//   9. showEventFotoGallery(...)        — точка входа для фото из событий
+//   4. showFamilyGalleryForPerson(...)     — точка входа: семейные фото по персоне (id_personAll)
+//   5. showFamilyGallery(...)              — точка входа для семьи
+//   6. showPersonGallery(...)              — точка входа для персоны
+//   7. showGroupGallery(...)               — точка входа для групповых фото
+//   8. showLocationPersonGallery(...)      — точка входа для фото мест (по персоне)
+//   9. showLocationFamilyGallery(...)      — точка входа для фото мест (по семье)
+//  10. showEventFotoGallery(...)           — точка входа для фото из событий
 
 (function () {
 
@@ -188,6 +192,46 @@
         if (!data) return;
         var src = data.dir + '/' + data.idA;
         openFullPhoto(src, data.idA, data.fields, data.sheetName);
+    }
+
+    // --- Основная точка входа: открыть галерею foto_family для персоны ---
+    // personIdA — idA персоны (из листа person)
+    // fotoFamilyRows — все строки листа foto_family (массив объектов, ключи — имена колонок)
+    // fotoFamilyDir — путь к папке с фото (например 'foto_family')
+    // Фото попадает в галерею, если personIdA встречается в поле id_personAll,
+    // где перечень idA разделён ';' (пробелы вокруг разделителя допустимы).
+    function showFamilyGalleryForPerson(personIdA, fotoFamilyRows, fotoFamilyDir) {
+        if (!fotoFamilyDir) fotoFamilyDir = 'foto_family';
+
+        // Отфильтровать строки, в которых personIdA присутствует в id_personAll
+        var matchingRows = [];
+        for (var i = 0; i < fotoFamilyRows.length; i++) {
+            var row = fotoFamilyRows[i];
+            if (!row.idA) continue;
+            var idPersonAll = row.id_personAll || '';
+            // Разбиваем по ';', убираем пробелы вокруг каждого элемента
+            var ids = idPersonAll.split(';').map(function(s) { return s.trim(); });
+            if (ids.indexOf(personIdA) !== -1) {
+                matchingRows.push(row);
+            }
+        }
+
+        // Подготовить данные для фото: отдельно хранить поля с суффиксом _
+        var photos = [];
+        for (var j = 0; j < matchingRows.length; j++) {
+            var r = matchingRows[j];
+            var descFields = {};
+            var keys = Object.keys(r);
+            for (var k = 0; k < keys.length; k++) {
+                var key = keys[k];
+                if (key.endsWith('_') && r[key] !== null && r[key] !== undefined && r[key] !== '') {
+                    descFields[key] = r[key];
+                }
+            }
+            photos.push({ idA: r.idA, descFields: descFields });
+        }
+
+        buildGalleryWindow(personIdA, photos, fotoFamilyDir, 'foto_family', 'foto_family');
     }
 
     // --- Основная точка входа: открыть галерею семьи ---
@@ -407,6 +451,7 @@
     // --- Публичное API ---
     window.FOTO = {
         showFamilyGallery: showFamilyGallery,
+        showFamilyGalleryForPerson: showFamilyGalleryForPerson,
         showPersonGallery: showPersonGallery,
         showGroupGallery: showGroupGallery,
         showLocationPersonGallery: showLocationPersonGallery,
