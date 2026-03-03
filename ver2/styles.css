@@ -248,3 +248,35 @@ footer { margin-top: 25px; text-align: center; color: #5d6d7e; font-size: 0.9rem
     font-size: 11px;
 }
 .foto-location-btn:hover { background: #ca6f1e; }
+
+/* Кнопка Event в панели свойств персоны */
+.event-btn {
+    background: #8e44ad;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    font-size: 11px;
+}
+.event-btn:hover { background: #6c3483; }
+
+/* Выпадающий список FotoList в панели событий */
+.event-fotolist-select {
+    background: #2c3e50;
+    color: white;
+    border: 1px solid #7f8c8d;
+    border-radius: 4px;
+    padding: 3px 6px;
+    font-size: 11px;
+    cursor: pointer;
+    margin-top: 4px;
+}
+.event-fotolist-select:focus { outline: none; border-color: #aaa; }
+
+/* Строка события в панели событий */
+.event-item {
+    border-left: 3px solid #8e44ad;
+    padding-left: 8px;
+    margin-bottom: 10px;
+}

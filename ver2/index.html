@@ -109,6 +109,7 @@
             let fotoPersonRows = []; // строки листа foto_person
             let fotoGroupRows = []; // строки листа foto_group
             let fotoLocationRows = []; // строки листа foto_location
+            let eventRows = []; // строки листа event
             let dotCode = '';
             let dotCodeForGraphvizOnline = ''; // отдельный DOT-код для GraphvizOnline (в режиме relativeGraphvizOnline)
             let graphvizLink = '';
@@ -613,7 +614,30 @@
                         }
                     }
 
-                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList, fotoPersonRows: fotoPersonRowsList, fotoGroupRows: fotoGroupRowsList, fotoLocationRows: fotoLocationRowsList };
+                    // --- Лист event ---
+                    const eventSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'event'; });
+                    let eventRowsList = [];
+                    if (eventSheetName) {
+                        const evSheet = workbook.Sheets[eventSheetName];
+                        const evRows = XLSX.utils.sheet_to_json(evSheet, { header: 1, defval: '' });
+                        if (evRows.length > 1) {
+                            const evRawHeaders = evRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const evHeaderLower = evRawHeaders.map(function(h) { return h.toLowerCase(); });
+                            evRows.slice(1).forEach(function(row) {
+                                // Пропускаем строки без id_event
+                                const idEventIdx = evHeaderLower.indexOf('id_event');
+                                const idEventVal = idEventIdx >= 0 ? row[idEventIdx] : '';
+                                if (!idEventVal || idEventVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < evRawHeaders.length; ci++) {
+                                    obj[evRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                eventRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList, fotoPersonRows: fotoPersonRowsList, fotoGroupRows: fotoGroupRowsList, fotoLocationRows: fotoLocationRowsList, eventRows: eventRowsList };
                 } catch (e) {
                     showStatus('Ошибка парсинга Excel: ' + e.message, true);
                     throw e;
@@ -1010,6 +1034,7 @@
                     '<button class="foto-person-btn" onclick="event.stopPropagation(); openPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_person</button>' +
                     '<button class="foto-group-btn" onclick="event.stopPropagation(); openGroupGallery(\'' + escapedIdAForOnclick + '\')">foto_group</button>' +
                     '<button class="foto-location-btn" onclick="event.stopPropagation(); openLocationPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_location</button>' +
+                    '<button class="event-btn" onclick="event.stopPropagation(); openEventPanel(\'' + escapedIdAForOnclick + '\')">Event</button>' +
                     '</div>' +
                     '</div>' +
                     '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
@@ -1132,6 +1157,160 @@
                 }
             };
 
+            // --- Открыть панель событий по idA персоны ---
+            window.openEventPanel = function(personIdA) {
+                showEventPanel(personIdA);
+            };
+
+            // --- Панель событий персоны ---
+            // Показывает список событий из листа event, где id_personAll содержит personIdA.
+            // В заголовке — выпадающий список FotoList с типами фото, у которых есть хотя бы одна запись.
+            function showEventPanel(personIdA) {
+                var container = document.getElementById('properties-panels-container');
+                if (!container) return;
+
+                // Если панель уже открыта — вывести на передний план
+                var existingKey = 'event-' + personIdA;
+                var existingPanel = openPropertiesPanels.find(function(p) { return p.idA === existingKey; });
+                if (existingPanel) {
+                    var ep = document.getElementById(existingPanel.panelId);
+                    if (ep) bringPanelToFront(ep);
+                    return;
+                }
+
+                // Отфильтровать события, где personIdA присутствует в id_personAll
+                var matchingEvents = [];
+                for (var i = 0; i < eventRows.length; i++) {
+                    var row = eventRows[i];
+                    var idPersonAll = row.id_personAll || '';
+                    // Разбиваем по ';', убираем пробелы вокруг каждого элемента
+                    var ids = idPersonAll.split(';').map(function(s) { return s.trim(); });
+                    if (ids.indexOf(personIdA) !== -1) {
+                        matchingEvents.push(row);
+                    }
+                }
+
+                // Определяем, какие типы фото имеют хотя бы одну запись среди отфильтрованных событий
+                var fotoTypes = ['foto_person', 'foto_family', 'foto_group', 'foto_location'];
+                var availableFotoTypes = [];
+                for (var fi = 0; fi < fotoTypes.length; fi++) {
+                    var ft = fotoTypes[fi];
+                    for (var ei = 0; ei < matchingEvents.length; ei++) {
+                        if (matchingEvents[ei][ft] && matchingEvents[ei][ft].trim() !== '') {
+                            availableFotoTypes.push(ft);
+                            break;
+                        }
+                    }
+                }
+
+                propertiesPanelCounter++;
+                var panelId = 'properties-panel-' + propertiesPanelCounter;
+
+                var offsetMultiplier = openPropertiesPanels.length % 5;
+                var rightOffset = 20 + (offsetMultiplier * 30);
+                var topOffset = 100 + (offsetMultiplier * 30);
+
+                // Строим выпадающий список FotoList (только с доступными типами)
+                var fotoListHtml = '';
+                if (availableFotoTypes.length > 0) {
+                    var escapedPersonIdA = personIdA.replace(/'/g, "\\'");
+                    var optionsHtml = '<option value="">-- FotoList --</option>';
+                    for (var oi = 0; oi < availableFotoTypes.length; oi++) {
+                        optionsHtml += '<option value="' + availableFotoTypes[oi] + '">' + availableFotoTypes[oi] + '</option>';
+                    }
+                    fotoListHtml = '<select class="event-fotolist-select" onchange="openEventFotoGallery(\'' + escapedPersonIdA + '\', this.value, this)">' + optionsHtml + '</select>';
+                }
+
+                // Строим список событий
+                var eventsHtml = '';
+                if (matchingEvents.length === 0) {
+                    eventsHtml = '<div class="property-item"><em style="color:#888">События не найдены</em></div>';
+                } else {
+                    for (var mi = 0; mi < matchingEvents.length; mi++) {
+                        var ev = matchingEvents[mi];
+                        eventsHtml += '<div class="property-item event-item">';
+                        // Заголовок события
+                        var evTitle = (ev.title_ || ev.id_event || '').replace(/_/g, ' ');
+                        eventsHtml += '<div class="property-predicate">' + (ev.date_ || '') + '</div>';
+                        eventsHtml += '<div class="property-value"><strong>' + evTitle + '</strong>';
+                        if (ev.location_) eventsHtml += '<br><span style="color:#666">' + ev.location_ + '</span>';
+                        if (ev.label_) eventsHtml += '<br>' + ev.label_;
+                        if (ev.hyperLink_) {
+                            var links = ev.hyperLink_.split(';').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+                            for (var li = 0; li < links.length; li++) {
+                                eventsHtml += ' <a href="' + links[li] + '" target="_blank" rel="noopener noreferrer">[↗]</a>';
+                            }
+                        }
+                        eventsHtml += '</div></div>';
+                    }
+                }
+
+                var escapedIdA = personIdA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                var panelHtml =
+                    '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">События person</div>' +
+                    '<h3>' + personIdA + '</h3>' +
+                    '<div class="properties-header-buttons">' +
+                    fotoListHtml +
+                    '</div>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    eventsHtml +
+                    '</div>' +
+                    '</div>';
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                openPropertiesPanels.push({ panelId: panelId, idA: existingKey });
+
+                var newPanel = document.getElementById(panelId);
+                if (newPanel) bringPanelToFront(newPanel);
+            }
+
+            // --- Открыть галерею фото из события по выбранному типу в FotoList ---
+            // personIdA — idA персоны, fotoType — тип фото ('foto_person', 'foto_family', 'foto_group', 'foto_location')
+            // selectEl — элемент <select>, чтобы сбросить выбор после открытия
+            window.openEventFotoGallery = function(personIdA, fotoType, selectEl) {
+                if (!fotoType) return;
+                // Сброс выбора в dropdown
+                if (selectEl) selectEl.value = '';
+
+                // Собрать строки нужного foto-листа из событий для данной персоны
+                // Событие включается, если personIdA присутствует в id_personAll
+                var fotoRowsFromEvents = [];
+                var seenIdA = {};
+                for (var i = 0; i < eventRows.length; i++) {
+                    var row = eventRows[i];
+                    var idPersonAll = row.id_personAll || '';
+                    var ids = idPersonAll.split(';').map(function(s) { return s.trim(); });
+                    if (ids.indexOf(personIdA) === -1) continue;
+                    // Значение ячейки fotoType — имя файла фото (например 'Ульянов_Владимир_Ильич-1922.jpg')
+                    var fotoFileName = row[fotoType] ? row[fotoType].trim() : '';
+                    if (!fotoFileName) continue;
+                    // Дедублируем по имени файла
+                    if (seenIdA[fotoFileName]) continue;
+                    seenIdA[fotoFileName] = true;
+                    // Формируем объект строки для галереи: idA = имя файла, _-поля из события
+                    var fotoObj = { idA: fotoFileName };
+                    var keys = Object.keys(row);
+                    for (var k = 0; k < keys.length; k++) {
+                        var key = keys[k];
+                        if (key.endsWith('_') && row[key]) {
+                            fotoObj[key] = row[key];
+                        }
+                    }
+                    fotoRowsFromEvents.push(fotoObj);
+                }
+
+                if (window.FOTO && window.FOTO.showEventFotoGallery) {
+                    window.FOTO.showEventFotoGallery(personIdA + '_' + fotoType, fotoRowsFromEvents, fotoType, fotoType);
+                }
+            };
+
             window.closePropertiesPanel = function(panelId) {
                 const panel = document.getElementById(panelId);
                 if (panel) {
@@ -1180,7 +1359,9 @@
                     event.target.classList.contains('foto-family-btn') ||
                     event.target.classList.contains('foto-person-btn') ||
                     event.target.classList.contains('foto-group-btn') ||
-                    event.target.classList.contains('foto-location-btn')) return;
+                    event.target.classList.contains('foto-location-btn') ||
+                    event.target.classList.contains('event-btn') ||
+                    event.target.classList.contains('event-fotolist-select')) return;
                 const panel = document.getElementById(panelId);
                 if (!panel) return;
 
@@ -1295,6 +1476,7 @@
                 fotoPersonRows = parsedData.fotoPersonRows || [];
                 fotoGroupRows = parsedData.fotoGroupRows || [];
                 fotoLocationRows = parsedData.fotoLocationRows || [];
+                eventRows = parsedData.eventRows || [];
                 showStatus('⏳ Проверка наличия фото...');
                 await preloadPhotoChecks(people);
                 showStatus('⏳ Генерация DOT кода...');

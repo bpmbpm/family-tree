@@ -16,6 +16,9 @@
 //   FOTO.showLocationFamilyGallery(familyIdA, fotoLocationRows, fotoLocationDir)
 //     — открывает окно галереи фотографий мест для указанной семьи.
 //     Поле id_familyAll содержит перечень idA через ';' (пробелы вокруг ';' допустимы).
+//   FOTO.showEventFotoGallery(galleryKey, fotoRows, fotoDir, headerTitle)
+//     — открывает окно галереи фотографий для выбранного типа из панели событий.
+//     fotoRows — массив объектов { idA, ...поля с суффиксом _ }, собранных из строк листа event.
 //
 // Поля foto_family/foto_person/foto_group/foto_location, отображаемые в окне галереи (суффикс _):
 //   title_, location_, date_, person_label_, hyperLink_, suffix_
@@ -29,6 +32,7 @@
 //   6. showGroupGallery(...)            — точка входа для групповых фото
 //   7. showLocationPersonGallery(...)   — точка входа для фото мест (по персоне)
 //   8. showLocationFamilyGallery(...)   — точка входа для фото мест (по семье)
+//   9. showEventFotoGallery(...)        — точка входа для фото из событий
 
 (function () {
 
@@ -366,6 +370,32 @@
         buildGalleryWindow(familyIdA, photos, fotoLocationDir, 'foto_location');
     }
 
+    // --- Основная точка входа: открыть галерею фото из событий ---
+    // galleryKey — ключ окна галереи (например personIdA + '_' + fotoType)
+    // fotoRows — массив объектов { idA, ...поля с суффиксом _ } собранных из строк листа event
+    // fotoDir — папка с фото (например 'foto_person', 'foto_group')
+    // headerTitle — заголовок окна галереи (например 'foto_person')
+    function showEventFotoGallery(galleryKey, fotoRows, fotoDir, headerTitle) {
+        if (!fotoDir) fotoDir = 'foto_person';
+
+        // Подготовить данные для галереи: поля с суффиксом _ из каждой строки
+        var photos = [];
+        for (var j = 0; j < fotoRows.length; j++) {
+            var r = fotoRows[j];
+            var descFields = {};
+            var keys = Object.keys(r);
+            for (var k = 0; k < keys.length; k++) {
+                var key = keys[k];
+                if (key.endsWith('_') && r[key] !== null && r[key] !== undefined && r[key] !== '') {
+                    descFields[key] = r[key];
+                }
+            }
+            photos.push({ idA: r.idA, descFields: descFields });
+        }
+
+        buildGalleryWindow(galleryKey, photos, fotoDir, headerTitle || 'foto');
+    }
+
     // --- Публичное API ---
     window.FOTO = {
         showFamilyGallery: showFamilyGallery,
@@ -373,6 +403,7 @@
         showGroupGallery: showGroupGallery,
         showLocationPersonGallery: showLocationPersonGallery,
         showLocationFamilyGallery: showLocationFamilyGallery,
+        showEventFotoGallery: showEventFotoGallery,
         // _openThumbPhoto используется из onclick строк галереи
         _openThumbPhoto: openThumbPhoto
     };
