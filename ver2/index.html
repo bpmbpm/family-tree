@@ -141,6 +141,12 @@
             let UNKNOWN_COLOR = '#d5d8dc';
             let BORDER_COLOR = '#2c3e50';
             let EDGE_COLOR = '#5d6d7e';
+            // Язык подписей полей в панелях свойств — берётся из config.language
+            // Значения: "name" (имена колонок Excel), "ru" (русский), "en" (английский)
+            let LANGUAGE = 'ru';
+            // Карта переводов поля → подпись: ключ = "sheetName.fieldKey", значение = {name, ru, en}
+            let langMap = {};
+
             // Photo directory — relative path, will be overridden by config.json picDir
             let PIC_DIR = 'pic';
             // Photo directory type: "relative" (default), "global" (full absolute path),
@@ -265,6 +271,10 @@
                 }
                 if (typeof config.picDirGraphvizOnline === 'string' && config.picDirGraphvizOnline.trim()) {
                     PIC_DIR_GRAPHVIZ_ONLINE = config.picDirGraphvizOnline.trim().replace(/\/+$/, '');
+                }
+                if (typeof config.language === 'string' && config.language.trim()) {
+                    const lang = config.language.trim();
+                    if (lang === 'name' || lang === 'ru' || lang === 'en') LANGUAGE = lang;
                 }
             }
 
@@ -637,7 +647,33 @@
                         }
                     }
 
-                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList, fotoPersonRows: fotoPersonRowsList, fotoGroupRows: fotoGroupRowsList, fotoLocationRows: fotoLocationRowsList, eventRows: eventRowsList };
+                    // --- Лист language ---
+                    const languageSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'language'; });
+                    let languageRowsList = [];
+                    if (languageSheetName) {
+                        const langSheet = workbook.Sheets[languageSheetName];
+                        const langRows = XLSX.utils.sheet_to_json(langSheet, { header: 1, defval: '' });
+                        if (langRows.length > 1) {
+                            const langRawHeaders = langRows[0].map(function(h) { return (h || '').toString().trim().toLowerCase(); });
+                            const objectIdx = langRawHeaders.indexOf('object');
+                            const nameIdx = langRawHeaders.indexOf('name');
+                            const ruIdx = langRawHeaders.indexOf('ru');
+                            const enIdx = langRawHeaders.indexOf('en');
+                            langRows.slice(1).forEach(function(row) {
+                                const objectVal = objectIdx >= 0 ? (row[objectIdx] || '').toString().trim() : '';
+                                const nameVal = nameIdx >= 0 ? (row[nameIdx] || '').toString().trim() : '';
+                                if (!objectVal || !nameVal) return;
+                                languageRowsList.push({
+                                    object: objectVal,
+                                    name: nameVal,
+                                    ru: ruIdx >= 0 ? (row[ruIdx] || '').toString().trim() : '',
+                                    en: enIdx >= 0 ? (row[enIdx] || '').toString().trim() : ''
+                                });
+                            });
+                        }
+                    }
+
+                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList, fotoPersonRows: fotoPersonRowsList, fotoGroupRows: fotoGroupRowsList, fotoLocationRows: fotoLocationRowsList, eventRows: eventRowsList, languageRows: languageRowsList };
                 } catch (e) {
                     showStatus('Ошибка парсинга Excel: ' + e.message, true);
                     throw e;
@@ -956,6 +992,27 @@
             // Based on rdf-grapher ver9d implementation
             // ================================================================
 
+            // --- Получить подпись поля для отображения в панели свойств ---
+            // sheetName — название листа Excel (например "person", "family", "event")
+            // fieldKey  — имя поля с суффиксом _ (например "surName2_")
+            // Если в langMap нет записи для данного поля, выводит предупреждение на экран
+            // и возвращает имя поля без суффикса _ (fallback).
+            function getFieldLabel(sheetName, fieldKey) {
+                const mapKey = sheetName + '.' + fieldKey;
+                const entry = langMap[mapKey];
+                if (!entry) {
+                    // Предупреждение: поле не найдено в листе language
+                    const warnMsg = 'Предупреждение: поле "' + fieldKey + '" листа "' + sheetName + '" не найдено в листе language';
+                    console.warn(warnMsg);
+                    showStatus(warnMsg, false);
+                    return fieldKey.replace(/_$/, '');
+                }
+                if (LANGUAGE === 'ru') return entry.ru || entry.name.replace(/_$/, '');
+                if (LANGUAGE === 'en') return entry.en || entry.name.replace(/_$/, '');
+                // LANGUAGE === 'name' или любое другое значение — возвращаем имя колонки без суффикса
+                return entry.name.replace(/_$/, '');
+            }
+
             // --- Построить HTML ссылки/ссылок из строки hyperLink (через ;) ---
             function buildLinksHtml(hyperLinkStr) {
                 if (!hyperLinkStr) return '';
@@ -1006,7 +1063,7 @@
                         const key = fieldNames[fi];
                         let val = person.extraFields[key];
                         if (!val) continue;
-                        const labelText = key.replace(/_$/, ''); // убрать суффикс _
+                        const labelText = getFieldLabel('person', key);
                         let valHtml = val;
                         // Поля hyperLink_ — делаем кликабельные ссылки
                         if (key.toLowerCase().includes('hyperlink')) {
@@ -1084,7 +1141,7 @@
                         const key = fieldNames[fi];
                         let val = familyObj.extraFields[key];
                         if (!val) continue;
-                        const labelText = key.replace(/_$/, '');
+                        const labelText = getFieldLabel('family', key);
                         let valHtml = val;
                         if (key.toLowerCase().includes('hyperlink')) {
                             valHtml = buildLinksHtml(val) || val;
@@ -1477,6 +1534,13 @@
                 fotoGroupRows = parsedData.fotoGroupRows || [];
                 fotoLocationRows = parsedData.fotoLocationRows || [];
                 eventRows = parsedData.eventRows || [];
+                // Строим карту переводов: ключ = "object.name", значение = {name, ru, en}
+                langMap = {};
+                const langRowsData = parsedData.languageRows || [];
+                for (let li = 0; li < langRowsData.length; li++) {
+                    const lr = langRowsData[li];
+                    langMap[lr.object + '.' + lr.name] = lr;
+                }
                 showStatus('⏳ Проверка наличия фото...');
                 await preloadPhotoChecks(people);
                 showStatus('⏳ Генерация DOT кода...');
