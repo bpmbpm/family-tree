@@ -544,13 +544,23 @@
                         const ffRows = XLSX.utils.sheet_to_json(ffSheet, { header: 1, defval: '' });
                         if (ffRows.length > 1) {
                             const ffRawHeaders = ffRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const ffHeaderLower = ffRawHeaders.map(function(h) { return h.toLowerCase(); });
                             ffRows.slice(1).forEach(function(row) {
                                 // Пропускаем пустые строки
-                                const idFamilyVal = row[ffRawHeaders.map(function(h) { return h.toLowerCase(); }).indexOf('id_family')];
+                                const idFamilyIdx = ffHeaderLower.indexOf('id_family');
+                                const idFamilyVal = idFamilyIdx >= 0 ? row[idFamilyIdx] : '';
                                 if (!idFamilyVal || idFamilyVal.toString().trim() === '') return;
                                 const obj = {};
                                 for (let ci = 0; ci < ffRawHeaders.length; ci++) {
                                     obj[ffRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                // idA в Excel — формула; SheetJS её не вычисляет. Вычисляем вручную.
+                                if (!obj.idA) {
+                                    const suffixIdx = ffHeaderLower.findIndex(function(h) { return h === 'suffix' || h === 'suffix_'; });
+                                    const extIdx = ffHeaderLower.indexOf('extension');
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (suffix && ext) obj.idA = obj.id_family + '-' + suffix + '.' + ext;
                                 }
                                 fotoFamilyRowsList.push(obj);
                             });
@@ -565,14 +575,23 @@
                         const fpRows = XLSX.utils.sheet_to_json(fpSheet, { header: 1, defval: '' });
                         if (fpRows.length > 1) {
                             const fpRawHeaders = fpRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const fpHeaderLower = fpRawHeaders.map(function(h) { return h.toLowerCase(); });
                             fpRows.slice(1).forEach(function(row) {
                                 // Пропускаем строки без id_person
-                                const idPersonIdx = fpRawHeaders.map(function(h) { return h.toLowerCase(); }).indexOf('id_person');
+                                const idPersonIdx = fpHeaderLower.indexOf('id_person');
                                 const idPersonVal = idPersonIdx >= 0 ? row[idPersonIdx] : '';
                                 if (!idPersonVal || idPersonVal.toString().trim() === '') return;
                                 const obj = {};
                                 for (let ci = 0; ci < fpRawHeaders.length; ci++) {
                                     obj[fpRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                // idA в Excel — формула; SheetJS её не вычисляет. Вычисляем вручную.
+                                if (!obj.idA) {
+                                    const suffixIdx = fpHeaderLower.findIndex(function(h) { return h === 'suffix' || h === 'suffix_'; });
+                                    const extIdx = fpHeaderLower.indexOf('extension');
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (suffix && ext) obj.idA = obj.id_person + '-' + suffix + '.' + ext;
                                 }
                                 fotoPersonRowsList.push(obj);
                             });
@@ -587,14 +606,25 @@
                         const fgRows = XLSX.utils.sheet_to_json(fgSheet, { header: 1, defval: '' });
                         if (fgRows.length > 1) {
                             const fgRawHeaders = fgRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const fgHeaderLower = fgRawHeaders.map(function(h) { return h.toLowerCase(); });
                             fgRows.slice(1).forEach(function(row) {
                                 // Пропускаем строки без id_personAll
-                                const idPersonAllIdx = fgRawHeaders.map(function(h) { return h.toLowerCase(); }).indexOf('id_personall');
+                                const idPersonAllIdx = fgHeaderLower.indexOf('id_personall');
                                 const idPersonAllVal = idPersonAllIdx >= 0 ? row[idPersonAllIdx] : '';
                                 if (!idPersonAllVal || idPersonAllVal.toString().trim() === '') return;
                                 const obj = {};
                                 for (let ci = 0; ci < fgRawHeaders.length; ci++) {
                                     obj[fgRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                // idA в Excel — формула; SheetJS её не вычисляет. Вычисляем вручную.
+                                if (!obj.idA) {
+                                    const idPersonIdx = fgHeaderLower.indexOf('id_person');
+                                    const suffixIdx = fgHeaderLower.findIndex(function(h) { return h === 'suffix' || h === 'suffix_'; });
+                                    const extIdx = fgHeaderLower.indexOf('extension');
+                                    const idPerson = idPersonIdx >= 0 ? row[idPersonIdx].toString().trim() : '';
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (idPerson && suffix && ext) obj.idA = idPerson + '-' + suffix + '.' + ext;
                                 }
                                 fotoGroupRowsList.push(obj);
                             });
@@ -618,6 +648,14 @@
                                 const obj = {};
                                 for (let ci = 0; ci < flRawHeaders.length; ci++) {
                                     obj[flRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                // idA в Excel — формула; SheetJS её не вычисляет. Вычисляем вручную.
+                                if (!obj.idA) {
+                                    const suffixIdx = flHeaderLower.findIndex(function(h) { return h === 'suffix' || h === 'suffix_'; });
+                                    const extIdx = flHeaderLower.indexOf('extension');
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (suffix && ext) obj.idA = obj.id_loc + '-' + suffix + '.' + ext;
                                 }
                                 fotoLocationRowsList.push(obj);
                             });
@@ -1091,6 +1129,7 @@
                     '<div class="properties-header-buttons">' +
                     '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
                     '<button class="foto-person-btn" onclick="event.stopPropagation(); openPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_person</button>' +
+                    '<button class="foto-family-btn" onclick="event.stopPropagation(); openFamilyGalleryForPerson(\'' + escapedIdAForOnclick + '\')">foto_family</button>' +
                     '<button class="foto-group-btn" onclick="event.stopPropagation(); openGroupGallery(\'' + escapedIdAForOnclick + '\')">foto_group</button>' +
                     '<button class="foto-location-btn" onclick="event.stopPropagation(); openLocationPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_location</button>' +
                     '<button class="event-btn" onclick="event.stopPropagation(); openEventPanel(\'' + escapedIdAForOnclick + '\')">Event</button>' +
@@ -1188,6 +1227,13 @@
                 }
             };
 
+            // --- Открыть галерею foto_family по idA персоны (по полю id_personAll) ---
+            window.openFamilyGalleryForPerson = function(personIdA) {
+                if (window.FOTO && window.FOTO.showFamilyGalleryForPerson) {
+                    window.FOTO.showFamilyGalleryForPerson(personIdA, fotoFamilyRows, 'foto_family');
+                }
+            };
+
             // --- Открыть галерею foto_person по idA персоны ---
             window.openPersonGallery = function(personIdA) {
                 if (window.FOTO && window.FOTO.showPersonGallery) {
@@ -1223,7 +1269,7 @@
 
             // --- Панель событий персоны ---
             // Показывает список событий из листа event, где id_personAll содержит personIdA.
-            // В заголовке — выпадающий список FotoList с типами фото, у которых есть хотя бы одна запись.
+            // Каждое событие содержит свой выпадающий список FotoList с доступными типами фото.
             function showEventPanel(personIdA) {
                 var container = document.getElementById('properties-panels-container');
                 if (!container) return;
@@ -1249,19 +1295,6 @@
                     }
                 }
 
-                // Определяем, какие типы фото имеют хотя бы одну запись среди отфильтрованных событий
-                var fotoTypes = ['foto_person', 'foto_family', 'foto_group', 'foto_location'];
-                var availableFotoTypes = [];
-                for (var fi = 0; fi < fotoTypes.length; fi++) {
-                    var ft = fotoTypes[fi];
-                    for (var ei = 0; ei < matchingEvents.length; ei++) {
-                        if (matchingEvents[ei][ft] && matchingEvents[ei][ft].trim() !== '') {
-                            availableFotoTypes.push(ft);
-                            break;
-                        }
-                    }
-                }
-
                 propertiesPanelCounter++;
                 var panelId = 'properties-panel-' + propertiesPanelCounter;
 
@@ -1269,24 +1302,34 @@
                 var rightOffset = 20 + (offsetMultiplier * 30);
                 var topOffset = 100 + (offsetMultiplier * 30);
 
-                // Строим выпадающий список FotoList (только с доступными типами)
-                var fotoListHtml = '';
-                if (availableFotoTypes.length > 0) {
-                    var escapedPersonIdA = personIdA.replace(/'/g, "\\'");
-                    var optionsHtml = '<option value="">-- FotoList --</option>';
-                    for (var oi = 0; oi < availableFotoTypes.length; oi++) {
-                        optionsHtml += '<option value="' + availableFotoTypes[oi] + '">' + availableFotoTypes[oi] + '</option>';
-                    }
-                    fotoListHtml = '<select class="event-fotolist-select" onchange="openEventFotoGallery(\'' + escapedPersonIdA + '\', this.value, this)">' + optionsHtml + '</select>';
-                }
-
-                // Строим список событий
+                // Строим список событий, для каждого события — свой FotoList
+                var fotoTypes = ['foto_person', 'foto_family', 'foto_group', 'foto_location'];
                 var eventsHtml = '';
                 if (matchingEvents.length === 0) {
                     eventsHtml = '<div class="property-item"><em style="color:#888">События не найдены</em></div>';
                 } else {
                     for (var mi = 0; mi < matchingEvents.length; mi++) {
                         var ev = matchingEvents[mi];
+                        var escapedEventId = (ev.id_event || '').replace(/'/g, "\\'");
+
+                        // Строим FotoList для этого конкретного события
+                        var evAvailableFotoTypes = [];
+                        for (var fi = 0; fi < fotoTypes.length; fi++) {
+                            var ft = fotoTypes[fi];
+                            if (ev[ft] && ev[ft].trim() !== '') {
+                                evAvailableFotoTypes.push(ft);
+                            }
+                        }
+                        var evFotoListHtml = '';
+                        if (evAvailableFotoTypes.length > 0) {
+                            var evOptHtml = '<option value="">-- FotoList --</option>';
+                            for (var oi = 0; oi < evAvailableFotoTypes.length; oi++) {
+                                evOptHtml += '<option value="' + evAvailableFotoTypes[oi] + '">' + evAvailableFotoTypes[oi] + '</option>';
+                            }
+                            evFotoListHtml = '<select class="event-fotolist-select" onchange="openSingleEventFotoGallery(\'' + escapedEventId + '\', this.value, this)">' + evOptHtml + '</select>';
+                        }
+
+                        // Строим поля события (только _-суффиксные)
                         var evKeys = Object.keys(ev);
                         for (var eki = 0; eki < evKeys.length; eki++) {
                             var evKey = evKeys[eki];
@@ -1302,6 +1345,10 @@
                                 }).join(' ');
                             }
                             eventsHtml += '<div class="property-item"><div class="property-predicate">' + evLabel + '</div><div class="property-value">' + evValHtml + '</div></div>';
+                        }
+                        // FotoList в строке события (после полей события)
+                        if (evFotoListHtml) {
+                            eventsHtml += '<div class="property-item event-fotolist-row"><div class="property-predicate">FotoList</div><div class="property-value">' + evFotoListHtml + '</div></div>';
                         }
                         eventsHtml += '<hr class="event-separator">';
                     }
@@ -1319,9 +1366,6 @@
                     '<div class="properties-header-content">' +
                     '<div class="properties-header-title">События person</div>' +
                     '<h3>' + personIdA + '</h3>' +
-                    '<div class="properties-header-buttons">' +
-                    fotoListHtml +
-                    '</div>' +
                     '</div>' +
                     '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
                     '</div>' +
@@ -1336,6 +1380,43 @@
                 var newPanel = document.getElementById(panelId);
                 if (newPanel) bringPanelToFront(newPanel);
             }
+
+            // --- Открыть галерею фото для конкретного события по выбранному типу в FotoList ---
+            // eventId — id_event конкретного события, fotoType — тип фото
+            // selectEl — элемент <select>, чтобы сбросить выбор после открытия
+            window.openSingleEventFotoGallery = function(eventId, fotoType, selectEl) {
+                if (!fotoType) return;
+                // Сброс выбора в dropdown
+                if (selectEl) selectEl.value = '';
+
+                // Найти строку события по id_event
+                var eventRow = null;
+                for (var i = 0; i < eventRows.length; i++) {
+                    if ((eventRows[i].id_event || '').trim() === eventId.trim()) {
+                        eventRow = eventRows[i];
+                        break;
+                    }
+                }
+                if (!eventRow) return;
+
+                // Значение ячейки fotoType — имя файла фото
+                var fotoFileName = eventRow[fotoType] ? eventRow[fotoType].trim() : '';
+                if (!fotoFileName) return;
+
+                // Формируем объект строки для галереи: idA = имя файла, _-поля из события
+                var fotoObj = { idA: fotoFileName };
+                var keys = Object.keys(eventRow);
+                for (var k = 0; k < keys.length; k++) {
+                    var key = keys[k];
+                    if (key.endsWith('_') && eventRow[key]) {
+                        fotoObj[key] = eventRow[key];
+                    }
+                }
+
+                if (window.FOTO && window.FOTO.showEventFotoGallery) {
+                    window.FOTO.showEventFotoGallery(eventId + '_' + fotoType, [fotoObj], fotoType, fotoType);
+                }
+            };
 
             // --- Открыть галерею фото из события по выбранному типу в FotoList ---
             // personIdA — idA персоны, fotoType — тип фото ('foto_person', 'foto_family', 'foto_group', 'foto_location')
