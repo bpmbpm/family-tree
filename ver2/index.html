@@ -1012,6 +1012,8 @@
                 // LANGUAGE === 'name' или любое другое значение — возвращаем имя колонки без суффикса
                 return entry.name.replace(/_$/, '');
             }
+            // Делаем getFieldLabel доступной из foto.js
+            window.getFieldLabel = getFieldLabel;
 
             // --- Построить HTML ссылки/ссылок из строки hyperLink (через ;) ---
             function buildLinksHtml(hyperLinkStr) {
@@ -1285,20 +1287,27 @@
                 } else {
                     for (var mi = 0; mi < matchingEvents.length; mi++) {
                         var ev = matchingEvents[mi];
-                        eventsHtml += '<div class="property-item event-item">';
-                        // Заголовок события
-                        var evTitle = (ev.title_ || ev.id_event || '').replace(/_/g, ' ');
-                        eventsHtml += '<div class="property-predicate">' + (ev.date_ || '') + '</div>';
-                        eventsHtml += '<div class="property-value"><strong>' + evTitle + '</strong>';
-                        if (ev.location_) eventsHtml += '<br><span style="color:#666">' + ev.location_ + '</span>';
-                        if (ev.label_) eventsHtml += '<br>' + ev.label_;
-                        if (ev.hyperLink_) {
-                            var links = ev.hyperLink_.split(';').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
-                            for (var li = 0; li < links.length; li++) {
-                                eventsHtml += ' <a href="' + links[li] + '" target="_blank" rel="noopener noreferrer">[↗]</a>';
+                        var evKeys = Object.keys(ev);
+                        for (var eki = 0; eki < evKeys.length; eki++) {
+                            var evKey = evKeys[eki];
+                            if (!evKey.endsWith('_')) continue;
+                            var evVal = ev[evKey];
+                            if (!evVal) continue;
+                            var evLabel = getFieldLabel('event', evKey);
+                            var evValHtml = String(evVal);
+                            if (evKey.toLowerCase().includes('hyperlink')) {
+                                var links = evVal.split(';').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+                                evValHtml = links.map(function(href) {
+                                    return '<a href="' + href + '" target="_blank" rel="noopener noreferrer">[↗]</a>';
+                                }).join(' ');
                             }
+                            eventsHtml += '<div class="property-item"><div class="property-predicate">' + evLabel + '</div><div class="property-value">' + evValHtml + '</div></div>';
                         }
-                        eventsHtml += '</div></div>';
+                        eventsHtml += '<hr class="event-separator">';
+                    }
+                    // Убираем последний <hr>
+                    if (matchingEvents.length > 0) {
+                        eventsHtml = eventsHtml.replace(/<hr class="event-separator">$/, '');
                     }
                 }
 

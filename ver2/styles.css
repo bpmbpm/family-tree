@@ -280,3 +280,10 @@ footer { margin-top: 25px; text-align: center; color: #5d6d7e; font-size: 0.9rem
     padding-left: 8px;
     margin-bottom: 10px;
 }
+
+/* Разделитель между событиями */
+hr.event-separator {
+    border: none;
+    border-top: 1px solid #ddd;
+    margin: 6px 0;
+}
