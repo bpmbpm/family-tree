@@ -25,8 +25,8 @@
 //
 // Структура файла:
 //   1. checkFotoExists(dir, filename)  — проверка существования файла (img/fetch)
-//   2. openFullPhoto(src, title, fields) — открытие фото в новом окне с описанием
-//   3. buildGalleryWindow(entityIdA, photos, dir, headerTitle) — построение окна галереи
+//   2. openFullPhoto(src, title, fields, sheetName) — открытие фото в новом окне с описанием
+//   3. buildGalleryWindow(entityIdA, photos, dir, headerTitle, sheetName) — построение окна галереи
 //   4. showFamilyGallery(...)           — точка входа для семьи
 //   5. showPersonGallery(...)           — точка входа для персоны
 //   6. showGroupGallery(...)            — точка входа для групповых фото
@@ -59,7 +59,8 @@
     // src — путь к изображению
     // title — заголовок окна (idA фото)
     // fields — объект с полями с суффиксом _ для отображения описания
-    function openFullPhoto(src, title, fields) {
+    // sheetName — (необязательно) имя листа Excel для перевода названий полей через getFieldLabel
+    function openFullPhoto(src, title, fields, sheetName) {
         var newWin = window.open('', '_blank', 'width=900,height=700,resizable=yes,scrollbars=yes');
         if (!newWin) return;
 
@@ -69,7 +70,13 @@
             var key = fieldNames[i];
             var val = fields[key];
             if (val === null || val === undefined || val === '') continue;
-            var label = key.replace(/_$/, ''); // убрать суффикс _ из имени поля
+            // Используем getFieldLabel из index.html (если доступна), иначе — убрать суффикс _
+            var label;
+            if (sheetName && typeof window.getFieldLabel === 'function') {
+                label = window.getFieldLabel(sheetName, key);
+            } else {
+                label = key.replace(/_$/, '');
+            }
             var valHtml = String(val);
             // Если значение похоже на URL — делаем ссылку
             if (String(val).match(/^https?:\/\//)) {
@@ -109,7 +116,8 @@
     // photos — массив записей foto_family/foto_person для данной сущности (уже отфильтрованный)
     // dir — относительный путь к папке фото (например 'foto_family' или 'foto_person')
     // headerTitle — заголовок окна (например 'foto_family' или 'foto_person')
-    function buildGalleryWindow(entityIdA, photos, dir, headerTitle) {
+    // sheetName — (необязательно) имя листа Excel для перевода названий полей в описании фото
+    function buildGalleryWindow(entityIdA, photos, dir, headerTitle, sheetName) {
         // Удалить предыдущее окно галереи для этой сущности, если оно уже открыто
         var existingId = 'foto-gallery-' + entityIdA.replace(/[^a-zA-Z0-9_-]/g, '_');
         var existingWin = document.getElementById(existingId);
@@ -136,7 +144,7 @@
                 var src = dir + '/' + photo.idA;
                 // Сохраняем данные фото в хранилище, чтобы не встраивать JSON в HTML-атрибут onclick
                 var storeKey = 'p' + (++_photoStoreCounter);
-                _photoStore[storeKey] = { idA: photo.idA, fields: photo.descFields, dir: dir };
+                _photoStore[storeKey] = { idA: photo.idA, fields: photo.descFields, dir: dir, sheetName: sheetName };
                 thumbsHtml +=
                     '<div class="fg-thumb" onclick="window.FOTO._openThumbPhoto(\'' + storeKey + '\')">' +
                     '<img src="' + src + '" alt="' + photo.idA + '" title="' + photo.idA + '">' +
@@ -174,12 +182,12 @@
 
     // --- Вспомогательная функция для клика по миниатюре ---
     // Вызывается из onclick в HTML строке галереи.
-    // storeKey — ключ в _photoStore с данными фото (idA, fields, dir)
+    // storeKey — ключ в _photoStore с данными фото (idA, fields, dir, sheetName)
     function openThumbPhoto(storeKey) {
         var data = _photoStore[storeKey];
         if (!data) return;
         var src = data.dir + '/' + data.idA;
-        openFullPhoto(src, data.idA, data.fields);
+        openFullPhoto(src, data.idA, data.fields, data.sheetName);
     }
 
     // --- Основная точка входа: открыть галерею семьи ---
@@ -213,7 +221,7 @@
             photos.push({ idA: r.idA, descFields: descFields });
         }
 
-        buildGalleryWindow(familyIdA, photos, fotoFamilyDir, 'foto_family');
+        buildGalleryWindow(familyIdA, photos, fotoFamilyDir, 'foto_family', 'foto_family');
     }
 
     // --- Основная точка входа: открыть галерею персоны ---
@@ -247,7 +255,7 @@
             photos.push({ idA: r.idA, descFields: descFields });
         }
 
-        buildGalleryWindow(personIdA, photos, fotoPersonDir, 'foto_person');
+        buildGalleryWindow(personIdA, photos, fotoPersonDir, 'foto_person', 'foto_person');
     }
 
     // --- Основная точка входа: открыть галерею групповых фото для персоны ---
@@ -287,7 +295,7 @@
             photos.push({ idA: r.idA, descFields: descFields });
         }
 
-        buildGalleryWindow(personIdA, photos, fotoGroupDir, 'foto_group');
+        buildGalleryWindow(personIdA, photos, fotoGroupDir, 'foto_group', 'foto_group');
     }
 
     // --- Основная точка входа: открыть галерею фото мест для персоны ---
@@ -327,7 +335,7 @@
             photos.push({ idA: r.idA, descFields: descFields });
         }
 
-        buildGalleryWindow(personIdA, photos, fotoLocationDir, 'foto_location');
+        buildGalleryWindow(personIdA, photos, fotoLocationDir, 'foto_location', 'foto_location');
     }
 
     // --- Основная точка входа: открыть галерею фото мест для семьи ---
@@ -367,7 +375,7 @@
             photos.push({ idA: r.idA, descFields: descFields });
         }
 
-        buildGalleryWindow(familyIdA, photos, fotoLocationDir, 'foto_location');
+        buildGalleryWindow(familyIdA, photos, fotoLocationDir, 'foto_location', 'foto_location');
     }
 
     // --- Основная точка входа: открыть галерею фото из событий ---
@@ -393,7 +401,7 @@
             photos.push({ idA: r.idA, descFields: descFields });
         }
 
-        buildGalleryWindow(galleryKey, photos, fotoDir, headerTitle || 'foto');
+        buildGalleryWindow(galleryKey, photos, fotoDir, headerTitle || 'foto', fotoDir);
     }
 
     // --- Публичное API ---
