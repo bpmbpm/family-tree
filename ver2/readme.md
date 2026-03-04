@@ -9,7 +9,7 @@
 
 ### service
 - https://bpmbpm.github.io/family-tree/ver2/service_foto_github.html
-- https://bpmbpm.github.io/family-tree/ver2/service_foto_desktop.html
+- https://bpmbpm.github.io/family-tree/ver2/service_foto_desktop.html все равно пишет, что отсутсвуют
 
 Один универсальный:
 - - https://bpmbpm.github.io/family-tree/ver2/service_foto2old.html с кнопкой Проверить лишние файлы в папке .
