@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Проверка фото (Desktop)</title>
+    <title>Проверка фото (Desktop) — отображение пути папки</title>
     <style>
         body { font-family: sans-serif; margin: 20px; }
         textarea { width: 100%; height: 150px; font-family: monospace; }
@@ -14,11 +14,12 @@
         .toolbar { margin-bottom: 10px; }
         .extra-btn { margin-top: 10px; }
         .folder-check-section { border-top: 1px dashed #aaa; margin-top: 10px; padding-top: 10px; }
+        .path-example { font-size: 0.9em; color: #555; word-break: break-all; background: #f9f9f9; padding: 5px; border-radius: 3px; }
     </style>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-    <h2>Проверка наличия фотографий (локальная)</h2>
+    <h2>Проверка наличия фотографий (локальная, с отображением пути к папке)</h2>
     <p>Настройки в формате JSON (укажите список листов):</p>
     <textarea id="configJson" rows="6">
 {
@@ -45,7 +46,6 @@
             const defaultBtn = document.getElementById('defaultBtn');
             const reportEl = document.getElementById('report');
 
-            // Хранилище результатов последней проверки
             let lastCheckResults = [];
 
             const defaultConfig = {
@@ -77,7 +77,6 @@
                         img.src = url;
                     });
                 } else {
-                    // На случай, если открыт через локальный сервер
                     try {
                         const res = await fetch(url, { method: 'HEAD' });
                         return res.ok;
@@ -87,7 +86,6 @@
                 }
             }
 
-            // Основная проверка
             async function performCheck(workbook, sheets) {
                 const reportSections = [];
                 const newResults = [];
@@ -144,28 +142,33 @@
                     }
 
                     const folderPath = `./${sheetName}/`;
+                    // Абсолютный URL папки (без имени файла)
+                    const baseFolderUrl = new URL(folderPath, window.location.href).href;
+
                     const missingFiles = [];
                     for (const fileName of idAValues) {
-                        const fileUrl = folderPath + fileName;
+                        const fileUrl = new URL(folderPath + fileName, window.location.href).href;
                         const exists = await fileExistsLocal(fileUrl);
-                        if (!exists) missingFiles.push(fileName);
+                        if (!exists) {
+                            missingFiles.push({ name: fileName, url: fileUrl });
+                        }
                     }
 
                     reportSections.push({
                         sheet: sheetName,
                         idACount: idAValues.length,
                         missingFiles,
+                        baseFolderUrl,
                         extraNote: 'Используйте кнопку ниже для проверки лишних файлов.'
                     });
 
-                    newResults.push({ sheet: sheetName, idAValues, folderPath });
+                    newResults.push({ sheet: sheetName, idAValues, folderPath: baseFolderUrl });
                 }
 
                 lastCheckResults = newResults;
                 return reportSections;
             }
 
-            // Проверка лишних файлов (выбор папки)
             function checkExtraFiles(sheetName, expectedFiles) {
                 const input = document.createElement('input');
                 input.type = 'file';
@@ -197,14 +200,24 @@
                     for (const sec of sections) {
                         html += `<div style="border:1px solid #ccc; margin-bottom:15px; padding:10px;">`;
                         html += `<h4>Папка / лист: ${sec.sheet}</h4>`;
-                        if (sec.error) html += `<p class="warning">❌ ${sec.error}</p>`;
-                        else if (sec.warning) html += `<p class="info">⚠️ ${sec.warning}</p>`;
-                        else {
+
+                        if (sec.error) {
+                            html += `<p class="warning">❌ ${sec.error}</p>`;
+                        } else if (sec.warning) {
+                            html += `<p class="info">⚠️ ${sec.warning}</p>`;
+                        } else {
                             html += `<p><strong>Всего записей idA:</strong> ${sec.idACount}</p>`;
-                            if (sec.missingFiles.length === 0) html += `<p class="success">✅ Все файлы найдены.</p>`;
-                            else {
-                                html += `<p class="warning">❌ Отсутствуют (${sec.missingFiles.length}):</p><ul>`;
-                                sec.missingFiles.forEach(f => html += `<li>${f}</li>`);
+                            // Показываем только путь к папке
+                            html += `<div class="path-example">📁 Путь к папке: <code>${sec.baseFolderUrl}</code></div>`;
+
+                            if (sec.missingFiles.length === 0) {
+                                html += `<p class="success">✅ Все файлы найдены.</p>`;
+                            } else {
+                                html += `<p class="warning">❌ Отсутствуют файлы (${sec.missingFiles.length}):</p>`;
+                                html += `<ul>`;
+                                sec.missingFiles.forEach(f => {
+                                    html += `<li><strong>${f.name}</strong><br><small style="color:#666;">путь: ${f.url}</small></li>`;
+                                });
                                 html += `</ul>`;
                             }
 
@@ -223,7 +236,7 @@
                     }
                 }
                 if (isFileProtocol) {
-                    html += `<hr><p class="info"><strong>Локальный режим:</strong> проверка файлов выполняется через загрузку изображений, что должно работать корректно. Для проверки лишних файлов используйте кнопки выше.</p>`;
+                    html += `<hr><p class="info"><strong>Локальный режим:</strong> проверка файлов выполняется через загрузку изображений. Если файлы не находятся, проверьте путь к папке, указанный выше. Попробуйте открыть любой из путей отсутствующих файлов в браузере — если файл откроется, значит проблема в скрипте, если нет — файла действительно нет.</p>`;
                 }
                 reportEl.innerHTML = html;
             }
@@ -276,13 +289,12 @@
                 fileInput.value = '';
             });
 
-            // Автозагрузка: если не file://, пытаемся загрузить tree.xlsx
             (function auto() {
                 defaultBtn.click();
                 setTimeout(() => {
                     if (window.location.protocol !== 'file:') checkBtn.click();
                     else {
-                        reportEl.innerHTML = '<p class="info">Страница открыта локально. Используйте кнопку "Выбрать файл Excel" для загрузки.</p>';
+                        reportEl.innerHTML = '<p class="info">Страница открыта локально. Используйте кнопку "Выбрать файл Excel" для загрузки. После загрузки будет показан путь к папке, где ищутся файлы.</p>';
                     }
                 }, 100);
             })();

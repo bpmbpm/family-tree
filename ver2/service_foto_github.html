@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Проверка фото (GitHub Pages)</title>
+    <title>Проверка фото (GitHub Pages) — отображение пути папки</title>
     <style>
         body { font-family: sans-serif; margin: 20px; }
         textarea { width: 100%; height: 150px; font-family: monospace; }
@@ -12,11 +12,12 @@
         .success { color: #468847; background: #dff0d8; padding: 5px; border-radius: 3px; }
         .info { color: #3a87ad; background: #d9edf7; padding: 5px; border-radius: 3px; }
         .toolbar { margin-bottom: 10px; }
+        .path-example { font-size: 0.9em; color: #555; word-break: break-all; background: #f9f9f9; padding: 5px; border-radius: 3px; }
     </style>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-    <h2>Проверка наличия фотографий (GitHub Pages)</h2>
+    <h2>Проверка наличия фотографий (GitHub Pages, с отображением пути к папке)</h2>
     <p>Настройки в формате JSON (укажите список листов):</p>
     <textarea id="configJson" rows="6">
 {
@@ -52,7 +53,6 @@
                 configJsonEl.value = JSON.stringify(defaultConfig, null, 4);
             });
 
-            // Вспомогательные функции
             function getCellString(cell) {
                 if (cell == null) return '';
                 if (typeof cell === 'object') {
@@ -63,7 +63,6 @@
                 return String(cell);
             }
 
-            // Основная проверка
             async function performCheck(workbook, sheets) {
                 const reportSections = [];
 
@@ -88,7 +87,6 @@
                         continue;
                     }
 
-                    // Определяем индексы для составных idA
                     let idBaseColIndex = -1, suffixColIndex = -1, extColIndex = -1;
                     if (sheetName === 'foto_family') idBaseColIndex = headerLower.indexOf('id_family');
                     else if (sheetName === 'foto_person') idBaseColIndex = headerLower.indexOf('id_person');
@@ -120,14 +118,16 @@
                     }
 
                     const folderPath = `./${sheetName}/`;
+                    const baseFolderUrl = new URL(folderPath, window.location.href).href;
+
                     const missingFiles = [];
                     for (const fileName of idAValues) {
-                        const fileUrl = folderPath + fileName;
+                        const fileUrl = new URL(folderPath + fileName, window.location.href).href;
                         try {
                             const response = await fetch(fileUrl, { method: 'HEAD' });
-                            if (!response.ok) missingFiles.push(fileName);
+                            if (!response.ok) missingFiles.push({ name: fileName, url: fileUrl });
                         } catch {
-                            missingFiles.push(fileName);
+                            missingFiles.push({ name: fileName, url: fileUrl });
                         }
                     }
 
@@ -135,6 +135,7 @@
                         sheet: sheetName,
                         idACount: idAValues.length,
                         missingFiles,
+                        baseFolderUrl,
                         extraNote: 'Проверка лишних файлов невозможна в онлайн-режиме (нет доступа к папке).'
                     });
                 }
@@ -148,14 +149,23 @@
                     for (const sec of sections) {
                         html += `<div style="border:1px solid #ccc; margin-bottom:15px; padding:10px;">`;
                         html += `<h4>Папка / лист: ${sec.sheet}</h4>`;
-                        if (sec.error) html += `<p class="warning">❌ ${sec.error}</p>`;
-                        else if (sec.warning) html += `<p class="info">⚠️ ${sec.warning}</p>`;
-                        else {
+
+                        if (sec.error) {
+                            html += `<p class="warning">❌ ${sec.error}</p>`;
+                        } else if (sec.warning) {
+                            html += `<p class="info">⚠️ ${sec.warning}</p>`;
+                        } else {
                             html += `<p><strong>Всего записей idA:</strong> ${sec.idACount}</p>`;
-                            if (sec.missingFiles.length === 0) html += `<p class="success">✅ Все файлы найдены.</p>`;
-                            else {
-                                html += `<p class="warning">❌ Отсутствуют (${sec.missingFiles.length}):</p><ul>`;
-                                sec.missingFiles.forEach(f => html += `<li>${f}</li>`);
+                            html += `<div class="path-example">📁 Путь к папке: <code>${sec.baseFolderUrl}</code></div>`;
+
+                            if (sec.missingFiles.length === 0) {
+                                html += `<p class="success">✅ Все файлы найдены.</p>`;
+                            } else {
+                                html += `<p class="warning">❌ Отсутствуют файлы (${sec.missingFiles.length}):</p>`;
+                                html += `<ul>`;
+                                sec.missingFiles.forEach(f => {
+                                    html += `<li><strong>${f.name}</strong><br><small style="color:#666;">путь: ${f.url}</small></li>`;
+                                });
                                 html += `</ul>`;
                             }
                             html += `<p class="info">ℹ️ ${sec.extraNote}</p>`;
@@ -214,11 +224,9 @@
                 fileInput.value = '';
             });
 
-            // Автозагрузка при старте
             (function auto() {
                 defaultBtn.click();
                 setTimeout(() => {
-                    // Если не file://, пытаемся загрузить tree.xlsx
                     if (window.location.protocol !== 'file:') checkBtn.click();
                 }, 100);
             })();
