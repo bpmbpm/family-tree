@@ -1,5 +1,5 @@
 ## services 
-### foto_folder
+### 1 foto_folder
 1 Проверка наличия файлов, указаных на листах excel в соответсвующих папках:
 - foto_person
 - foto_family
@@ -9,6 +9,9 @@
 2 Проверка наличия в папках лишних файлов, т.е. не указанных на одноименных листах excel  
 см. https://github.com/bpmbpm/family-tree/tree/main/services/foto_folder
 
-### id
+### 2 id
 - id_personAll должны соддержать только значения из idA листа person
 - id_familyAll должны соддержать только значения из idA листа family
+
+### 3 pic
+Формирование минифото (папка pic) 
