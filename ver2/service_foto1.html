@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Проверка фото (окончательная)</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        textarea { width: 100%; height: 150px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; white-space: pre-wrap; }
+        button { padding: 8px 15px; font-size: 14px; margin-right: 5px; cursor: pointer; }
+        .warning { color: #b94a48; background: #f2dede; padding: 5px; border-radius: 3px; }
+        .success { color: #468847; background: #dff0d8; padding: 5px; border-radius: 3px; }
+        .info { color: #3a87ad; background: #d9edf7; padding: 5px; border-radius: 3px; }
+        .file-warning { background: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+        .toolbar { margin-bottom: 10px; }
+        .extra-btn { margin-top: 10px; }
+        .folder-check-section { border-top: 1px dashed #aaa; margin-top: 10px; padding-top: 10px; }
+    </style>
+    <!-- Подключаем библиотеку для чтения Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h2>Проверка наличия фотографий</h2>
+    <p>Настройки в формате JSON (укажите список листов):</p>
+    <textarea id="configJson" rows="6">
+{
+    "excelFile": "tree.xlsx",
+    "sheets": ["foto_person", "foto_family", "foto_group", "foto_location"]
+}
+    </textarea>
+    <br><br>
+    <div class="toolbar">
+        <button id="checkBtn">🔍 Запустить проверку (из tree.xlsx)</button>
+        <button id="selectFileBtn">📁 Выбрать файл Excel</button>
+        <button id="defaultBtn">↩️ Восстановить настройки по умолчанию</button>
+        <input type="file" id="fileInput" accept=".xlsx, .xls" style="display:none;">
+    </div>
+    <br>
+    <div id="report"></div>
+
+    <script>
+        (function() {
+            // Элементы интерфейса
+            const configJsonEl = document.getElementById('configJson');
+            const checkBtn = document.getElementById('checkBtn');
+            const selectFileBtn = document.getElementById('selectFileBtn');
+            const fileInput = document.getElementById('fileInput');
+            const defaultBtn = document.getElementById('defaultBtn');
+            const reportEl = document.getElementById('report');
+
+            // Хранилище результатов последней проверки (для использования в проверке лишних файлов)
+            let lastCheckResults = []; // массив объектов: { sheet, idAValues, folderPath }
+
+            const defaultConfig = {
+                excelFile: "tree.xlsx",
+                sheets: ["foto_person", "foto_family", "foto_group", "foto_location"]
+            };
+
+            defaultBtn.addEventListener('click', () => {
+                configJsonEl.value = JSON.stringify(defaultConfig, null, 4);
+            });
+
+            // ----------------- Вспомогательные функции -----------------
+
+            // Безопасное получение строки из ячейки (поддерживает объекты с формулами)
+            function getCellString(cell) {
+                if (cell == null) return '';
+                if (typeof cell === 'object') {
+                    if (cell.w !== undefined) return String(cell.w);
+                    if (cell.v !== undefined) return String(cell.v);
+                    return '';
+                }
+                return String(cell);
+            }
+
+            // Проверка протокола file:
+            function isFileProtocol() {
+                return window.location.protocol === 'file:';
+            }
+
+            // Универсальная проверка существования файла (изображения)
+            // Возвращает Promise<boolean>
+            async function fileExists(url) {
+                // Если протокол file:, используем Image (так как fetch блокируется)
+                if (url.startsWith('file:')) {
+                    return new Promise(resolve => {
+                        const img = new Image();
+                        img.onload = () => resolve(true);
+                        img.onerror = () => resolve(false);
+                        img.src = url;
+                    });
+                } else {
+                    try {
+                        const response = await fetch(url, { method: 'HEAD' });
+                        return response.ok;
+                    } catch {
+                        return false;
+                    }
+                }
+            }
+
+            // ----------------- Основная функция проверки -----------------
+            // Принимает workbook и массив листов, возвращает отчёт и сохраняет idAValues
+            async function performCheck(workbook, sheets) {
+                const reportSections = [];
+                const newResults = [];
+
+                for (const sheetName of sheets) {
+                    if (!workbook.SheetNames.includes(sheetName)) {
+                        reportSections.push({
+                            sheet: sheetName,
+                            error: `Лист "${sheetName}" не найден в Excel-файле`
+                        });
+                        continue;
+                    }
+
+                    const worksheet = workbook.Sheets[sheetName];
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+
+                    if (rows.length < 2) {
+                        reportSections.push({
+                            sheet: sheetName,
+                            warning: 'Лист не содержит данных (меньше 2 строк)'
+                        });
+                        continue;
+                    }
+
+                    const headerRow = rows[0] || [];
+                    const headerLower = headerRow.map(h => getCellString(h).toLowerCase().trim());
+
+                    const idAColIndex = headerLower.indexOf('ida');
+                    if (idAColIndex === -1) {
+                        reportSections.push({
+                            sheet: sheetName,
+                            error: 'Столбец "idA" не найден на листе'
+                        });
+                        continue;
+                    }
+
+                    // Определяем индексы для вычисления idA из составных частей
+                    let idBaseColIndex = -1;
+                    let suffixColIndex = -1;
+                    let extColIndex = -1;
+
+                    if (sheetName === 'foto_family') {
+                        idBaseColIndex = headerLower.indexOf('id_family');
+                    } else if (sheetName === 'foto_person') {
+                        idBaseColIndex = headerLower.indexOf('id_person');
+                    } else if (sheetName === 'foto_group') {
+                        idBaseColIndex = headerLower.indexOf('id_person');
+                    } else if (sheetName === 'foto_location') {
+                        idBaseColIndex = headerLower.indexOf('id_loc');
+                    }
+
+                    if (sheetName.startsWith('foto_')) {
+                        suffixColIndex = headerLower.findIndex(h => h === 'suffix' || h === 'suffix_');
+                        extColIndex = headerLower.indexOf('extension');
+                    }
+
+                    const idAValues = [];
+
+                    for (let i = 1; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (!row) continue;
+
+                        let idA = getCellString(row[idAColIndex]).trim();
+
+                        if ((!idA || idA.startsWith('=')) && idBaseColIndex !== -1 && suffixColIndex !== -1 && extColIndex !== -1) {
+                            const base = getCellString(row[idBaseColIndex]).trim();
+                            const suffix = getCellString(row[suffixColIndex]).trim();
+                            const ext = getCellString(row[extColIndex]).trim();
+                            if (base && suffix && ext) {
+                                idA = base + '-' + suffix + '.' + ext;
+                            }
+                        }
+
+                        if (idA) {
+                            idAValues.push(idA);
+                        }
+                    }
+
+                    if (idAValues.length === 0) {
+                        reportSections.push({
+                            sheet: sheetName,
+                            warning: 'Нет значений в столбце "idA" (нечего проверять)'
+                        });
+                        continue;
+                    }
+
+                    // Проверка существования каждого файла
+                    const folderPath = `./${sheetName}/`;
+                    const missingFiles = [];
+
+                    for (const fileName of idAValues) {
+                        const fileUrl = folderPath + fileName;
+                        const exists = await fileExists(fileUrl);
+                        if (!exists) missingFiles.push(fileName);
+                    }
+
+                    reportSections.push({
+                        sheet: sheetName,
+                        idACount: idAValues.length,
+                        missingFiles: missingFiles,
+                        extraFilesNote: 'Для проверки лишних файлов используйте кнопку ниже.'
+                    });
+
+                    // Сохраняем данные для последующей проверки лишних файлов
+                    newResults.push({
+                        sheet: sheetName,
+                        idAValues: idAValues,
+                        folderPath: folderPath
+                    });
+                }
+
+                // Сохраняем результаты глобально
+                lastCheckResults = newResults;
+                return reportSections;
+            }
+
+            // ----------------- Проверка лишних файлов в выбранной папке -----------------
+            async function checkExtraFiles(sheetName, expectedFiles) {
+                // Создаём временный input для выбора папки
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.webkitdirectory = true;
+                input.directory = true; // для совместимости
+                input.multiple = true;   // для получения всех файлов
+                input.style.display = 'none';
+                document.body.appendChild(input);
+
+                input.addEventListener('change', (e) => {
+                    const files = Array.from(e.target.files);
+                    // Получаем только имена файлов (без пути)
+                    const actualFileNames = files.map(f => f.name);
+                    // Ищем файлы, которых нет в expectedFiles (лишние)
+                    const extraFiles = actualFileNames.filter(name => !expectedFiles.includes(name));
+
+                    document.body.removeChild(input);
+
+                    if (extraFiles.length === 0) {
+                        alert(`✅ В папке ${sheetName} нет лишних файлов.`);
+                    } else {
+                        alert(`❌ В папке ${sheetName} найдены лишние файлы (${extraFiles.length}):\n${extraFiles.join('\n')}`);
+                    }
+                });
+
+                input.click();
+            }
+
+            // ----------------- Отрисовка отчёта -----------------
+            function renderReport(reportSections, fileProtocolWarning = false) {
+                let html = '<h3>Результаты проверки</h3>';
+                if (reportSections.length === 0) {
+                    html += '<p>Нет данных для отображения.</p>';
+                } else {
+                    for (const sec of reportSections) {
+                        html += `<div style="border:1px solid #ccc; margin-bottom:15px; padding:10px; border-radius:5px;">`;
+                        html += `<h4>Папка / лист: ${sec.sheet}</h4>`;
+
+                        if (sec.error) {
+                            html += `<p class="warning">❌ ${sec.error}</p>`;
+                        } else {
+                            if (sec.warning) {
+                                html += `<p class="info">⚠️ ${sec.warning}</p>`;
+                            } else {
+                                html += `<p><strong>Всего записей idA:</strong> ${sec.idACount}</p>`;
+
+                                if (sec.missingFiles.length === 0) {
+                                    html += `<p class="success">✅ Все файлы из idA найдены в папке.</p>`;
+                                } else {
+                                    html += `<p class="warning">❌ Отсутствуют файлы (${sec.missingFiles.length}):</p>`;
+                                    html += `<ul>`;
+                                    sec.missingFiles.forEach(f => html += `<li>${f}</li>`);
+                                    html += `</ul>`;
+                                }
+
+                                // Кнопка для проверки лишних файлов
+                                const expectedForSheet = lastCheckResults.find(r => r.sheet === sec.sheet)?.idAValues || [];
+                                const btnId = `extraBtn_${sec.sheet}`;
+                                html += `<div class="folder-check-section">`;
+                                html += `<p class="info">${sec.extraFilesNote}</p>`;
+                                html += `<button id="${btnId}" class="extra-btn">🔍 Проверить лишние файлы в папке ${sec.sheet}</button>`;
+                                html += `</div>`;
+
+                                // Сохраняем обработчик после вставки в DOM
+                                setTimeout(() => {
+                                    const btn = document.getElementById(btnId);
+                                    if (btn) {
+                                        btn.onclick = () => checkExtraFiles(sec.sheet, expectedForSheet);
+                                    }
+                                }, 100);
+                            }
+                        }
+                        html += `</div>`;
+                    }
+                }
+
+                if (fileProtocolWarning) {
+                    html += `<hr><p class="file-warning"><strong>Важно:</strong> Из-за открытия через <code>file://</code> некоторые проверки файлов могут работать медленнее, но теперь используется загрузка через Image, что должно решить проблему ложных отсутствий. Для проверки лишних файлов используйте кнопки выше.</p>`;
+                }
+
+                reportEl.innerHTML = html;
+            }
+
+            // ----------------- Запуск проверки из загруженного ArrayBuffer -----------------
+            async function runCheckFromArrayBuffer(arrayBuffer, sheets) {
+                try {
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                    const reportSections = await performCheck(workbook, sheets);
+                    renderReport(reportSections, isFileProtocol());
+                } catch (e) {
+                    reportEl.innerHTML = `<p class="warning">Ошибка обработки Excel: ${e.message}</p>`;
+                }
+            }
+
+            // ----------------- Запуск проверки по URL -----------------
+            async function runCheckFromUrl(url, sheets) {
+                reportEl.innerHTML = '<p class="info">Загрузка файла...</p>';
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status} - не удалось загрузить файл`);
+                    const arrayBuffer = await response.arrayBuffer();
+                    await runCheckFromArrayBuffer(arrayBuffer, sheets);
+                } catch (e) {
+                    reportEl.innerHTML = `<p class="warning">Ошибка загрузки файла по URL: ${e.message}</p>`;
+                }
+            }
+
+            // ----------------- Обработчики кнопок -----------------
+            checkBtn.addEventListener('click', () => {
+                let config;
+                try {
+                    config = JSON.parse(configJsonEl.value);
+                } catch (e) {
+                    reportEl.innerHTML = `<p class="warning">Ошибка в JSON: ${e.message}</p>`;
+                    return;
+                }
+
+                if (!config.excelFile || !Array.isArray(config.sheets)) {
+                    reportEl.innerHTML = '<p class="warning">Конфигурация должна содержать "excelFile" и "sheets" (массив)</p>';
+                    return;
+                }
+
+                runCheckFromUrl(config.excelFile, config.sheets);
+            });
+
+            selectFileBtn.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                let config;
+                try {
+                    config = JSON.parse(configJsonEl.value);
+                } catch (e) {
+                    reportEl.innerHTML = `<p class="warning">Ошибка в JSON: ${e.message}</p>`;
+                    fileInput.value = '';
+                    return;
+                }
+
+                if (!Array.isArray(config.sheets)) {
+                    reportEl.innerHTML = '<p class="warning">В конфигурации отсутствует массив "sheets"</p>';
+                    fileInput.value = '';
+                    return;
+                }
+
+                reportEl.innerHTML = '<p class="info">Чтение файла...</p>';
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    await runCheckFromArrayBuffer(event.target.result, config.sheets);
+                    fileInput.value = '';
+                };
+                reader.onerror = () => {
+                    reportEl.innerHTML = '<p class="warning">Ошибка чтения файла</p>';
+                    fileInput.value = '';
+                };
+                reader.readAsArrayBuffer(file);
+            });
+
+            // Автоматическая загрузка при открытии страницы
+            (async function autoLoad() {
+                defaultBtn.click();
+                // Небольшая задержка, чтобы конфиг применился
+                await new Promise(resolve => setTimeout(resolve, 50));
+
+                if (!isFileProtocol()) {
+                    // Если не file://, пробуем загрузить tree.xlsx автоматически
+                    checkBtn.click();
+                } else {
+                    reportEl.innerHTML = '<p class="info">Страница открыта локально (file://). Используйте кнопку "Выбрать файл Excel" для загрузки, затем нажмите кнопки проверки лишних файлов для каждой папки.</p>';
+                }
+            })();
+
+        })();
+    </script>
+</body>
+</html>
