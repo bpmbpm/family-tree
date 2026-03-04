@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Проверка фото</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        textarea { width: 100%; height: 150px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; white-space: pre-wrap; }
+        button { padding: 10px 20px; font-size: 16px; }
+        .warning { color: #b94a48; background: #f2dede; padding: 5px; border-radius: 3px; }
+        .success { color: #468847; background: #dff0d8; padding: 5px; border-radius: 3px; }
+        .info { color: #3a87ad; background: #d9edf7; padding: 5px; border-radius: 3px; }
+    </style>
+    <!-- Подключаем библиотеку для чтения Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h2>Проверка наличия фотографий</h2>
+    <p>Настройки в формате JSON (укажите путь к Excel-файлу и список листов):</p>
+    <textarea id="configJson" rows="6">
+{
+    "excelFile": "tree.xlsx",
+    "sheets": ["foto_person", "foto_family", "foto_group", "foto_location"]
+}
+    </textarea>
+    <br><br>
+    <button id="checkBtn">Запустить проверку</button>
+    <button id="defaultBtn">Восстановить настройки по умолчанию</button>
+    <br><br>
+    <div id="report"></div>
+
+    <script>
+        (function() {
+            // Элементы интерфейса
+            const configJsonEl = document.getElementById('configJson');
+            const checkBtn = document.getElementById('checkBtn');
+            const defaultBtn = document.getElementById('defaultBtn');
+            const reportEl = document.getElementById('report');
+
+            // Значение по умолчанию
+            const defaultConfig = {
+                excelFile: "tree.xlsx",
+                sheets: ["foto_person", "foto_family", "foto_group", "foto_location"]
+            };
+
+            // Восстановить настройки по умолчанию
+            defaultBtn.addEventListener('click', () => {
+                configJsonEl.value = JSON.stringify(defaultConfig, null, 4);
+            });
+
+            // Основная проверка
+            checkBtn.addEventListener('click', async () => {
+                reportEl.innerHTML = '<p class="info">Загрузка...</p>';
+
+                // Парсим JSON конфигурации
+                let config;
+                try {
+                    config = JSON.parse(configJsonEl.value);
+                } catch (e) {
+                    reportEl.innerHTML = '<p class="warning">Ошибка в JSON: ' + e.message + '</p>';
+                    return;
+                }
+
+                // Проверяем наличие обязательных полей
+                if (!config.excelFile || !Array.isArray(config.sheets)) {
+                    reportEl.innerHTML = '<p class="warning">Конфигурация должна содержать "excelFile" и "sheets" (массив)</p>';
+                    return;
+                }
+
+                // Загружаем Excel-файл
+                let workbook;
+                try {
+                    const response = await fetch(config.excelFile);
+                    if (!response.ok) throw new Error(`HTTP ${response.status} - не удалось загрузить файл`);
+                    const arrayBuffer = await response.arrayBuffer();
+                    workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                } catch (e) {
+                    reportEl.innerHTML = `<p class="warning">Ошибка загрузки Excel-файла: ${e.message}</p>`;
+                    return;
+                }
+
+                // Отчёт по каждому листу (папке)
+                const reportSections = [];
+
+                // Обрабатываем каждый лист из списка
+                for (const sheetName of config.sheets) {
+                    // Проверяем, существует ли лист в книге
+                    if (!workbook.SheetNames.includes(sheetName)) {
+                        reportSections.push({
+                            sheet: sheetName,
+                            error: `Лист "${sheetName}" не найден в Excel-файле`
+                        });
+                        continue;
+                    }
+
+                    // Получаем данные листа
+                    const worksheet = workbook.Sheets[sheetName];
+                    // Преобразуем в массив объектов (первая строка – заголовки)
+                    let rows;
+                    try {
+                        rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    } catch (e) {
+                        reportSections.push({
+                            sheet: sheetName,
+                            error: `Ошибка чтения данных листа: ${e.message}`
+                        });
+                        continue;
+                    }
+
+                    // Ищем заголовок "idA" (регистр может отличаться, но в задании именно так)
+                    const headerRow = rows[0] || [];
+                    const idAColIndex = headerRow.findIndex(cell => 
+                        cell && cell.toString().trim().toLowerCase() === 'ida'
+                    );
+
+                    if (idAColIndex === -1) {
+                        reportSections.push({
+                            sheet: sheetName,
+                            error: 'Столбец "idA" не найден на листе'
+                        });
+                        continue;
+                    }
+
+                    // Собираем все значения idA (начиная со второй строки)
+                    const idAValues = [];
+                    for (let i = 1; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (row && row[idAColIndex] !== undefined && row[idAColIndex] !== null) {
+                            const val = row[idAColIndex].toString().trim();
+                            if (val) idAValues.push(val);
+                        }
+                    }
+
+                    if (idAValues.length === 0) {
+                        reportSections.push({
+                            sheet: sheetName,
+                            warning: 'Нет значений в столбце "idA" (нечего проверять)'
+                        });
+                        continue;
+                    }
+
+                    // Теперь для каждого idA проверяем существование файла в папке с именем листа
+                    // Путь к папке – "./{sheetName}/" (относительно текущей HTML-страницы)
+                    const folderPath = `./${sheetName}/`;
+
+                    // Массив для хранения отсутствующих файлов
+                    const missingFiles = [];
+
+                    // Проверяем каждый файл асинхронно (последовательно, чтобы не перегружать сеть)
+                    for (const fileName of idAValues) {
+                        const fileUrl = folderPath + fileName;
+                        try {
+                            // Делаем HEAD-запрос, чтобы проверить существование без загрузки содержимого
+                            const response = await fetch(fileUrl, { method: 'HEAD' });
+                            if (!response.ok) {
+                                // Если статус не 2xx, считаем файл отсутствующим
+                                missingFiles.push(fileName);
+                            }
+                        } catch (e) {
+                            // Сетевая ошибка (например, файл не найден или CORS)
+                            missingFiles.push(fileName);
+                        }
+                    }
+
+                    // Сохраняем результат для текущей папки
+                    reportSections.push({
+                        sheet: sheetName,
+                        idACount: idAValues.length,
+                        missingFiles: missingFiles,
+                        // Информация о лишних файлах (невозможно получить в браузере)
+                        extraFilesNote: 'Проверка наличия лишних файлов в папке невозможна, т.к. браузер не может получить список файлов на сервере без специального API.'
+                    });
+                }
+
+                // Формируем итоговый отчёт в HTML
+                let html = '<h3>Результаты проверки</h3>';
+
+                if (reportSections.length === 0) {
+                    html += '<p>Нет данных для отображения.</p>';
+                } else {
+                    for (const sec of reportSections) {
+                        html += `<div style="border:1px solid #ccc; margin-bottom:15px; padding:10px; border-radius:5px;">`;
+                        html += `<h4>Папка / лист: ${sec.sheet}</h4>`;
+
+                        if (sec.error) {
+                            html += `<p class="warning">❌ ${sec.error}</p>`;
+                        } else {
+                            if (sec.warning) {
+                                html += `<p class="info">⚠️ ${sec.warning}</p>`;
+                            } else {
+                                html += `<p><strong>Всего записей idA:</strong> ${sec.idACount}</p>`;
+
+                                if (sec.missingFiles.length === 0) {
+                                    html += `<p class="success">✅ Все файлы из idA найдены в папке.</p>`;
+                                } else {
+                                    html += `<p class="warning">❌ Отсутствуют файлы (${sec.missingFiles.length}):</p>`;
+                                    html += `<ul>`;
+                                    sec.missingFiles.forEach(f => html += `<li>${f}</li>`);
+                                    html += `</ul>`;
+                                }
+
+                                // Информация о лишних файлах (второе требование)
+                                html += `<p class="info">ℹ️ ${sec.extraFilesNote}</p>`;
+                            }
+                        }
+
+                        html += `</div>`;
+                    }
+                }
+
+                // Добавим общее пояснение о работе в локальном режиме
+                html += `<hr><p class="info"><strong>Примечание:</strong> Для работы на локальном компьютере откройте HTML через локальный веб-сервер (например, <code>python -m http.server</code>), чтобы fetch-запросы к файлам и папкам работали корректно. При открытии через <code>file://</code> браузер может блокировать такие запросы.</p>`;
+
+                reportEl.innerHTML = html;
+            });
+
+            // Инициализация: установить JSON по умолчанию
+            defaultBtn.click();
+        })();
+    </script>
+</body>
+</html>
