@@ -10,9 +10,10 @@
 ### service
 - https://bpmbpm.github.io/family-tree/ver2/service_foto_github.html
 - https://bpmbpm.github.io/family-tree/ver2/service_foto_desktop.html
-один универсальный:
-- - https://bpmbpm.github.io/family-tree/ver2/service_foto1.html
-- - https://bpmbpm.github.io/family-tree/ver2/service_foto1old.html
+
+Один универсальный:
+- - https://bpmbpm.github.io/family-tree/ver2/service_foto2old.html с кнопкой Проверить лишние файлы в папке .
+- - https://bpmbpm.github.io/family-tree/ver2/service_foto1old.html проверяет первую проверку, т.е. без кнопок Проверить лишние файлы в папке ..., т.е. для github
   
 ### dot
 - https://graphviz.org/docs/attrs/image/
