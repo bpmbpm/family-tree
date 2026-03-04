@@ -53,6 +53,16 @@
                 configJsonEl.value = JSON.stringify(defaultConfig, null, 4);
             });
 
+            // Функция декодирования URL-encoded строки в читаемый текст
+            function decodeUrlString(str) {
+                try {
+                    return decodeURIComponent(str);
+                } catch (e) {
+                    return str; // если не получается, возвращаем как есть
+                }
+            }
+
+            // Безопасное получение строки из ячейки (поддерживает объекты с формулами)
             function getCellString(cell) {
                 if (cell == null) return '';
                 if (typeof cell === 'object') {
@@ -87,6 +97,7 @@
                         continue;
                     }
 
+                    // Определяем индексы для составных idA
                     let idBaseColIndex = -1, suffixColIndex = -1, extColIndex = -1;
                     if (sheetName === 'foto_family') idBaseColIndex = headerLower.indexOf('id_family');
                     else if (sheetName === 'foto_person') idBaseColIndex = headerLower.indexOf('id_person');
@@ -103,13 +114,18 @@
                         const row = rows[i];
                         if (!row) continue;
                         let idA = getCellString(row[idAColIndex]).trim();
+                        // Если значение пустое или начинается с '=', пытаемся собрать из частей
                         if ((!idA || idA.startsWith('=')) && idBaseColIndex !== -1 && suffixColIndex !== -1 && extColIndex !== -1) {
                             const base = getCellString(row[idBaseColIndex]).trim();
                             const suffix = getCellString(row[suffixColIndex]).trim();
                             const ext = getCellString(row[extColIndex]).trim();
-                            if (base && suffix && ext) idA = base + '-' + suffix + '.' + ext;
+                            if (base && suffix && ext) {
+                                idA = base + '-' + suffix + '.' + ext;
+                            }
                         }
-                        if (idA) idAValues.push(idA);
+                        if (idA) {
+                            idAValues.push(idA);
+                        }
                     }
 
                     if (idAValues.length === 0) {
@@ -118,16 +134,19 @@
                     }
 
                     const folderPath = `./${sheetName}/`;
-                    const baseFolderUrl = new URL(folderPath, window.location.href).href;
+                    // Абсолютный URL папки (без имени файла), декодируем для отображения
+                    const baseFolderUrl = decodeUrlString(new URL(folderPath, window.location.href).href);
 
                     const missingFiles = [];
                     for (const fileName of idAValues) {
                         const fileUrl = new URL(folderPath + fileName, window.location.href).href;
                         try {
                             const response = await fetch(fileUrl, { method: 'HEAD' });
-                            if (!response.ok) missingFiles.push({ name: fileName, url: fileUrl });
+                            if (!response.ok) {
+                                missingFiles.push({ name: fileName, url: decodeUrlString(fileUrl) });
+                            }
                         } catch {
-                            missingFiles.push({ name: fileName, url: fileUrl });
+                            missingFiles.push({ name: fileName, url: decodeUrlString(fileUrl) });
                         }
                     }
 
@@ -224,6 +243,7 @@
                 fileInput.value = '';
             });
 
+            // Автоматическая загрузка при старте (если не file://)
             (function auto() {
                 defaultBtn.click();
                 setTimeout(() => {

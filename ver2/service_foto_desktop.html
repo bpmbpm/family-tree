@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Проверка фото (Desktop) — отображение пути папки</title>
+    <title>Проверка фото (Desktop) — отображение пути к папке</title>
     <style>
         body { font-family: sans-serif; margin: 20px; }
         textarea { width: 100%; height: 150px; font-family: monospace; }
@@ -56,6 +56,15 @@
             defaultBtn.addEventListener('click', () => {
                 configJsonEl.value = JSON.stringify(defaultConfig, null, 4);
             });
+
+            // Декодирование URL-encoded строк
+            function decodeUrlString(str) {
+                try {
+                    return decodeURIComponent(str);
+                } catch (e) {
+                    return str;
+                }
+            }
 
             function getCellString(cell) {
                 if (cell == null) return '';
@@ -131,7 +140,9 @@
                             const base = getCellString(row[idBaseColIndex]).trim();
                             const suffix = getCellString(row[suffixColIndex]).trim();
                             const ext = getCellString(row[extColIndex]).trim();
-                            if (base && suffix && ext) idA = base + '-' + suffix + '.' + ext;
+                            if (base && suffix && ext) {
+                                idA = base + '-' + suffix + '.' + ext;
+                            }
                         }
                         if (idA) idAValues.push(idA);
                     }
@@ -142,15 +153,14 @@
                     }
 
                     const folderPath = `./${sheetName}/`;
-                    // Абсолютный URL папки (без имени файла)
-                    const baseFolderUrl = new URL(folderPath, window.location.href).href;
+                    const baseFolderUrl = decodeUrlString(new URL(folderPath, window.location.href).href);
 
                     const missingFiles = [];
                     for (const fileName of idAValues) {
                         const fileUrl = new URL(folderPath + fileName, window.location.href).href;
                         const exists = await fileExistsLocal(fileUrl);
                         if (!exists) {
-                            missingFiles.push({ name: fileName, url: fileUrl });
+                            missingFiles.push({ name: fileName, url: decodeUrlString(fileUrl) });
                         }
                     }
 
@@ -207,7 +217,6 @@
                             html += `<p class="info">⚠️ ${sec.warning}</p>`;
                         } else {
                             html += `<p><strong>Всего записей idA:</strong> ${sec.idACount}</p>`;
-                            // Показываем только путь к папке
                             html += `<div class="path-example">📁 Путь к папке: <code>${sec.baseFolderUrl}</code></div>`;
 
                             if (sec.missingFiles.length === 0) {
