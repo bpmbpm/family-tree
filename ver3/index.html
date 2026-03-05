@@ -13,6 +13,7 @@
     <script src="config.js"></script>
     <script src="foto.js"></script>
     <script src="treeview.js"></script>
+    <script src="phototree.js"></script>
 </head>
 <body>
     <div class="container">
@@ -80,6 +81,9 @@
         <!-- Основной макет: дерево слева, диаграмма справа -->
         <div class="main-layout">
 
+        <!-- Левая колонка: дерево + фото -->
+        <div class="left-panels-column">
+
         <!-- Панель дерева (TreeView) -->
         <div class="treeview-panel">
             <div class="treeview-panel-header">
@@ -107,6 +111,23 @@
                 <div class="tv-empty">Загрузите данные</div>
             </div>
         </div>
+
+        <!-- Панель Фото (PhotoTreeView) -->
+        <div class="phototree-panel">
+            <div class="phototree-panel-header">
+                <span class="phototree-panel-title">📷 Фото</span>
+                <div class="pt-header-buttons">
+                    <button class="tv-btn" id="pt-btn-home" onclick="ptHome()" title="Домой — свернуть дерево фото">&#x2302;</button>
+                    <button class="tv-btn" id="pt-btn-expand" onclick="ptExpandAll()" title="Раскрыть все ветки">&#x25BD;</button>
+                </div>
+            </div>
+            <!-- Содержимое дерева фото -->
+            <div class="phototree-content" id="pt-content">
+                <div class="tv-empty">Загрузите данные</div>
+            </div>
+        </div>
+
+        </div><!-- /left-panels-column -->
 
         <!-- Diagram panel: zoom container on top, zoom controls at bottom -->
         <div class="diagram-panel">
@@ -1733,6 +1754,11 @@
                 // Инициализировать TreeView после загрузки данных
                 if (typeof window.tvInit === 'function') {
                     window.tvInit(people);
+                }
+
+                // Инициализировать PhotoTreeView после загрузки данных
+                if (typeof window.ptInit === 'function') {
+                    window.ptInit(fotoPersonRows, fotoFamilyRows, fotoGroupRows, fotoLocationRows);
                 }
             }
 
