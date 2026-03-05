@@ -1,4 +1,7 @@
-### 
+## config
+### path
+config.js
+### service_foto_github
 Учитывать настройку путей в service_foto_github_v2.html см. https://github.com/bpmbpm/family-tree/pull/67
 
 Настройки в формате JSON (укажите список листов и параметры GitHub-репозитория):
