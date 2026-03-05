@@ -8,14 +8,18 @@
 - Предлагаемые новые функции (v1) https://github.com/bpmbpm/family-tree/blob/main/design/prototype/new_v1.md
 
 ### service
+#### service_foto_folder
 - https://bpmbpm.github.io/family-tree/ver2/service_foto_github_v2.html решение см. https://github.com/bpmbpm/family-tree/pull/63
   - old https://bpmbpm.github.io/family-tree/ver2/service_foto_github.html
 - https://bpmbpm.github.io/family-tree/ver2/service_foto_desktop.html 
 
-Один универсальный:
+Один универсальный (старое):
 - - https://bpmbpm.github.io/family-tree/ver2/service_foto2old.html с кнопкой Проверить лишние файлы в папке .
 - - https://bpmbpm.github.io/family-tree/ver2/service_foto1old.html проверяет первую проверку, т.е. без кнопок Проверить лишние файлы в папке ..., т.е. для github
-  
+
+#### service_minifoto_edit
+https://github.com/bpmbpm/family-tree/pull/65
+
 ### dot
 - https://graphviz.org/docs/attrs/image/
 - [Как вывести многострочный текст в ноде Graphviz](https://ru.stackoverflow.com/questions/1130998/%D0%9A%D0%B0%D0%BA-%D0%B2%D1%8B%D0%B2%D0%B5%D1%81%D1%82%D0%B8-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%81%D1%82%D1%80%D0%BE%D1%87%D0%BD%D1%8B%D0%B9-%D1%82%D0%B5%D0%BA%D1%81%D1%82-%D0%B2-%D0%BD%D0%BE%D0%B4%D0%B5-graphviz)
