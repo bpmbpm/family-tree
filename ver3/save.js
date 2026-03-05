@@ -11,9 +11,77 @@
     // Экспорт в PDF
     // =====================================================================
 
+    // --- Конвертировать изображение по URL в base64 data URL ---
+    // Загружает изображение через <img> элемент, рендерит в canvas, возвращает data URL.
+    // Работает как для http:// URL, так и для относительных путей (pic/xxx.png).
+    function imageUrlToBase64(url) {
+        return new Promise(function (resolve) {
+            var img = new Image();
+            // Разрешаем кросс-доменную загрузку если изображение находится на другом домене
+            img.crossOrigin = 'anonymous';
+            img.onload = function () {
+                try {
+                    var canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth || img.width;
+                    canvas.height = img.naturalHeight || img.height;
+                    var ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    // Определяем тип изображения по расширению
+                    var mimeType = 'image/png';
+                    if (url.toLowerCase().endsWith('.jpg') || url.toLowerCase().endsWith('.jpeg')) {
+                        mimeType = 'image/jpeg';
+                    }
+                    var dataUrl = canvas.toDataURL(mimeType);
+                    resolve(dataUrl);
+                } catch (e) {
+                    // Ошибка canvas (например, tainted canvas из-за CORS)
+                    console.warn('Не удалось конвертировать изображение в base64:', url, e);
+                    resolve(null);
+                }
+            };
+            img.onerror = function () {
+                console.warn('Не удалось загрузить изображение для base64:', url);
+                resolve(null);
+            };
+            img.src = url;
+        });
+    }
+
+    // --- Встроить все изображения в SVG как base64 ---
+    // Находит все <image> элементы в SVG, конвертирует их href в base64 data URL.
+    // Это необходимо для корректного рендеринга SVG в canvas при экспорте в PDF.
+    async function embedImagesInSvg(svgEl) {
+        var imageElements = svgEl.querySelectorAll('image');
+        var promises = [];
+
+        imageElements.forEach(function (imgEl) {
+            // Получаем URL изображения (может быть в href или xlink:href)
+            var href = imgEl.getAttribute('href') || imgEl.getAttribute('xlink:href');
+            if (!href || href.startsWith('data:')) {
+                // Уже data URL или нет href — пропускаем
+                return;
+            }
+
+            var promise = imageUrlToBase64(href).then(function (dataUrl) {
+                if (dataUrl) {
+                    // Заменяем href на base64 data URL
+                    if (imgEl.hasAttribute('xlink:href')) {
+                        imgEl.setAttribute('xlink:href', dataUrl);
+                    }
+                    if (imgEl.hasAttribute('href')) {
+                        imgEl.setAttribute('href', dataUrl);
+                    }
+                }
+            });
+            promises.push(promise);
+        });
+
+        await Promise.all(promises);
+    }
+
     // --- Экспорт диаграммы в PDF ---
     // Конвертирует SVG диаграмму в PDF с помощью библиотеки jsPDF (загружается динамически).
-    // Альтернативно можно использовать SVG-to-Canvas подход.
+    // Перед конвертацией все изображения в SVG преобразуются в base64 для корректного рендеринга.
     window.exportToPdf = async function () {
         var svgEl = document.querySelector('#graphvizContainer svg');
         if (!svgEl) {
@@ -38,9 +106,16 @@
             width = parseFloat(width) || svgRect.width || 800;
             height = parseFloat(height) || svgRect.height || 600;
 
+            // Клонируем SVG чтобы не модифицировать оригинал
+            var svgClone = svgEl.cloneNode(true);
+
+            // Встраиваем все изображения как base64
+            if (statusDiv) statusDiv.textContent = '⏳ Загрузка изображений...';
+            await embedImagesInSvg(svgClone);
+
             // Сериализуем SVG в строку
             var serializer = new XMLSerializer();
-            var svgString = serializer.serializeToString(svgEl);
+            var svgString = serializer.serializeToString(svgClone);
 
             // Конвертируем SVG в data URL
             var svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
@@ -54,6 +129,8 @@
             var ctx = canvas.getContext('2d');
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (statusDiv) statusDiv.textContent = '⏳ Генерация PDF...';
 
             // Загружаем SVG как изображение
             var img = new Image();
