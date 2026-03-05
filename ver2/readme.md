@@ -8,7 +8,7 @@
 - Предлагаемые новые функции (v1) https://github.com/bpmbpm/family-tree/blob/main/design/prototype/new_v1.md
 
 ### service
-- https://bpmbpm.github.io/family-tree/ver2/service_foto_github_v2.html
+- https://bpmbpm.github.io/family-tree/ver2/service_foto_github_v2.html решение см. https://github.com/bpmbpm/family-tree/pull/63
   - old https://bpmbpm.github.io/family-tree/ver2/service_foto_github.html
 - https://bpmbpm.github.io/family-tree/ver2/service_foto_desktop.html 
 
