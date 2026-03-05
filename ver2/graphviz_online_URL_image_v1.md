@@ -1,5 +1,10 @@
 ### DOT Example
-
+config.js: 
+```
+    "picDirType": "relativeGraphvizOnline",
+    "picDirGlobal": "",
+    "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver2/pic",
+```
 Код DOT
 ```
 digraph G {
