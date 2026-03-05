@@ -50,8 +50,10 @@
     }
 
     // --- Найти корневые узлы дерева ---
-    // Корень — персона, у которой нет родителя в текущем режиме (hasFather или hasMother)
-    // или чей родитель не присутствует в массиве people.
+    // Корень — персона нужного пола, у которой нет родителя в текущем режиме
+    // (hasFather или hasMother) или чей родитель не присутствует в массиве people.
+    // В режиме 'male' корнями могут быть только мужчины (sex === 'М' или 'M').
+    // В режиме 'female' корнями могут быть только женщины (sex === 'Ж' или 'F').
     // Корни сортируются по году рождения (поле birth) по возрастанию — старший первым.
     function findRoots(people, mode) {
         var idSet = {};
@@ -65,6 +67,12 @@
             var parentId = (mode === 'female') ? person.hasMother : person.hasFather;
             // Корень: нет поля-родителя или родитель не присутствует в данных
             if (!parentId || !idSet[parentId]) {
+                // Фильтр по полу: мужская линия — только мужчины, женская — только женщины
+                var sex = person.sex ? person.sex.trim() : '';
+                var isMale = (sex === 'М' || sex === 'M');
+                var isFemale = (sex === 'Ж' || sex === 'F');
+                if (mode === 'male' && !isMale) continue;
+                if (mode === 'female' && !isFemale) continue;
                 roots.push(person.idA);
             }
         }
