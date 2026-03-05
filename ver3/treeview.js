@@ -51,7 +51,8 @@
 
     // --- Найти корневые узлы дерева ---
     // Корень — персона, у которой нет родителя в текущем режиме (hasFather или hasMother)
-    // или чей родитель не присутствует в массиве people
+    // или чей родитель не присутствует в массиве people.
+    // Корни сортируются по году рождения (поле birth) по возрастанию — старший первым.
     function findRoots(people, mode) {
         var idSet = {};
         for (var i = 0; i < people.length; i++) {
@@ -67,6 +68,24 @@
                 roots.push(person.idA);
             }
         }
+
+        // Сортируем корни по году рождения (по возрастанию, старший — первым).
+        // Персоны без указанного года рождения помещаются в конец.
+        var peopleMap = {};
+        for (var k = 0; k < people.length; k++) {
+            peopleMap[people[k].idA] = people[k];
+        }
+        roots.sort(function (aId, bId) {
+            var aBirth = peopleMap[aId] ? parseInt(peopleMap[aId].birth, 10) : NaN;
+            var bBirth = peopleMap[bId] ? parseInt(peopleMap[bId].birth, 10) : NaN;
+            var aValid = !isNaN(aBirth);
+            var bValid = !isNaN(bBirth);
+            if (aValid && bValid) return aBirth - bBirth;
+            if (aValid) return -1; // b без года — b в конец
+            if (bValid) return 1;  // a без года — a в конец
+            return 0;
+        });
+
         return roots;
     }
 
