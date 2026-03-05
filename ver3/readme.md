@@ -15,3 +15,7 @@
 
 #### service_minifoto_edit
 https://github.com/bpmbpm/family-tree/tree/main/services/minifoto см. https://github.com/bpmbpm/family-tree/pull/65
+
+### related projects
+- https://bpmbpm.github.io/rdf-grapher/ver9d/
+- https://github.com/bpmbpm/graphviz-online/tree/main/ver1
