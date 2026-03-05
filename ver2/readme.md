@@ -9,6 +9,7 @@
 
 ### service
 - https://bpmbpm.github.io/family-tree/ver2/service_foto_github.html
+  - old https://bpmbpm.github.io/family-tree/ver2/service_foto_github.html
 - https://bpmbpm.github.io/family-tree/ver2/service_foto_desktop.html 
 
 Один универсальный:
