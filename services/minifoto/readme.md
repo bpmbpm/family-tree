@@ -1,3 +1,3 @@
 ### foto
 ### run
-- https://bpmbpm.github.io/family-tree/ver2/service_foto_github_v2.html
+- https://bpmbpm.github.io/family-tree/services/minifoto/minifoto_v1.html
