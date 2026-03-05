@@ -14,6 +14,7 @@
     <script src="foto.js"></script>
     <script src="treeview.js"></script>
     <script src="phototree.js"></script>
+    <script src="save.js"></script>
 </head>
 <body>
     <div class="container">
@@ -21,7 +22,6 @@
         <div class="toolbar">
             <button id="loadBtn">📂 Загрузить tree.xlsx</button>
             <button id="manualBtn">📁 Выбрать файл</button>
-            <button id="graphvizOnlineBtn" disabled>🔗 Показать в окне GraphvizOnline</button>
             <input type="file" id="fileInput" accept=".xlsx, .xls">
         </div>
         <div id="status" class="status">⏳ Ожидание загрузки файла...</div>
@@ -93,6 +93,8 @@
                     <button class="tv-btn" id="tv-btn-home" onclick="tvHome()" title="Домой — свернуть дерево в исходное состояние">&#x2302;</button>
                     <!-- Кнопка «Раскрыть всё» — полностью развернуть все ветки (&#x25BD; = ▽) -->
                     <button class="tv-btn" id="tv-btn-expand" onclick="tvExpandAll()" title="Раскрыть все ветки">&#x25BD;</button>
+                    <!-- Кнопка «V» — показать только супругу и потомков текущей персоны -->
+                    <button class="tv-btn" id="tv-btn-descendants" onclick="tvToggleDescendantsMode()" title="Потомки — показать только супругу и потомков выбранной персоны">V</button>
                     <!-- Кнопки переключения линии -->
                     <button class="tv-btn tv-btn-active" id="tv-btn-male" onclick="tvSetMode('male')" title="Мужская линия (hasFather)">♂</button>
                     <button class="tv-btn" id="tv-btn-female" onclick="tvSetMode('female')" title="Женская линия (hasMother)">♀</button>
@@ -145,6 +147,10 @@
                 <button onclick="zoomOut()" title="Уменьшить">−</button>
                 <button onclick="zoomReset()" title="Сбросить масштаб">Сброс</button>
                 <button onclick="zoomFit()" title="Вписать в окно">Вписать</button>
+                <span class="zoom-separator"></span>
+                <button id="graphvizOnlineBtn" onclick="openGraphvizOnline()" disabled title="Показать в окне GraphvizOnline">GraphvizOnline</button>
+                <button id="pdfBtn" onclick="exportToPdf()" disabled title="Выгрузить диаграмму в PDF">pdf</button>
+                <button id="zipBtn" onclick="downloadZip()" disabled title="Создать архив для развёртывания на desktop">zip</button>
             </div>
         </div>
 
@@ -832,11 +838,12 @@
                     }
                 }
 
-                // Parent relationships
+                // Parent relationships — стрелки от родителя к ребёнку окрашены цветом родителя
+                // От отца — цветом фона мужчины (MALE_COLOR), от матери — цветом фона женщины (FEMALE_COLOR)
                 peopleList.forEach(p => {
                     const childId = p.idA;
-                    if (p.hasFather) edges.push(`  ${p.hasFather} -> ${childId};`);
-                    if (p.hasMother) edges.push(`  ${p.hasMother} -> ${childId};`);
+                    if (p.hasFather) edges.push(`  ${p.hasFather} -> ${childId} [color="${MALE_COLOR}"];`);
+                    if (p.hasMother) edges.push(`  ${p.hasMother} -> ${childId} [color="${FEMALE_COLOR}"];`);
                 });
 
                 // Marriage clusters from family sheet
@@ -1679,9 +1686,37 @@
                 });
             }
 
-            // --- Обработчик выбора персоны из TreeView ---
-            // Когда treeview.js вызывает selectPersonInDiagram(), он отправляет событие.
-            // Здесь обновляем selectedNodeElement в соответствии с выбранным узлом SVG.
+            // --- Обработчик выбора персоны из TreeView (только фокус, без панели свойств) ---
+            // Вызывается при одиночном клике на персону в treeview
+            document.addEventListener('treeview-select-person-focus', function(event) {
+                var personId = event.detail && event.detail.personId;
+                if (!personId) return;
+
+                var svgEl = document.querySelector('#graphvizContainer svg');
+                if (!svgEl) return;
+
+                // Снять выделение с предыдущего
+                if (selectedNodeElement) {
+                    selectedNodeElement.classList.remove('selected');
+                    selectedNodeElement = null;
+                }
+
+                // Найти узел по <title> и выделить его
+                var nodes = svgEl.querySelectorAll('g.node');
+                for (var i = 0; i < nodes.length; i++) {
+                    var titleEl = nodes[i].querySelector('title');
+                    if (titleEl && titleEl.textContent.trim() === personId) {
+                        nodes[i].classList.add('selected');
+                        selectedNodeElement = nodes[i];
+                        nodes[i].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        break;
+                    }
+                }
+                // Панель свойств НЕ открывается при одиночном клике
+            });
+
+            // --- Обработчик выбора персоны из TreeView (с открытием панели свойств) ---
+            // Вызывается при двойном клике на персону в treeview
             document.addEventListener('treeview-select-person', function(event) {
                 var personId = event.detail && event.detail.personId;
                 if (!personId) return;
@@ -1707,12 +1742,100 @@
                     }
                 }
 
-                // Открыть панель свойств персоны
+                // Открыть панель свойств персоны (при двойном клике)
                 var person = people.find(function(p) { return p.idA === personId; });
                 if (person) {
                     showNodeProperties(person);
                 }
             });
+
+            // --- Обработчик переключения режима потомков «V» ---
+            // Когда treeview.js переключает режим потомков, перерисовываем диаграмму.
+            // В режиме потомков показываем: выбранную персону, супругу, всех потомков.
+            document.addEventListener('treeview-descendants-mode', async function(event) {
+                var active = event.detail && event.detail.active;
+                var personIdA = event.detail && event.detail.personIdA;
+
+                if (active && personIdA) {
+                    // Активируем режим потомков — фильтруем people до супруги и потомков
+                    var filteredPeople = filterDescendants(people, marriages, personIdA);
+                    showStatus('⏳ Перерисовка диаграммы (потомки)...');
+                    dotCode = await generateDotCode(filteredPeople, marriages);
+                    if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                        dotCodeForGraphvizOnline = await generateDotCode(filteredPeople, marriages, PIC_DIR_GRAPHVIZ_ONLINE);
+                    } else {
+                        dotCodeForGraphvizOnline = dotCode;
+                    }
+                    updateInfoPanels();
+                    var imagesOption = await buildImagesOption(filteredPeople);
+                    await renderDot(dotCode, imagesOption);
+                    showStatus('✅ Диаграмма: потомки ' + personIdA);
+                } else {
+                    // Деактивируем режим потомков — возвращаем полное дерево
+                    showStatus('⏳ Перерисовка полного дерева...');
+                    dotCode = await generateDotCode(people, marriages);
+                    if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                        dotCodeForGraphvizOnline = await generateDotCode(people, marriages, PIC_DIR_GRAPHVIZ_ONLINE);
+                    } else {
+                        dotCodeForGraphvizOnline = dotCode;
+                    }
+                    updateInfoPanels();
+                    var imagesOption = await buildImagesOption(people);
+                    await renderDot(dotCode, imagesOption);
+                    showStatus('✅ Дерево построено');
+                }
+            });
+
+            // --- Фильтрация персон: оставить только супругу и потомков заданной персоны ---
+            // Возвращает массив персон, которые являются:
+            //   - заданной персоной (personIdA)
+            //   - супругой (ами) персоны (из листа marriages)
+            //   - всеми потомками (дети, внуки, правнуки, ...) по обеим линиям
+            function filterDescendants(peopleList, marriagesList, personIdA) {
+                var resultSet = {}; // idA -> person
+
+                // Добавляем заданную персону
+                var person = peopleList.find(function(p) { return p.idA === personIdA; });
+                if (person) resultSet[personIdA] = person;
+
+                // Добавляем супругов из браков
+                (marriagesList || []).forEach(function(m) {
+                    if (m.husband === personIdA) {
+                        var wife = peopleList.find(function(p) { return p.idA === m.wife; });
+                        if (wife) resultSet[m.wife] = wife;
+                    } else if (m.wife === personIdA) {
+                        var husband = peopleList.find(function(p) { return p.idA === m.husband; });
+                        if (husband) resultSet[m.husband] = husband;
+                    }
+                });
+
+                // Рекурсивно добавляем всех потомков
+                // Дети — те, у кого hasFather === personIdA или hasMother === personIdA
+                function addDescendants(parentIdA) {
+                    peopleList.forEach(function(p) {
+                        if (p.hasFather === parentIdA || p.hasMother === parentIdA) {
+                            if (!resultSet[p.idA]) {
+                                resultSet[p.idA] = p;
+                                // Также добавляем супругов детей (для отображения браков на диаграмме)
+                                (marriagesList || []).forEach(function(m) {
+                                    if (m.husband === p.idA) {
+                                        var spouse = peopleList.find(function(pp) { return pp.idA === m.wife; });
+                                        if (spouse && !resultSet[m.wife]) resultSet[m.wife] = spouse;
+                                    } else if (m.wife === p.idA) {
+                                        var spouse = peopleList.find(function(pp) { return pp.idA === m.husband; });
+                                        if (spouse && !resultSet[m.husband]) resultSet[m.husband] = spouse;
+                                    }
+                                });
+                                // Рекурсивно добавляем потомков этого ребёнка
+                                addDescendants(p.idA);
+                            }
+                        }
+                    });
+                }
+                addDescendants(personIdA);
+
+                return Object.values(resultSet);
+            }
 
             // --- Build tree ---
             async function buildTree(parsedData) {
@@ -1745,6 +1868,8 @@
                     dotCodeForGraphvizOnline = dotCode;
                 }
                 graphvizOnlineBtn.disabled = false;
+                document.getElementById('pdfBtn').disabled = false;
+                document.getElementById('zipBtn').disabled = false;
                 updateInfoPanels();
                 showStatus('⏳ Построение дерева...');
                 const imagesOption = await buildImagesOption(people);
@@ -1796,9 +1921,10 @@
                 fileInput.value = '';
             });
 
-            graphvizOnlineBtn.addEventListener('click', () => {
+            // --- GraphvizOnline открытие в новом окне ---
+            window.openGraphvizOnline = function() {
                 if (graphvizLink) window.open(graphvizLink, '_blank');
-            });
+            };
 
             // Load config first, then start loading tree data.
             // configPromise is also awaited in loadFromFile to ensure config is applied
