@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Проверка фото (GitHub Pages v2) — проверка лишних файлов через GitHub API</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        textarea { width: 100%; height: 180px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; white-space: pre-wrap; }
+        button { padding: 10px 20px; font-size: 16px; margin-right: 5px; cursor: pointer; }
+        .warning { color: #b94a48; background: #f2dede; padding: 5px; border-radius: 3px; }
+        .success { color: #468847; background: #dff0d8; padding: 5px; border-radius: 3px; }
+        .info { color: #3a87ad; background: #d9edf7; padding: 5px; border-radius: 3px; }
+        .toolbar { margin-bottom: 10px; }
+        .path-example { font-size: 0.9em; color: #555; word-break: break-all; background: #f9f9f9; padding: 5px; border-radius: 3px; }
+    </style>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h2>Проверка наличия фотографий (GitHub Pages v2, с проверкой лишних файлов)</h2>
+    <p>Настройки в формате JSON (укажите список листов и параметры GitHub-репозитория):</p>
+    <textarea id="configJson" rows="10">
+{
+    "excelFile": "tree.xlsx",
+    "sheets": ["foto_person", "foto_family", "foto_group", "foto_location"],
+    "githubRepo": "bpmbpm/family-tree",
+    "githubBranch": "main",
+    "githubBasePath": "ver3"
+}
+    </textarea>
+    <br><br>
+    <div class="toolbar">
+        <button id="checkBtn">🔍 Запустить проверку (из tree.xlsx)</button>
+        <button id="selectFileBtn">📁 Выбрать файл Excel</button>
+        <button id="defaultBtn">↩️ Восстановить настройки по умолчанию</button>
+        <input type="file" id="fileInput" accept=".xlsx, .xls" style="display:none;">
+    </div>
+    <br>
+    <div id="report"></div>
+
+    <script>
+        (function() {
+            const configJsonEl = document.getElementById('configJson');
+            const checkBtn = document.getElementById('checkBtn');
+            const selectFileBtn = document.getElementById('selectFileBtn');
+            const fileInput = document.getElementById('fileInput');
+            const defaultBtn = document.getElementById('defaultBtn');
+            const reportEl = document.getElementById('report');
+
+            const defaultConfig = {
+                excelFile: "tree.xlsx",
+                sheets: ["foto_person", "foto_family", "foto_group", "foto_location"],
+                githubRepo: "bpmbpm/family-tree",
+                githubBranch: "main",
+                githubBasePath: "ver3"
+            };
+
+            defaultBtn.addEventListener('click', () => {
+                configJsonEl.value = JSON.stringify(defaultConfig, null, 4);
+            });
+
+            // Функция декодирования URL-encoded строки в читаемый текст
+            function decodeUrlString(str) {
+                try {
+                    return decodeURIComponent(str);
+                } catch (e) {
+                    return str; // если не получается, возвращаем как есть
+                }
+            }
+
+            // Безопасное получение строки из ячейки (поддерживает объекты с формулами)
+            function getCellString(cell) {
+                if (cell == null) return '';
+                if (typeof cell === 'object') {
+                    if (cell.w !== undefined) return String(cell.w);
+                    if (cell.v !== undefined) return String(cell.v);
+                    return '';
+                }
+                return String(cell);
+            }
+
+            // Получение списка файлов в папке через GitHub Contents API
+            // Возвращает массив имён файлов (без папок), или null в случае ошибки
+            async function getGithubFolderFiles(githubRepo, githubBranch, folderApiPath) {
+                const apiUrl = `https://api.github.com/repos/${githubRepo}/contents/${folderApiPath}?ref=${githubBranch}`;
+                try {
+                    const response = await fetch(apiUrl, {
+                        headers: { 'Accept': 'application/vnd.github.v3+json' }
+                    });
+                    if (!response.ok) {
+                        return { error: `GitHub API вернул ${response.status}` };
+                    }
+                    const items = await response.json();
+                    // Возвращаем только файлы (не подпапки), берём имя файла
+                    const fileNames = items
+                        .filter(item => item.type === 'file')
+                        .map(item => item.name);
+                    return { files: fileNames };
+                } catch (e) {
+                    return { error: `Ошибка обращения к GitHub API: ${e.message}` };
+                }
+            }
+
+            async function performCheck(workbook, sheets, githubRepo, githubBranch, githubBasePath) {
+                const reportSections = [];
+
+                for (const sheetName of sheets) {
+                    if (!workbook.SheetNames.includes(sheetName)) {
+                        reportSections.push({ sheet: sheetName, error: `Лист "${sheetName}" не найден` });
+                        continue;
+                    }
+
+                    const worksheet = workbook.Sheets[sheetName];
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+                    if (rows.length < 2) {
+                        reportSections.push({ sheet: sheetName, warning: 'Лист не содержит данных' });
+                        continue;
+                    }
+
+                    const headerRow = rows[0] || [];
+                    const headerLower = headerRow.map(h => getCellString(h).toLowerCase().trim());
+                    const idAColIndex = headerLower.indexOf('ida');
+                    if (idAColIndex === -1) {
+                        reportSections.push({ sheet: sheetName, error: 'Столбец "idA" не найден' });
+                        continue;
+                    }
+
+                    // Определяем индексы для составных idA
+                    let idBaseColIndex = -1, suffixColIndex = -1, extColIndex = -1;
+                    if (sheetName === 'foto_family') idBaseColIndex = headerLower.indexOf('id_family');
+                    else if (sheetName === 'foto_person') idBaseColIndex = headerLower.indexOf('id_person');
+                    else if (sheetName === 'foto_group') idBaseColIndex = headerLower.indexOf('id_person');
+                    else if (sheetName === 'foto_location') idBaseColIndex = headerLower.indexOf('id_loc');
+
+                    if (sheetName.startsWith('foto_')) {
+                        suffixColIndex = headerLower.findIndex(h => h === 'suffix' || h === 'suffix_');
+                        extColIndex = headerLower.indexOf('extension');
+                    }
+
+                    // Собираем все значения idA из листа
+                    const idAValues = [];
+                    for (let i = 1; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (!row) continue;
+                        let idA = getCellString(row[idAColIndex]).trim();
+                        // Если значение пустое или начинается с '=', пытаемся собрать из частей
+                        if ((!idA || idA.startsWith('=')) && idBaseColIndex !== -1 && suffixColIndex !== -1 && extColIndex !== -1) {
+                            const base = getCellString(row[idBaseColIndex]).trim();
+                            const suffix = getCellString(row[suffixColIndex]).trim();
+                            const ext = getCellString(row[extColIndex]).trim();
+                            if (base && suffix && ext) {
+                                idA = base + '-' + suffix + '.' + ext;
+                            }
+                        }
+                        if (idA) {
+                            idAValues.push(idA);
+                        }
+                    }
+
+                    if (idAValues.length === 0) {
+                        reportSections.push({ sheet: sheetName, warning: 'Нет значений в столбце "idA"' });
+                        continue;
+                    }
+
+                    const folderPath = `./${sheetName}/`;
+                    // Абсолютный URL папки (без имени файла), декодируем для отображения
+                    const baseFolderUrl = decodeUrlString(new URL(folderPath, window.location.href).href);
+
+                    // 1) Проверка отсутствующих файлов через fetch HEAD
+                    const missingFiles = [];
+                    for (const fileName of idAValues) {
+                        const fileUrl = new URL(folderPath + fileName, window.location.href).href;
+                        try {
+                            const response = await fetch(fileUrl, { method: 'HEAD' });
+                            if (!response.ok) {
+                                missingFiles.push({ name: fileName, url: decodeUrlString(fileUrl) });
+                            }
+                        } catch {
+                            missingFiles.push({ name: fileName, url: decodeUrlString(fileUrl) });
+                        }
+                    }
+
+                    // 2) Проверка лишних файлов через GitHub API
+                    let extraFiles = [];
+                    let extraFilesError = null;
+
+                    if (githubRepo && githubBranch) {
+                        // Формируем путь к папке в API: githubBasePath/sheetName
+                        const folderApiPath = githubBasePath
+                            ? `${githubBasePath}/${sheetName}`
+                            : sheetName;
+
+                        const apiResult = await getGithubFolderFiles(githubRepo, githubBranch, folderApiPath);
+
+                        if (apiResult.error) {
+                            extraFilesError = apiResult.error;
+                        } else {
+                            // Находим файлы, которые есть в папке, но не указаны в idA
+                            // Сравниваем с учётом возможных особенностей кодирования
+                            const idASet = new Set(idAValues.map(f => f.toLowerCase()));
+                            extraFiles = apiResult.files.filter(
+                                name => !idASet.has(name.toLowerCase())
+                            );
+                        }
+                    } else {
+                        extraFilesError = 'Не указаны параметры githubRepo/githubBranch — проверка лишних файлов невозможна.';
+                    }
+
+                    reportSections.push({
+                        sheet: sheetName,
+                        idACount: idAValues.length,
+                        missingFiles,
+                        baseFolderUrl,
+                        extraFiles,
+                        extraFilesError
+                    });
+                }
+                return reportSections;
+            }
+
+            function renderReport(sections) {
+                let html = '<h3>Результаты проверки</h3>';
+                if (sections.length === 0) html += '<p>Нет данных</p>';
+                else {
+                    for (const sec of sections) {
+                        html += `<div style="border:1px solid #ccc; margin-bottom:15px; padding:10px;">`;
+                        html += `<h4>Папка / лист: ${sec.sheet}</h4>`;
+
+                        if (sec.error) {
+                            html += `<p class="warning">❌ ${sec.error}</p>`;
+                        } else if (sec.warning) {
+                            html += `<p class="info">⚠️ ${sec.warning}</p>`;
+                        } else {
+                            html += `<p><strong>Всего записей idA:</strong> ${sec.idACount}</p>`;
+                            html += `<div class="path-example">📁 Путь к папке: <code>${sec.baseFolderUrl}</code></div>`;
+
+                            // Отображение отсутствующих файлов (из idA, которых нет в папке)
+                            if (sec.missingFiles.length === 0) {
+                                html += `<p class="success">✅ Все файлы из idA найдены.</p>`;
+                            } else {
+                                html += `<p class="warning">❌ Отсутствуют файлы (${sec.missingFiles.length}):</p>`;
+                                html += `<ul>`;
+                                sec.missingFiles.forEach(f => {
+                                    html += `<li><strong>${f.name}</strong><br><small style="color:#666;">путь: ${f.url}</small></li>`;
+                                });
+                                html += `</ul>`;
+                            }
+
+                            // Отображение лишних файлов (есть в папке, но нет в idA)
+                            if (sec.extraFilesError) {
+                                html += `<p class="info">ℹ️ Проверка лишних файлов: ${sec.extraFilesError}</p>`;
+                            } else if (sec.extraFiles.length === 0) {
+                                html += `<p class="success">✅ Лишних файлов не найдено.</p>`;
+                            } else {
+                                html += `<p class="warning">⚠️ Лишние файлы в папке (не указаны в idA) — ${sec.extraFiles.length}:</p>`;
+                                html += `<ul>`;
+                                sec.extraFiles.forEach(name => {
+                                    html += `<li><strong>${name}</strong></li>`;
+                                });
+                                html += `</ul>`;
+                            }
+                        }
+                        html += `</div>`;
+                    }
+                }
+                reportEl.innerHTML = html;
+            }
+
+            async function runFromArrayBuffer(arrayBuffer, sheets, githubRepo, githubBranch, githubBasePath) {
+                try {
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                    const sections = await performCheck(workbook, sheets, githubRepo, githubBranch, githubBasePath);
+                    renderReport(sections);
+                } catch (e) {
+                    reportEl.innerHTML = `<p class="warning">Ошибка: ${e.message}</p>`;
+                }
+            }
+
+            async function runFromUrl(url, sheets, githubRepo, githubBranch, githubBasePath) {
+                reportEl.innerHTML = '<p class="info">Загрузка...</p>';
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const ab = await response.arrayBuffer();
+                    await runFromArrayBuffer(ab, sheets, githubRepo, githubBranch, githubBasePath);
+                } catch (e) {
+                    reportEl.innerHTML = `<p class="warning">Ошибка загрузки: ${e.message}</p>`;
+                }
+            }
+
+            function getConfig() {
+                const config = JSON.parse(configJsonEl.value);
+                if (!config.excelFile || !Array.isArray(config.sheets)) throw new Error('Неверный формат');
+                return config;
+            }
+
+            checkBtn.addEventListener('click', () => {
+                try {
+                    const config = getConfig();
+                    runFromUrl(
+                        config.excelFile,
+                        config.sheets,
+                        config.githubRepo || '',
+                        config.githubBranch || 'main',
+                        config.githubBasePath || ''
+                    );
+                } catch (e) {
+                    reportEl.innerHTML = `<p class="warning">Ошибка JSON: ${e.message}</p>`;
+                }
+            });
+
+            selectFileBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                try {
+                    const config = getConfig();
+                    const reader = new FileReader();
+                    reader.onload = async (ev) => await runFromArrayBuffer(
+                        ev.target.result,
+                        config.sheets,
+                        config.githubRepo || '',
+                        config.githubBranch || 'main',
+                        config.githubBasePath || ''
+                    );
+                    reader.readAsArrayBuffer(file);
+                } catch (err) {
+                    reportEl.innerHTML = `<p class="warning">${err.message}</p>`;
+                }
+                fileInput.value = '';
+            });
+
+            // Автоматическая загрузка при старте (если не file://)
+            (function auto() {
+                defaultBtn.click();
+                setTimeout(() => {
+                    if (window.location.protocol !== 'file:') checkBtn.click();
+                }, 100);
+            })();
+        })();
+    </script>
+</body>
+</html>
