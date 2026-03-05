@@ -1,19 +1,20 @@
 ## problem
-### 1 GraphvizOnlin  
+### 1 GraphvizOnlin vs foto 
 dreampuf.github.io/GraphvizOnline не понимает  
 `image=  `  
 УЖАС, см.  https://github.com/bpmbpm/family-tree/blob/main/ver1/readme.md#graphvizonline  
 Нужно поискать другой или сделать свой.
 
-### GraphvizOnline vs foto
+### pull 30
 https://github.com/bpmbpm/family-tree/pull/30
 
 3. Анализ проблем с фото в GraphvizOnline 🔍
 Провёл детальное исследование проблемы. Вывод: это ограничение самого сервиса GraphvizOnline , не нашего кода.
 
 Что происходит:
-
+```
 Ульянов_Илья_Николаевич [..., image="https://bpmbpm.github.io/family-tree/ver1/pic/Ульянов_Илья_Николаевич.png", ...]
+```
 Даже с абсолютным URL-адресом фото не отображается на dreampuf.github.io/GraphvizOnline.
 
 Причина: dreampuf.github.io/GraphvizOnline запускает Graphviz, скомпилированный в WebAssembly (WASM) прямо в браузере. Атрибут image=в Graphviz предназначен для чтения файлов с файловой системы , а не для загрузки по HTTP. WASM-версия Graphviz имеет виртуальную файловую систему и не может загружать изображения по URL.
