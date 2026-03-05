@@ -501,3 +501,151 @@ li.tv-item {
     min-width: 0;
     margin-bottom: 0;
 }
+
+/* ================================================================
+   Левая колонка: Дерево + Фото
+   ================================================================ */
+.left-panels-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 280px;
+    min-width: 200px;
+    max-width: 320px;
+    flex-shrink: 0;
+}
+
+.left-panels-column .treeview-panel {
+    width: 100%;
+    min-width: unset;
+    max-width: unset;
+    max-height: 45vh;
+}
+
+.left-panels-column .treeview-panel .treeview-content {
+    max-height: calc(45vh - 90px);
+}
+
+/* ================================================================
+   Панель Фото (PhotoTreeView)
+   ================================================================ */
+.phototree-panel {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    overflow: hidden;
+    max-height: 35vh;
+}
+
+.phototree-panel-header {
+    background: #f5e6c8;
+    padding: 8px 12px;
+    font-weight: 600;
+    font-size: 0.95em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e6d5b8;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.phototree-panel-title {
+    font-size: 1em;
+    white-space: nowrap;
+    color: #8b6914;
+}
+
+.pt-header-buttons {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.phototree-content {
+    overflow-y: auto;
+    max-height: calc(35vh - 50px);
+    min-height: 100px;
+    padding: 6px 0;
+    flex: 1;
+}
+
+/* Стили дерева фото (переиспользуем tv-* классы) */
+.phototree-content ul.pt-root-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 4px;
+}
+
+.phototree-content ul.pt-children {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 16px;
+}
+
+.phototree-content ul.pt-collapsed {
+    display: none;
+}
+
+.phototree-content li.pt-item {
+    margin: 0;
+    padding: 0;
+}
+
+.phototree-content .pt-row {
+    display: flex;
+    align-items: center;
+    padding: 2px 6px 2px 4px;
+    cursor: default;
+    border-radius: 3px;
+    user-select: none;
+}
+
+.phototree-content .pt-row:hover {
+    background: #fef3c7;
+}
+
+.phototree-content .pt-toggle {
+    display: inline-block;
+    width: 16px;
+    min-width: 16px;
+    text-align: center;
+    font-size: 10px;
+    color: #8b6914;
+    cursor: pointer;
+    margin-right: 2px;
+    flex-shrink: 0;
+}
+
+.phototree-content .pt-toggle:hover { color: #6b5714; }
+
+.phototree-content .pt-toggle-empty {
+    cursor: default;
+    color: transparent;
+}
+
+.phototree-content .pt-label {
+    font-size: 13px;
+    color: #5d4e37;
+    cursor: pointer;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+.phototree-content .pt-label:hover { color: #8b6914; text-decoration: underline; }
+
+/* Иконка папки */
+.phototree-content .pt-folder-icon {
+    margin-right: 4px;
+    font-size: 12px;
+}
+
+/* Иконка файла фото */
+.phototree-content .pt-file-icon {
+    margin-right: 4px;
+    font-size: 11px;
+    color: #999;
+}

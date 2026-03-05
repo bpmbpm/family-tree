@@ -448,6 +448,34 @@
         buildGalleryWindow(galleryKey, photos, fotoDir, headerTitle || 'foto', fotoDir);
     }
 
+    // --- Точка входа из дерева фото: открыть галерею для одного фото ---
+    // idA — имя файла фото
+    // fotoRows — массив записей с одним элементом (объект с полями из листа foto_*)
+    // fotoDir — путь к папке с фото (например 'foto_person', 'foto_family', etc.)
+    function showSinglePhotoGallery(idA, fotoRows, fotoDir) {
+        var photos = [];
+
+        for (var i = 0; i < fotoRows.length; i++) {
+            var r = fotoRows[i];
+            // Вычисляем idA если не заполнен
+            var computedIdA = r.idA || idA;
+
+            // Собираем поля с суффиксом _ для описания
+            var descFields = {};
+            var keys = Object.keys(r);
+            for (var j = 0; j < keys.length; j++) {
+                var key = keys[j];
+                if (key.endsWith('_') && r[key]) {
+                    descFields[key] = r[key];
+                }
+            }
+
+            photos.push({ idA: computedIdA, descFields: descFields });
+        }
+
+        buildGalleryWindow(idA, photos, fotoDir, fotoDir, fotoDir);
+    }
+
     // --- Публичное API ---
     window.FOTO = {
         showFamilyGallery: showFamilyGallery,
@@ -457,6 +485,7 @@
         showLocationPersonGallery: showLocationPersonGallery,
         showLocationFamilyGallery: showLocationFamilyGallery,
         showEventFotoGallery: showEventFotoGallery,
+        showSinglePhotoGallery: showSinglePhotoGallery,
         // _openThumbPhoto используется из onclick строк галереи
         _openThumbPhoto: openThumbPhoto
     };
