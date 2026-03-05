@@ -68,12 +68,20 @@ footer { margin-top: 25px; text-align: center; color: #5d6d7e; font-size: 0.9rem
     background: #607D8B;
 }
 .zoom-controls button:hover { background: #455A64; }
+.zoom-controls button:disabled { background: #95a5a6; cursor: not-allowed; }
 .zoom-controls span {
     min-width: 50px;
     text-align: center;
     font-weight: bold;
     color: #333;
     font-size: 13px;
+}
+.zoom-controls .zoom-separator {
+    width: 1px;
+    height: 20px;
+    background: #ccc;
+    margin: 0 8px;
+    min-width: 1px;
 }
 
 /* Properties panel (Свойство объекта диаграммы) */
@@ -148,7 +156,7 @@ footer { margin-top: 25px; text-align: center; color: #5d6d7e; font-size: 0.9rem
     stroke: #e67e22 !important;
 }
 .node.selected polygon, .node.selected ellipse, .node.selected path, .node.selected rect {
-    stroke-width: 3 !important;
+    stroke-width: 5 !important; /* Увеличена толщина линии фокуса */
     stroke: #e74c3c !important;
 }
 
@@ -519,11 +527,11 @@ li.tv-item {
     width: 100%;
     min-width: unset;
     max-width: unset;
-    max-height: 45vh;
+    max-height: 60vh; /* Увеличено на треть: 45vh -> 60vh */
 }
 
 .left-panels-column .treeview-panel .treeview-content {
-    max-height: calc(45vh - 90px);
+    max-height: calc(60vh - 90px); /* Увеличено на треть */
 }
 
 /* ================================================================

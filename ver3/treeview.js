@@ -23,6 +23,16 @@
         isSearchActive: false
     };
 
+    // Состояние режима потомков «V» (descendants mode)
+    // Когда активен — показывает только супругу и потомков выбранной персоны
+    var descendantsMode = {
+        active: false,
+        personIdA: null   // idA персоны, для которой показываем потомков
+    };
+
+    // Вспомогательная функция для сброса режима потомков (определена позже)
+    var resetDescendantsMode;
+
     // =====================================================================
     // Построение дерева
     // =====================================================================
@@ -154,14 +164,20 @@
             })(toggleIcon, ul);
         }
 
-        // Обработчик клика на метку — выделить персону на диаграмме
-        (function (pid) {
+        // Обработчик клика на метку — только фокус на диаграмме (без открытия панели свойств)
+        // Обработчик двойного клика — фокус + открытие панели свойств
+        (function (pid, rowEl) {
             label.addEventListener('click', function (event) {
                 event.stopPropagation();
-                selectPersonInDiagram(pid);
-                highlightTreeViewRow(row);
+                selectPersonInDiagramFocusOnly(pid);
+                highlightTreeViewRow(rowEl);
             });
-        })(personId);
+            label.addEventListener('dblclick', function (event) {
+                event.stopPropagation();
+                selectPersonInDiagram(pid);
+                highlightTreeViewRow(rowEl);
+            });
+        })(personId, row);
 
         return li;
     }
@@ -235,6 +251,9 @@
     window.tvSetMode = function (mode) {
         currentMode = mode;
 
+        // Сбросить режим потомков при переключении линии
+        resetDescendantsMode();
+
         // Обновить активность кнопок
         var btnMale = document.getElementById('tv-btn-male');
         var btnFemale = document.getElementById('tv-btn-female');
@@ -277,9 +296,10 @@
             }
         }
 
-        // Сбросить поиск
+        // Сбросить поиск и режим потомков
         resetSearch();
         clearTreeViewHighlight();
+        if (resetDescendantsMode) resetDescendantsMode();
     };
 
     // =====================================================================
@@ -482,7 +502,32 @@
         currentHighlightedRow = row;
     }
 
-    // --- Выделить персону на диаграмме (SVG) по её idA ---
+    // --- Выделить персону на диаграмме (SVG) по её idA (только фокус, без открытия панели свойств) ---
+    function selectPersonInDiagramFocusOnly(personId) {
+        var svgEl = document.querySelector('#graphvizContainer svg');
+        if (!svgEl) return;
+
+        // Снять выделение с предыдущего узла
+        var prevSelected = svgEl.querySelector('g.node.selected');
+        if (prevSelected) prevSelected.classList.remove('selected');
+
+        // Найти узел по атрибуту <title> (Graphviz ставит title = nodeId)
+        var nodes = svgEl.querySelectorAll('g.node');
+        for (var i = 0; i < nodes.length; i++) {
+            var titleEl = nodes[i].querySelector('title');
+            if (titleEl && titleEl.textContent.trim() === personId) {
+                nodes[i].classList.add('selected');
+                // Прокрутить диаграмму к выбранному узлу
+                nodes[i].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                break;
+            }
+        }
+
+        // Отправляем событие только для фокуса (без открытия панели свойств)
+        document.dispatchEvent(new CustomEvent('treeview-select-person-focus', { detail: { personId: personId } }));
+    }
+
+    // --- Выделить персону на диаграмме (SVG) по её idA (с открытием панели свойств) ---
     function selectPersonInDiagram(personId) {
         var svgEl = document.querySelector('#graphvizContainer svg');
         if (!svgEl) return;
@@ -524,6 +569,70 @@
     };
 
     // =====================================================================
+    // Режим потомков «V»
+    // =====================================================================
+
+    // --- Получить текущую выделенную персону в treeview ---
+    function getSelectedPersonId() {
+        if (currentHighlightedRow) {
+            return currentHighlightedRow.getAttribute('data-id');
+        }
+        return null;
+    }
+
+    // --- Переключить режим потомков ---
+    // При первом нажатии «V»: активируем режим, показываем супругу и потомков текущей персоны
+    // При повторном нажатии: деактивируем режим, показываем полное дерево с фокусом на персону
+    window.tvToggleDescendantsMode = function () {
+        var btn = document.getElementById('tv-btn-descendants');
+
+        if (descendantsMode.active) {
+            // Деактивировать режим потомков — восстановить полное дерево
+            descendantsMode.active = false;
+            descendantsMode.personIdA = null;
+            if (btn) btn.classList.remove('tv-btn-active');
+
+            // Уведомить index.html о переключении режима потомков
+            document.dispatchEvent(new CustomEvent('treeview-descendants-mode', {
+                detail: { active: false, personIdA: null }
+            }));
+        } else {
+            // Активировать режим потомков для текущей выделенной персоны
+            var selectedId = getSelectedPersonId();
+            if (!selectedId) {
+                alert('Сначала выберите персону в дереве');
+                return;
+            }
+            descendantsMode.active = true;
+            descendantsMode.personIdA = selectedId;
+            if (btn) btn.classList.add('tv-btn-active');
+
+            // Уведомить index.html о переключении режима потомков
+            document.dispatchEvent(new CustomEvent('treeview-descendants-mode', {
+                detail: { active: true, personIdA: selectedId }
+            }));
+        }
+    };
+
+    // --- Получить состояние режима потомков (для использования в index.html) ---
+    window.tvGetDescendantsMode = function () {
+        return { active: descendantsMode.active, personIdA: descendantsMode.personIdA };
+    };
+
+    // --- Сбросить режим потомков (вызывается при переключении линии или Home) ---
+    resetDescendantsMode = function () {
+        if (descendantsMode.active) {
+            descendantsMode.active = false;
+            descendantsMode.personIdA = null;
+            var btn = document.getElementById('tv-btn-descendants');
+            if (btn) btn.classList.remove('tv-btn-active');
+            document.dispatchEvent(new CustomEvent('treeview-descendants-mode', {
+                detail: { active: false, personIdA: null }
+            }));
+        }
+    };
+
+    // =====================================================================
     // Инициализация: вызывается из index.html после загрузки данных
     // =====================================================================
 
@@ -532,6 +641,9 @@
     window.tvInit = function (peopleArray) {
         peopleData = peopleArray || [];
         currentMode = 'male'; // по умолчанию мужская линия
+
+        // Сбросить режим потомков при повторной инициализации
+        resetDescendantsMode();
 
         // Установить активность кнопок режима
         var btnMale = document.getElementById('tv-btn-male');
