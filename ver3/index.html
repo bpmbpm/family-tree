@@ -12,6 +12,7 @@
          (без ошибок CORS, в отличие от fetch/XMLHttpRequest для config.json). -->
     <script src="config.js"></script>
     <script src="foto.js"></script>
+    <script src="treeview.js"></script>
 </head>
 <body>
     <div class="container">
@@ -76,6 +77,37 @@
             </div>
         </div>
 
+        <!-- Основной макет: дерево слева, диаграмма справа -->
+        <div class="main-layout">
+
+        <!-- Панель дерева (TreeView) -->
+        <div class="treeview-panel">
+            <div class="treeview-panel-header">
+                <span class="treeview-panel-title">🌿 Дерево</span>
+                <div class="tv-header-buttons">
+                    <!-- Кнопка «Домой» — свернуть дерево в исходное состояние (&#x2302; = ⌂) -->
+                    <button class="tv-btn" id="tv-btn-home" onclick="tvHome()" title="Домой — свернуть дерево в исходное состояние">&#x2302;</button>
+                    <!-- Кнопка «Раскрыть всё» — полностью развернуть все ветки (&#x25BD; = ▽) -->
+                    <button class="tv-btn" id="tv-btn-expand" onclick="tvExpandAll()" title="Раскрыть все ветки">&#x25BD;</button>
+                    <!-- Кнопки переключения линии -->
+                    <button class="tv-btn tv-btn-active" id="tv-btn-male" onclick="tvSetMode('male')" title="Мужская линия (hasFather)">♂</button>
+                    <button class="tv-btn" id="tv-btn-female" onclick="tvSetMode('female')" title="Женская линия (hasMother)">♀</button>
+                </div>
+            </div>
+            <!-- Строка поиска -->
+            <div class="treeview-search-row">
+                <input type="text" id="tv-search-input" class="tv-search-input"
+                    placeholder="Поиск..." oninput="tvSearchInputChange()" onkeydown="if(event.key==='Enter') tvFindNext()">
+                <button class="tv-btn" id="tv-btn-find-start" onclick="tvFindStart()" title="Начать с начала" disabled>⏮</button>
+                <button class="tv-btn" id="tv-btn-find-next" onclick="tvFindNext()" title="Найти следующего" disabled>⏭</button>
+                <span class="tv-search-status" id="tv-search-status"></span>
+            </div>
+            <!-- Содержимое дерева -->
+            <div class="treeview-content" id="tv-content">
+                <div class="tv-empty">Загрузите данные</div>
+            </div>
+        </div>
+
         <!-- Diagram panel: zoom container on top, zoom controls at bottom -->
         <div class="diagram-panel">
             <div class="diagram-panel-header">
@@ -94,6 +126,8 @@
                 <button onclick="zoomFit()" title="Вписать в окно">Вписать</button>
             </div>
         </div>
+
+        </div><!-- /main-layout -->
 
         <footer>Фото из папки <code>pic/</code> (idA.png). Узел: <code>image=</code>, <code>fixedsize=true</code>, <code>imagepos=tc</code>, <code>labelloc=b</code> — фото сверху, имя и годы снизу, без наложения. Для мужчин рамка синяя, для женщин — розовая.</footer>
     </div>
@@ -1575,6 +1609,11 @@
                         selectedNodeElement = node;
 
                         showNodeProperties(person);
+
+                        // Выделить персону в TreeView
+                        if (typeof window.tvHighlightPerson === 'function') {
+                            window.tvHighlightPerson(nodeId);
+                        }
                     });
                 });
 
@@ -1619,6 +1658,41 @@
                 });
             }
 
+            // --- Обработчик выбора персоны из TreeView ---
+            // Когда treeview.js вызывает selectPersonInDiagram(), он отправляет событие.
+            // Здесь обновляем selectedNodeElement в соответствии с выбранным узлом SVG.
+            document.addEventListener('treeview-select-person', function(event) {
+                var personId = event.detail && event.detail.personId;
+                if (!personId) return;
+
+                var svgEl = document.querySelector('#graphvizContainer svg');
+                if (!svgEl) return;
+
+                // Снять выделение с предыдущего
+                if (selectedNodeElement) {
+                    selectedNodeElement.classList.remove('selected');
+                    selectedNodeElement = null;
+                }
+
+                // Найти узел по <title> и выделить его
+                var nodes = svgEl.querySelectorAll('g.node');
+                for (var i = 0; i < nodes.length; i++) {
+                    var titleEl = nodes[i].querySelector('title');
+                    if (titleEl && titleEl.textContent.trim() === personId) {
+                        nodes[i].classList.add('selected');
+                        selectedNodeElement = nodes[i];
+                        nodes[i].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        break;
+                    }
+                }
+
+                // Открыть панель свойств персоны
+                var person = people.find(function(p) { return p.idA === personId; });
+                if (person) {
+                    showNodeProperties(person);
+                }
+            });
+
             // --- Build tree ---
             async function buildTree(parsedData) {
                 const peopleArray = parsedData.people || parsedData;
@@ -1655,6 +1729,11 @@
                 const imagesOption = await buildImagesOption(people);
                 await renderDot(dotCode, imagesOption);
                 showStatus('✅ Дерево построено');
+
+                // Инициализировать TreeView после загрузки данных
+                if (typeof window.tvInit === 'function') {
+                    window.tvInit(people);
+                }
             }
 
             async function loadFromUrl(url) {

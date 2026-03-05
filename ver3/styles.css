@@ -287,3 +287,217 @@ hr.event-separator {
     border-top: 1px solid #ddd;
     margin: 6px 0;
 }
+
+/* ================================================================
+   TreeView panel (Панель дерева)
+   ================================================================ */
+
+/* Контейнер всей страницы с деревом слева и диаграммой справа */
+.main-layout {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+/* Панель дерева (treeview) */
+.treeview-panel {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    width: 280px;
+    min-width: 200px;
+    max-width: 320px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+/* Заголовок панели дерева */
+.treeview-panel-header {
+    background: #e9ecef;
+    padding: 8px 12px;
+    font-weight: 600;
+    font-size: 0.95em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #ddd;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.treeview-panel-title {
+    font-size: 1em;
+    white-space: nowrap;
+}
+
+/* Кнопки панели дерева */
+.tv-header-buttons {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.tv-btn {
+    padding: 4px 9px;
+    font-size: 12px;
+    background: #607D8B;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1.3;
+}
+
+.tv-btn:hover { background: #455A64; }
+
+/* Активная кнопка режима (мужской / женский) */
+.tv-btn.tv-btn-active {
+    background: #2c3e50;
+    box-shadow: inset 0 0 0 2px #aed6f1;
+}
+
+/* Строка поиска */
+.treeview-search-row {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    padding: 6px 10px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #ddd;
+    flex-wrap: wrap;
+}
+
+.tv-search-input {
+    flex: 1;
+    min-width: 80px;
+    padding: 4px 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.tv-search-status {
+    font-size: 11px;
+    color: #888;
+    min-width: 40px;
+    text-align: right;
+}
+
+/* Область содержимого дерева (прокрутка) */
+.treeview-content {
+    overflow-y: auto;
+    max-height: calc(80vh - 90px);
+    min-height: 200px;
+    padding: 6px 0;
+    flex: 1;
+}
+
+/* Сообщение «пусто» */
+.tv-empty {
+    padding: 12px;
+    color: #888;
+    font-style: italic;
+    font-size: 13px;
+}
+
+/* Корневой список */
+ul.tv-root-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 4px;
+}
+
+/* Вложенные списки */
+ul.tv-children {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 16px;
+}
+
+/* Свёрнутый список */
+ul.tv-children.tv-collapsed {
+    display: none;
+}
+
+/* Элемент списка */
+li.tv-item {
+    margin: 0;
+    padding: 0;
+}
+
+/* Строка элемента (иконка + метка) */
+.tv-row {
+    display: flex;
+    align-items: center;
+    padding: 2px 6px 2px 4px;
+    cursor: default;
+    border-radius: 3px;
+    user-select: none;
+}
+
+.tv-row:hover {
+    background: #e8f4fd;
+}
+
+/* Иконка раскрытия/сворачивания */
+.tv-toggle {
+    display: inline-block;
+    width: 16px;
+    min-width: 16px;
+    text-align: center;
+    font-size: 10px;
+    color: #607D8B;
+    cursor: pointer;
+    margin-right: 2px;
+    flex-shrink: 0;
+}
+
+.tv-toggle:hover { color: #2c3e50; }
+
+/* Пустая иконка (нет детей) */
+.tv-toggle-empty {
+    cursor: default;
+    color: transparent;
+}
+
+/* Метка персоны */
+.tv-label {
+    font-size: 13px;
+    color: #2c3e50;
+    cursor: pointer;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+.tv-label:hover { color: #2980b9; text-decoration: underline; }
+
+/* Выделенная строка treeview (по клику) */
+.tv-row.tv-row-selected {
+    background: #d6eaf8;
+}
+
+.tv-row.tv-row-selected .tv-label {
+    font-weight: 600;
+    color: #1a5276;
+}
+
+/* Подсветка найденной строки при поиске */
+.tv-row.tv-search-highlight {
+    background: #fef9c3;
+    border-left: 3px solid #f1c40f;
+}
+
+.tv-row.tv-search-highlight .tv-label {
+    color: #7d6608;
+}
+
+/* Диаграмма занимает оставшееся место */
+.main-layout .diagram-panel {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0;
+}
