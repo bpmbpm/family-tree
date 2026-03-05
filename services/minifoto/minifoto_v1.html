@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minifoto v1 — Создание миниатюр для family-tree</title>
+  <style>
+    /* Общие стили */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      color: #333;
+      padding: 16px;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    h2 { font-size: 1.1rem; margin-bottom: 8px; color: #555; }
+    .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 16px; }
+
+    /* Панель загрузки */
+    #load-panel {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    #load-panel label { font-weight: bold; }
+    #file-input { display: none; }
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+    .btn-primary { background: #4a90d9; color: #fff; }
+    .btn-primary:hover { background: #357abd; }
+    .btn-success { background: #27ae60; color: #fff; }
+    .btn-success:hover { background: #1e8449; }
+    .btn-secondary { background: #aaa; color: #fff; }
+    .btn-secondary:hover { background: #888; }
+
+    /* Основной рабочий стол */
+    #workspace {
+      display: none;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    #workspace.active { display: flex; }
+
+    /* Левая панель: исходное фото с рамкой */
+    #source-panel {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      flex: 1 1 400px;
+      min-width: 300px;
+    }
+    #source-container {
+      position: relative;
+      display: inline-block;
+      overflow: hidden;
+      border: 1px solid #ccc;
+      background: #888;
+      cursor: crosshair;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #source-img {
+      display: block;
+      max-width: 100%;
+      pointer-events: none;
+    }
+
+    /* Захватная рамка */
+    #capture-frame {
+      position: absolute;
+      border: 2px solid #e74c3c;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.40);
+      cursor: move;
+      z-index: 10;
+    }
+    /* Ручки изменения размера */
+    .resize-handle {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: #e74c3c;
+      border: 1px solid #fff;
+      border-radius: 2px;
+      z-index: 11;
+    }
+    .resize-handle.nw { top: -5px; left: -5px; cursor: nw-resize; }
+    .resize-handle.ne { top: -5px; right: -5px; cursor: ne-resize; }
+    .resize-handle.sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+    .resize-handle.se { bottom: -5px; right: -5px; cursor: se-resize; }
+    .resize-handle.n  { top: -5px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+    .resize-handle.s  { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+    .resize-handle.w  { top: 50%; left: -5px; transform: translateY(-50%); cursor: w-resize; }
+    .resize-handle.e  { top: 50%; right: -5px; transform: translateY(-50%); cursor: e-resize; }
+
+    /* Подсказка над рамкой */
+    #frame-info {
+      font-size: 0.75rem;
+      margin-top: 6px;
+      color: #555;
+      min-height: 1.2em;
+    }
+
+    /* Правая панель: редактирование и параметры */
+    #edit-panel {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      flex: 0 0 280px;
+      min-width: 240px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Холст предпросмотра */
+    #preview-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    #preview-canvas {
+      border: 1px solid #ccc;
+      background: #ddd;
+      image-rendering: pixelated;
+    }
+
+    /* Ползунки редактора */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+    }
+    .slider-row label { width: 90px; flex-shrink: 0; }
+    .slider-row input[type=range] { flex: 1; }
+    .slider-row .val { width: 40px; text-align: right; font-size: 0.8rem; color: #555; }
+
+    /* Параметры */
+    #params-box {
+      font-size: 0.8rem;
+      background: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 5px;
+      padding: 8px 10px;
+      line-height: 1.8;
+    }
+    #params-box .label { color: #888; }
+    #params-box .optimal { color: #27ae60; font-weight: bold; }
+    #params-box .warn { color: #e67e22; font-weight: bold; }
+
+    /* Подсказка об оптимальных параметрах */
+    #hint-box {
+      font-size: 0.78rem;
+      background: #eaf5ea;
+      border: 1px solid #b2dfb2;
+      border-radius: 5px;
+      padding: 8px 10px;
+      line-height: 1.6;
+    }
+    #hint-box .title { font-weight: bold; color: #1e8449; margin-bottom: 4px; }
+
+    /* Имя файла для сохранения */
+    #save-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #save-row input[type=text] {
+      flex: 1;
+      min-width: 120px;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+
+    /* Сообщения */
+    #msg {
+      font-size: 0.85rem;
+      padding: 6px 10px;
+      border-radius: 4px;
+      display: none;
+    }
+    #msg.info  { display: block; background: #d6eaf8; color: #1a5276; }
+    #msg.error { display: block; background: #fadbd8; color: #922b21; }
+  </style>
+</head>
+<body>
+
+<h1>Minifoto v1 — Создание миниатюр для family-tree</h1>
+<p class="subtitle">
+  Загрузите семейное фото из папки <code>foto_family/</code>.
+  Переместите и настройте рамку захвата, затем отредактируйте и сохраните миниатюру для папки <code>ver2/pic/</code>.
+</p>
+
+<!-- Панель загрузки -->
+<div id="load-panel">
+  <label>Загрузить фото:</label>
+  <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+    Выбрать файл…
+  </button>
+  <input type="file" id="file-input" accept="image/*">
+  <span id="file-name" style="font-size:0.85rem;color:#555;">файл не выбран</span>
+  <div id="msg"></div>
+</div>
+
+<!-- Основной рабочий стол -->
+<div id="workspace">
+
+  <!-- Левая панель: исходное фото + рамка -->
+  <div id="source-panel">
+    <h2>Исходное фото</h2>
+    <div id="source-container">
+      <img id="source-img" alt="исходное фото">
+      <!-- Захватная рамка создаётся программно -->
+      <div id="capture-frame">
+        <div class="resize-handle nw" data-dir="nw"></div>
+        <div class="resize-handle n"  data-dir="n"></div>
+        <div class="resize-handle ne" data-dir="ne"></div>
+        <div class="resize-handle w"  data-dir="w"></div>
+        <div class="resize-handle e"  data-dir="e"></div>
+        <div class="resize-handle sw" data-dir="sw"></div>
+        <div class="resize-handle s"  data-dir="s"></div>
+        <div class="resize-handle se" data-dir="se"></div>
+      </div>
+    </div>
+    <div id="frame-info">Переместите рамку на лицо. Потяните за угол/сторону для изменения размера.</div>
+  </div>
+
+  <!-- Правая панель: предпросмотр + редактор + параметры -->
+  <div id="edit-panel">
+    <h2>Редактирование</h2>
+
+    <!-- Предпросмотр результата -->
+    <div id="preview-wrap">
+      <canvas id="preview-canvas" width="76" height="74" title="Предпросмотр миниатюры (76×74 px)"></canvas>
+      <span style="font-size:0.75rem;color:#888;">Предпросмотр (масштабирован ×4)</span>
+    </div>
+
+    <!-- Ползунки -->
+    <div>
+      <div class="slider-row">
+        <label>Масштаб</label>
+        <input type="range" id="sl-zoom" min="50" max="300" value="100" step="1">
+        <span class="val" id="v-zoom">100%</span>
+      </div>
+      <div class="slider-row">
+        <label>Сдвиг X</label>
+        <input type="range" id="sl-offsetx" min="-100" max="100" value="0" step="1">
+        <span class="val" id="v-offsetx">0</span>
+      </div>
+      <div class="slider-row">
+        <label>Сдвиг Y</label>
+        <input type="range" id="sl-offsety" min="-100" max="100" value="0" step="1">
+        <span class="val" id="v-offsety">0</span>
+      </div>
+      <div class="slider-row">
+        <label>Яркость</label>
+        <input type="range" id="sl-brightness" min="50" max="200" value="100" step="1">
+        <span class="val" id="v-brightness">100%</span>
+      </div>
+      <div class="slider-row">
+        <label>Контраст</label>
+        <input type="range" id="sl-contrast" min="50" max="200" value="100" step="1">
+        <span class="val" id="v-contrast">100%</span>
+      </div>
+      <button class="btn btn-secondary" onclick="resetSliders()" style="margin-top:6px;width:100%;">
+        Сбросить настройки
+      </button>
+    </div>
+
+    <!-- Параметры изображения -->
+    <div id="params-box">
+      <div><span class="label">Источник: </span><span id="p-src-size">—</span></div>
+      <div><span class="label">Рамка (пкс): </span><span id="p-frame-size">—</span></div>
+      <div><span class="label">Рамка (исх.): </span><span id="p-frame-orig">—</span></div>
+      <div><span class="label">Выход: </span><span id="p-out-size">—</span></div>
+      <div><span class="label">Статус: </span><span id="p-status">—</span></div>
+    </div>
+
+    <!-- Подсказка об оптимальных параметрах -->
+    <div id="hint-box">
+      <div class="title">Оптимальные параметры (из ver2/pic)</div>
+      <div>Размер: <strong>76×74 px</strong> (PNG, RGB)</div>
+      <div>Формат: PNG (без прозрачности)</div>
+      <div>Соотношение сторон: ≈ 1:1 (квадрат)</div>
+      <div>Имя файла: <code>Фамилия_Имя_Отчество.png</code></div>
+    </div>
+
+    <!-- Сохранение -->
+    <div id="save-row">
+      <input type="text" id="save-name" placeholder="Имя_Фамилия.png" value="">
+      <button class="btn btn-success" onclick="saveMinifoto()">Сохранить</button>
+    </div>
+  </div>
+
+</div><!-- /workspace -->
+
+<script>
+// ============================================================
+// Константы — оптимальный размер из анализа ver2/pic/
+// ============================================================
+const OPT_W = 76;   // пикселей — оптимальная ширина
+const OPT_H = 74;   // пикселей — оптимальная высота
+
+// ============================================================
+// Состояние приложения
+// ============================================================
+const state = {
+  // Исходное изображение (полный размер)
+  srcImg: null,
+  srcNaturalW: 0,
+  srcNaturalH: 0,
+  // Масштаб отображения исходника на экране
+  displayScale: 1,
+  // Рамка захвата (в координатах отображения)
+  frame: { x: 50, y: 50, w: 100, h: 100 },
+  // Перетаскивание рамки
+  drag: null,
+  // Редактор
+  zoom: 100,
+  offsetX: 0,
+  offsetY: 0,
+  brightness: 100,
+  contrast: 100,
+};
+
+// ============================================================
+// DOM-элементы
+// ============================================================
+const fileInput    = document.getElementById('file-input');
+const fileNameSpan = document.getElementById('file-name');
+const workspace    = document.getElementById('workspace');
+const srcContainer = document.getElementById('source-container');
+const srcImg       = document.getElementById('source-img');
+const captureFrame = document.getElementById('capture-frame');
+const frameInfo    = document.getElementById('frame-info');
+const previewCanvas= document.getElementById('preview-canvas');
+const ctx          = previewCanvas.getContext('2d');
+const msgEl        = document.getElementById('msg');
+
+// ============================================================
+// Загрузка файла
+// ============================================================
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  fileNameSpan.textContent = file.name;
+  // Устанавливаем предлагаемое имя для сохранения
+  const base = file.name.replace(/\.[^.]+$/, '');
+  document.getElementById('save-name').value = base + '.png';
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      state.srcImg = img;
+      state.srcNaturalW = img.naturalWidth;
+      state.srcNaturalH = img.naturalHeight;
+      srcImg.src = ev.target.result;
+      srcImg.onload = () => {
+        initWorkspace();
+      };
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  showMsg('');
+});
+
+// ============================================================
+// Инициализация рабочего стола после загрузки фото
+// ============================================================
+function initWorkspace() {
+  workspace.classList.add('active');
+  // Вычисляем масштаб отображения
+  const dispW = srcImg.offsetWidth || srcImg.naturalWidth;
+  const dispH = srcImg.offsetHeight || srcImg.naturalHeight;
+  state.displayScale = dispW / state.srcNaturalW;
+
+  // Устанавливаем размер контейнера под изображение
+  srcContainer.style.width  = dispW + 'px';
+  srcContainer.style.height = dispH + 'px';
+
+  // Начальное положение рамки — центральная треть
+  const fw = Math.round(dispW / 3);
+  const fh = Math.round(dispH / 3);
+  const fx = Math.round((dispW - fw) / 2);
+  const fy = Math.round((dispH - fh) / 2);
+  state.frame = { x: fx, y: fy, w: fw, h: fh };
+
+  resetSliders();
+  applyFrame();
+  updatePreview();
+  updateParams();
+}
+
+// ============================================================
+// Применение рамки к DOM
+// ============================================================
+function applyFrame() {
+  const { x, y, w, h } = state.frame;
+  captureFrame.style.left   = x + 'px';
+  captureFrame.style.top    = y + 'px';
+  captureFrame.style.width  = w + 'px';
+  captureFrame.style.height = h + 'px';
+  // Обновляем текст-подсказку
+  const origW = Math.round(w / state.displayScale);
+  const origH = Math.round(h / state.displayScale);
+  frameInfo.textContent = `Рамка: ${w}×${h} пкс на экране (${origW}×${origH} пкс исходника)`;
+  updatePreview();
+  updateParams();
+}
+
+// ============================================================
+// Обновление предпросмотра
+// ============================================================
+function updatePreview() {
+  if (!state.srcImg) return;
+  const { x, y, w, h } = state.frame;
+  const scale = state.displayScale;
+  // Координаты в исходном изображении
+  const sx = x / scale;
+  const sy = y / scale;
+  const sw = w / scale;
+  const sh = h / scale;
+
+  // Размер выходного холста (оптимальный)
+  previewCanvas.width  = OPT_W;
+  previewCanvas.height = OPT_H;
+
+  // Стиль холста — масштабирован визуально ×4 через CSS
+  previewCanvas.style.width  = (OPT_W * 4) + 'px';
+  previewCanvas.style.height = (OPT_H * 4) + 'px';
+
+  ctx.clearRect(0, 0, OPT_W, OPT_H);
+
+  // Применяем фильтры CSS-style на canvas через filter API (где поддерживается)
+  const brightness = state.brightness / 100;
+  const contrast   = state.contrast   / 100;
+  ctx.filter = `brightness(${brightness}) contrast(${contrast})`;
+
+  // Ручка масштаба/сдвига внутри рамки
+  const zoom = state.zoom / 100;
+  const oxPct = state.offsetX / 100; // [-1..+1]
+  const oyPct = state.offsetY / 100;
+
+  // При zoom > 1 сдвигаем центр
+  const drawW = sw / zoom;
+  const drawH = sh / zoom;
+  const drawX = sx + (sw - drawW) / 2 + drawW * oxPct * 0.5;
+  const drawY = sy + (sh - drawH) / 2 + drawH * oyPct * 0.5;
+
+  ctx.drawImage(
+    state.srcImg,
+    drawX, drawY, drawW, drawH,  // источник
+    0, 0, OPT_W, OPT_H           // цель (оптимальный размер)
+  );
+}
+
+// ============================================================
+// Обновление блока параметров
+// ============================================================
+function updateParams() {
+  if (!state.srcImg) return;
+  const { x, y, w, h } = state.frame;
+  const scale = state.displayScale;
+  const origW = Math.round(w / scale);
+  const origH = Math.round(h / scale);
+  const ratio  = (origW / origH).toFixed(2);
+
+  document.getElementById('p-src-size').textContent =
+    `${state.srcNaturalW}×${state.srcNaturalH} пкс`;
+  document.getElementById('p-frame-size').textContent =
+    `${w}×${h} пкс`;
+  document.getElementById('p-frame-orig').textContent =
+    `${origW}×${origH} пкс (соотн. ${ratio})`;
+  document.getElementById('p-out-size').textContent =
+    `${OPT_W}×${OPT_H} пкс (PNG)`;
+
+  // Статус: соответствует ли рамка близкому соотношению сторон
+  const el = document.getElementById('p-status');
+  const ar = origW / origH;
+  if (ar >= 0.85 && ar <= 1.20) {
+    el.textContent = '✔ Соотношение сторон оптимально (~1:1)';
+    el.className = 'optimal';
+  } else {
+    el.textContent = '⚠ Соотношение сторон далеко от 1:1';
+    el.className = 'warn';
+  }
+}
+
+// ============================================================
+// Сохранение миниатюры (скачивание PNG)
+// ============================================================
+function saveMinifoto() {
+  if (!state.srcImg) {
+    showMsg('Сначала загрузите исходное фото.', 'error');
+    return;
+  }
+  let name = document.getElementById('save-name').value.trim();
+  if (!name) name = 'minifoto.png';
+  if (!name.toLowerCase().endsWith('.png')) name += '.png';
+
+  // Финальный рендер в натуральный размер
+  const fc = document.createElement('canvas');
+  fc.width  = OPT_W;
+  fc.height = OPT_H;
+  const fctx = fc.getContext('2d');
+
+  const { x, y, w, h } = state.frame;
+  const sc = state.displayScale;
+  const sx = x / sc, sy = y / sc, sw = w / sc, sh = h / sc;
+  const zoom = state.zoom / 100;
+  const oxPct = state.offsetX / 100;
+  const oyPct = state.offsetY / 100;
+  const drawW = sw / zoom, drawH = sh / zoom;
+  const drawX = sx + (sw - drawW) / 2 + drawW * oxPct * 0.5;
+  const drawY = sy + (sh - drawH) / 2 + drawH * oyPct * 0.5;
+
+  const brightness = state.brightness / 100;
+  const contrast   = state.contrast   / 100;
+  fctx.filter = `brightness(${brightness}) contrast(${contrast})`;
+  fctx.drawImage(state.srcImg, drawX, drawY, drawW, drawH, 0, 0, OPT_W, OPT_H);
+
+  fc.toBlob((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href     = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+    showMsg(`Файл "${name}" сохранён. Поместите его в папку ver2/pic/.`, 'info');
+  }, 'image/png');
+}
+
+// ============================================================
+// Ползунки редактора
+// ============================================================
+function bindSlider(id, stateKey, valId, suffix, callback) {
+  const el = document.getElementById(id);
+  const valEl = document.getElementById(valId);
+  el.addEventListener('input', () => {
+    state[stateKey] = parseFloat(el.value);
+    valEl.textContent = el.value + (suffix || '');
+    if (callback) callback();
+  });
+}
+bindSlider('sl-zoom',       'zoom',       'v-zoom',       '%', updatePreview);
+bindSlider('sl-offsetx',    'offsetX',    'v-offsetx',    '',  updatePreview);
+bindSlider('sl-offsety',    'offsetY',    'v-offsety',    '',  updatePreview);
+bindSlider('sl-brightness', 'brightness', 'v-brightness', '%', updatePreview);
+bindSlider('sl-contrast',   'contrast',   'v-contrast',   '%', updatePreview);
+
+function resetSliders() {
+  state.zoom = 100; state.offsetX = 0; state.offsetY = 0;
+  state.brightness = 100; state.contrast = 100;
+  document.getElementById('sl-zoom').value       = 100;
+  document.getElementById('sl-offsetx').value    = 0;
+  document.getElementById('sl-offsety').value    = 0;
+  document.getElementById('sl-brightness').value = 100;
+  document.getElementById('sl-contrast').value   = 100;
+  document.getElementById('v-zoom').textContent       = '100%';
+  document.getElementById('v-offsetx').textContent    = '0';
+  document.getElementById('v-offsety').textContent    = '0';
+  document.getElementById('v-brightness').textContent = '100%';
+  document.getElementById('v-contrast').textContent   = '100%';
+  updatePreview();
+}
+
+// ============================================================
+// Перетаскивание и изменение размера рамки захвата
+// ============================================================
+let dragState = null;
+
+function getContainerBounds() {
+  return {
+    w: parseInt(srcContainer.style.width)  || srcContainer.offsetWidth,
+    h: parseInt(srcContainer.style.height) || srcContainer.offsetHeight,
+  };
+}
+
+// Начало перетаскивания/ресайза рамки
+captureFrame.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  const dir = e.target.dataset.dir; // null если клик на саму рамку (не на ручку)
+  dragState = {
+    type: dir ? 'resize' : 'move',
+    dir: dir,
+    startX: e.clientX,
+    startY: e.clientY,
+    origFrame: { ...state.frame },
+  };
+});
+
+// Тач-события для мобильных
+captureFrame.addEventListener('touchstart', (e) => {
+  const touch = e.touches[0];
+  const dir = e.target.dataset.dir;
+  dragState = {
+    type: dir ? 'resize' : 'move',
+    dir: dir,
+    startX: touch.clientX,
+    startY: touch.clientY,
+    origFrame: { ...state.frame },
+  };
+  e.preventDefault();
+}, { passive: false });
+
+function onPointerMove(cx, cy) {
+  if (!dragState) return;
+  const { w: cw, h: ch } = getContainerBounds();
+  const dx = cx - dragState.startX;
+  const dy = cy - dragState.startY;
+  let { x, y, w, h } = dragState.origFrame;
+  const MIN = 20;
+
+  if (dragState.type === 'move') {
+    x = Math.max(0, Math.min(cw - w, x + dx));
+    y = Math.max(0, Math.min(ch - h, y + dy));
+  } else {
+    // Изменение размера по направлению ручки
+    const d = dragState.dir;
+    if (d.includes('e')) { w = Math.max(MIN, Math.min(cw - x, w + dx)); }
+    if (d.includes('s')) { h = Math.max(MIN, Math.min(ch - y, h + dy)); }
+    if (d.includes('w')) {
+      const nx = Math.min(x + w - MIN, x + dx);
+      w = w - (nx - x); x = nx;
+      x = Math.max(0, x); w = Math.max(MIN, w);
+    }
+    if (d.includes('n')) {
+      const ny = Math.min(y + h - MIN, y + dy);
+      h = h - (ny - y); y = ny;
+      y = Math.max(0, y); h = Math.max(MIN, h);
+    }
+  }
+
+  state.frame = { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+  applyFrame();
+}
+
+document.addEventListener('mousemove', (e) => onPointerMove(e.clientX, e.clientY));
+document.addEventListener('mouseup',   ()  => { dragState = null; });
+document.addEventListener('touchmove', (e) => {
+  onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+  e.preventDefault();
+}, { passive: false });
+document.addEventListener('touchend',  ()  => { dragState = null; });
+
+// ============================================================
+// Вспомогательные функции
+// ============================================================
+function showMsg(text, type) {
+  msgEl.textContent = text;
+  msgEl.className   = type || '';
+  if (!type) msgEl.style.display = 'none';
+}
+
+// Пересчёт при изменении окна (адаптивность)
+window.addEventListener('resize', () => {
+  if (!state.srcImg) return;
+  const dispW = srcImg.offsetWidth;
+  const dispH = srcImg.offsetHeight;
+  if (!dispW || !dispH) return;
+  const oldScale = state.displayScale;
+  state.displayScale = dispW / state.srcNaturalW;
+  const ratio = state.displayScale / oldScale;
+  state.frame.x = Math.round(state.frame.x * ratio);
+  state.frame.y = Math.round(state.frame.y * ratio);
+  state.frame.w = Math.round(state.frame.w * ratio);
+  state.frame.h = Math.round(state.frame.h * ratio);
+  srcContainer.style.width  = dispW + 'px';
+  srcContainer.style.height = dispH + 'px';
+  applyFrame();
+});
+</script>
+</body>
+</html>
