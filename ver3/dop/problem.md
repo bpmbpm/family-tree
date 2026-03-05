@@ -43,4 +43,13 @@ Added analysis section answering the questions from the issue:
 Fixes bpmbpm/family-tree#80
 
 ---
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+Переспросил:
+
+Уточни решение относительно
+Теперь фотографии преобразуются в URL-адреса данных base64 перед сериализацией в формат SVG.
+
+Должны выполняться условия
+https://github.com/bpmbpm/family-tree/blob/main/requirements/programming_information.md
+включая Для добавления минифото на дерево используй dot тег image="
+
+Общая процедура формирования изображения в окне Диаграмма должна остаться прежней. Нововведения могут быть в файл save.js только для генерации PDF-файлов.
