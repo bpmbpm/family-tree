@@ -5,7 +5,9 @@ dreampuf.github.io/GraphvizOnline не понимает
 УЖАС, см.  https://github.com/bpmbpm/family-tree/blob/main/ver1/readme.md#graphvizonline  
 Нужно поискать другой или сделать свой.
 
-### 
+### GraphvizOnline vs foto
+https://github.com/bpmbpm/family-tree/pull/30
+
 3. Анализ проблем с фото в GraphvizOnline 🔍
 Провёл детальное исследование проблемы. Вывод: это ограничение самого сервиса GraphvizOnline , не нашего кода.
 
