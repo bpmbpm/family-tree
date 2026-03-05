@@ -20,5 +20,6 @@ window.CONFIG = {
     "picDirType": "relativeGraphvizOnline",
     "picDirGlobal": "",
     "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver2/pic",
+    "graphvizOnlineType": "https://bpmbpm.github.io/graphviz-online/ver1/index.html",
     "language": "ru"
 };
