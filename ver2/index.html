@@ -156,6 +156,8 @@
             let PIC_DIR_GLOBAL = '';
             // GraphvizOnline photo directory path — used in DOT code for GraphvizOnline when picDirType = "relativeGraphvizOnline"
             let PIC_DIR_GRAPHVIZ_ONLINE = '';
+            // GraphvizOnline service URL — configurable via graphvizOnlineType in config.js/config.json
+            let GRAPHVIZ_ONLINE_TYPE = 'https://dreampuf.github.io/GraphvizOnline/?engine=dot#';
 
             const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
             const statusDiv = document.getElementById('status');
@@ -271,6 +273,11 @@
                 }
                 if (typeof config.picDirGraphvizOnline === 'string' && config.picDirGraphvizOnline.trim()) {
                     PIC_DIR_GRAPHVIZ_ONLINE = config.picDirGraphvizOnline.trim().replace(/\/+$/, '');
+                }
+                if (typeof config.graphvizOnlineType === 'string' && config.graphvizOnlineType.trim()) {
+                    // Ensure the URL ends with '#' so DOT code can be appended directly
+                    const url = config.graphvizOnlineType.trim().replace(/#$/, '');
+                    GRAPHVIZ_ONLINE_TYPE = url + '#';
                 }
                 if (typeof config.language === 'string' && config.language.trim()) {
                     const lang = config.language.trim();
@@ -950,7 +957,7 @@
                 dotCodeForGraphvizOnline = editedDot;
                 // Update graphviz link
                 const encoded = encodeURIComponent(editedDot);
-                graphvizLink = `https://dreampuf.github.io/GraphvizOnline/?engine=dot#${encoded}`;
+                graphvizLink = `${GRAPHVIZ_ONLINE_TYPE}${encoded}`;
                 graphvizLinkInput.value = graphvizLink;
                 // Re-render without re-loading images (use already loaded people)
                 const imagesOption = await buildImagesOption(people);
@@ -1016,7 +1023,7 @@
                     const showGraphvizCode = PIC_DIR_TYPE === 'relativeGraphvizOnline' && dotCodeForGraphvizOnline && dotCodeForGraphvizOnline !== dotCode;
                     dotCodePre.value = showGraphvizCode ? dotCodeForGraphvizOnline : dotCode;
                     const encoded = encodeURIComponent(codeForLink);
-                    graphvizLink = `https://dreampuf.github.io/GraphvizOnline/?engine=dot#${encoded}`;
+                    graphvizLink = `${GRAPHVIZ_ONLINE_TYPE}${encoded}`;
                     graphvizLinkInput.value = graphvizLink;
                 } else {
                     dotCodePre.value = '(код появится после загрузки)';
