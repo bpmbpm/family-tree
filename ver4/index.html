@@ -46,8 +46,6 @@
                     <!-- Кнопки переключения линии -->
                     <button class="tv-btn tv-btn-active" id="tv-btn-male" onclick="tvSetMode('male')" title="Мужская линия (hasFather)">♂</button>
                     <button class="tv-btn" id="tv-btn-female" onclick="tvSetMode('female')" title="Женская линия (hasMother)">♀</button>
-                    <!-- Кнопка «Фото персон» — открыть/скрыть галерею фото -->
-                    <button class="tv-btn" id="tv-btn-photos" onclick="togglePersonPhotos()" title="Фото персон">🖼️</button>
                 </div>
             </div>
             <!-- Строка поиска -->
@@ -57,12 +55,6 @@
                 <button class="tv-btn" id="tv-btn-find-start" onclick="tvFindStart()" title="Начать с начала" disabled>⏮</button>
                 <button class="tv-btn" id="tv-btn-find-next" onclick="tvFindNext()" title="Найти следующего" disabled>⏭</button>
                 <span class="tv-search-status" id="tv-search-status"></span>
-            </div>
-            <!-- Фото персон (скрыто по умолчанию, открывается кнопкой 🖼️) -->
-            <div id="panel-placeholders-content" class="tv-photos-section" style="display:none;">
-                <div class="photos-grid" id="photosGrid">
-                    <em style="color:#888">Загрузите Excel для отображения фото</em>
-                </div>
             </div>
             <!-- Содержимое дерева -->
             <div class="treeview-content" id="tv-content">
@@ -77,6 +69,8 @@
                 <div class="pt-header-buttons">
                     <button class="tv-btn" id="pt-btn-home" onclick="ptHome()" title="Домой — свернуть дерево фото">&#x2302;</button>
                     <button class="tv-btn" id="pt-btn-expand" onclick="ptExpandAll()" title="Раскрыть все ветки">&#x25BD;</button>
+                    <!-- Кнопка «Фото персон» — открыть окно галереи фото персон из папки pic/ -->
+                    <button class="tv-btn" id="pt-btn-photos" onclick="togglePersonPhotos()" title="Фото персон">🖼️</button>
                 </div>
             </div>
             <!-- Содержимое дерева фото -->
@@ -358,12 +352,62 @@
             };
 
             window.togglePersonPhotos = function() {
-                const section = document.getElementById('panel-placeholders-content');
-                if (!section) return;
-                const btn = document.getElementById('tv-btn-photos');
-                const isVisible = section.style.display !== 'none';
-                section.style.display = isVisible ? 'none' : 'block';
-                if (btn) btn.classList.toggle('tv-btn-active', !isVisible);
+                const PANEL_ID = 'person-photos-panel';
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+
+                // Если окно уже открыто — закрыть его (toggle)
+                const existing = document.getElementById(PANEL_ID);
+                if (existing) {
+                    existing.remove();
+                    const btn = document.getElementById('pt-btn-photos');
+                    if (btn) btn.classList.remove('tv-btn-active');
+                    return;
+                }
+
+                // Строим содержимое галереи из уже проверенных фото
+                let gridHtml = '';
+                const existingFiles = [];
+                for (const fn of ['dafaultm.png', 'dafaultf.png']) {
+                    if (photoExistsCache[fn]) existingFiles.push(fn);
+                }
+                people.forEach(p => {
+                    const fn = p.idA + '.png';
+                    if (photoExistsCache[fn] && !existingFiles.includes(fn)) existingFiles.push(fn);
+                });
+                if (existingFiles.length === 0) {
+                    gridHtml = '<em style="color:#888">Файлы фото не найдены в папке pic/</em>';
+                } else {
+                    existingFiles.forEach(filename => {
+                        const shortName = filename.length > 20 ? filename.substring(0, 18) + '…' : filename;
+                        gridHtml +=
+                            '<div class="photo-item">' +
+                            '<img src="' + getActivePicDir() + '/' + filename + '" alt="' + filename + '" title="' + filename + '">' +
+                            '<div class="path" title="' + filename + '">' + shortName + '</div>' +
+                            '</div>';
+                    });
+                }
+
+                const panelHtml =
+                    '<div class="properties-panel visible" id="' + PANEL_ID + '" style="right: 60px; top: 150px; min-width: 360px; max-width: 560px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + PANEL_ID + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">🖼️ Фото персон</div>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="document.getElementById(\'' + PANEL_ID + '\').remove(); var b=document.getElementById(\'pt-btn-photos\'); if(b) b.classList.remove(\'tv-btn-active\');">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    '<div class="photos-grid" id="photosGrid">' + gridHtml + '</div>' +
+                    '</div>' +
+                    '</div>';
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+
+                const newPanel = document.getElementById(PANEL_ID);
+                if (newPanel && typeof bringPanelToFront === 'function') bringPanelToFront(newPanel);
+
+                const btn = document.getElementById('pt-btn-photos');
+                if (btn) btn.classList.add('tv-btn-active');
             };
 
             window.copyLink = function() {
@@ -1039,8 +1083,10 @@ async function generateDotCode(peopleList, marriages, picDirOverride) {
 
             // --- Update photos panel ---
             // Shows only files that actually exist in pic/ folder (no empty placeholders).
+            // Only updates if the floating "Фото персон" panel is currently open.
             function updatePhotosPanel() {
                 const grid = document.getElementById('photosGrid');
+                if (!grid) return;
                 grid.innerHTML = '';
 
                 // Build list of files that were checked and found to exist

@@ -395,15 +395,6 @@ hr.event-separator {
     text-align: right;
 }
 
-/* Секция фото персон внутри панели дерева (скрыта по умолчанию) */
-.tv-photos-section {
-    padding: 10px 12px;
-    border-bottom: 1px solid #ddd;
-    background: #f9f9f9;
-    max-height: 200px;
-    overflow-y: auto;
-}
-
 /* Область содержимого дерева (прокрутка) */
 .treeview-content {
     overflow-y: auto;
