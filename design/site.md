@@ -12,3 +12,12 @@
 ## soft
 - https://forum.tonfotos.com/d/1168-versiya-1100-semeinoe-drevo
 - https://rodnaya-vyatka.ru/blog/137/99721
+
+## search WW2 
+- https://pamyat-naroda.ru/
+- https://poiskovikimo.ru/kak-najti-rodstvennika-voevavshego-v-gody-velikoj-otechestvennoj-vojny-vov/
+- https://www.polkrf.ru/veteran/pomosh-v-poiske
+- https://rg.ru/2025/05/07/kak-nayti-uchastnika-vov.html?utm_referrer=https%3A%2F%2Fwww.google.com%2F
+- https://forum.vgd.ru/
+- https://t-j.ru/list/genealogy-uchastniki-vov/?utm_referrer=https%3A%2F%2Fwww.google.com%2F
+- https://podvignaroda.ru/?#tab=navHome
