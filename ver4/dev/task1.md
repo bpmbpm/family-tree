@@ -2,3 +2,6 @@
 - Меняем в excel в лист family формулу
 - меняем названия файлов
 - замена фрагмента кода
+
+## tools
+- https://onlinemarkdowneditor.dev/
