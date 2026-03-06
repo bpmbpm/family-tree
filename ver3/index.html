@@ -150,6 +150,9 @@
                 <span class="zoom-separator"></span>
                 <button id="graphvizOnlineBtn" onclick="openGraphvizOnline()" disabled title="Показать в окне GraphvizOnline">GraphvizOnline</button>
                 <button id="pdfBtn" onclick="exportToPdf()" disabled title="Выгрузить диаграмму в PDF">pdf</button>
+                <button id="svgBtn" onclick="exportToSvg()" disabled title="Выгрузить диаграмму в SVG">SVG</button>
+                <button id="drawioBtn" onclick="exportToDrawio()" disabled title="Выгрузить диаграмму в Drawio">Drawio</button>
+                <button id="drawioOnlineBtn" onclick="openDrawioOnline()" disabled title="Открыть диаграмму в diagrams.net онлайн">Drawio online</button>
                 <button id="zipBtn" onclick="downloadZip()" disabled title="Создать архив для развёртывания на desktop">zip</button>
             </div>
         </div>
@@ -1890,6 +1893,9 @@
                 }
                 graphvizOnlineBtn.disabled = false;
                 document.getElementById('pdfBtn').disabled = false;
+                document.getElementById('svgBtn').disabled = false;
+                document.getElementById('drawioBtn').disabled = false;
+                document.getElementById('drawioOnlineBtn').disabled = false;
                 document.getElementById('zipBtn').disabled = false;
                 updateInfoPanels();
                 showStatus('⏳ Построение дерева...');
