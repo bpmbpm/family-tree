@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Проверка tree.xlsx — test_tree_v1</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --success-bg: #d4edda;
+            --success-text: #155724;
+            --error-bg: #f8d7da;
+            --error-text: #721c24;
+            --warning-bg: #fff3cd;
+            --warning-text: #856404;
+            --info-bg: #d1ecf1;
+            --info-text: #0c5460;
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 15px;
+            margin-top: 0;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        .toolbar {
+            margin: 20px 0;
+            padding: 15px;
+            background: #ecf0f1;
+            border-radius: 5px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.loading {
+            background: var(--info-bg);
+            color: var(--info-text);
+        }
+        .status.success {
+            background: var(--success-bg);
+            color: var(--success-text);
+        }
+        .status.error {
+            background: var(--error-bg);
+            color: var(--error-text);
+        }
+        .report-section {
+            margin: 25px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .report-section h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .check-item {
+            padding: 12px 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .check-item.pass {
+            background: var(--success-bg);
+            border-left: 4px solid var(--success-text);
+        }
+        .check-item.fail {
+            background: var(--error-bg);
+            border-left: 4px solid var(--error-text);
+        }
+        .check-item.warning {
+            background: var(--warning-bg);
+            border-left: 4px solid var(--warning-text);
+        }
+        .check-item.info {
+            background: var(--info-bg);
+            border-left: 4px solid var(--info-text);
+        }
+        .check-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .check-content {
+            flex: 1;
+        }
+        .check-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .check-details {
+            font-size: 13px;
+            color: #555;
+            line-height: 1.5;
+        }
+        .error-list {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .error-list ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .error-list li {
+            margin: 5px 0;
+        }
+        .summary-box {
+            padding: 20px;
+            background: #2c3e50;
+            color: white;
+            border-radius: 8px;
+            margin: 25px 0;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .summary-item {
+            text-align: center;
+        }
+        .summary-count {
+            font-size: 36px;
+            font-weight: bold;
+            display: block;
+        }
+        .summary-label {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        .summary-item.passed .summary-count {
+            color: #2ecc71;
+        }
+        .summary-item.failed .summary-count {
+            color: #e74c3c;
+        }
+        .summary-item.warnings .summary-count {
+            color: #f1c40f;
+        }
+        .collapsible {
+            cursor: pointer;
+            user-select: none;
+        }
+        .collapsible:hover {
+            opacity: 0.8;
+        }
+        .collapse-content {
+            display: none;
+            margin-top: 10px;
+        }
+        .collapse-content.show {
+            display: block;
+        }
+        footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            color: #7f8c8d;
+            font-size: 13px;
+            text-align: center;
+        }
+        footer a {
+            color: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Проверка файла tree.xlsx</h1>
+        <p>Данный инструмент выполняет валидацию данных в файле <code>tree.xlsx</code> для обеспечения целостности и корректности данных семейного древа.</p>
+
+        <div class="toolbar">
+            <button id="loadBtn" class="btn-primary">Загрузить tree.xlsx</button>
+            <button id="selectFileBtn" class="btn-secondary">Выбрать файл...</button>
+            <input type="file" id="fileInput" accept=".xlsx, .xls">
+        </div>
+
+        <div id="status" class="status loading">Ожидание загрузки файла...</div>
+
+        <div id="report"></div>
+
+        <footer>
+            <a href="../services/test_tree/test_tree_v1.md" target="_blank">Документация по проверкам</a> |
+            test_tree_v1 — проверка целостности данных семейного древа
+        </footer>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        const loadBtn = document.getElementById('loadBtn');
+        const selectFileBtn = document.getElementById('selectFileBtn');
+        const fileInput = document.getElementById('fileInput');
+        const statusDiv = document.getElementById('status');
+        const reportDiv = document.getElementById('report');
+
+        // Helper: get cell value as string
+        function getCellString(cell) {
+            if (cell == null) return '';
+            if (typeof cell === 'object') {
+                if (cell.w !== undefined) return String(cell.w);
+                if (cell.v !== undefined) return String(cell.v);
+                return '';
+            }
+            return String(cell);
+        }
+
+        // Helper: parse multiple IDs separated by ; (with optional spaces)
+        function parseMultipleIds(value) {
+            if (!value) return [];
+            return String(value)
+                .split(/\s*;\s*/)
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+        }
+
+        // Load workbook from ArrayBuffer
+        function loadWorkbook(arrayBuffer) {
+            return XLSX.read(arrayBuffer, { type: 'array' });
+        }
+
+        // Get sheet data as array of objects with headers
+        function getSheetData(workbook, sheetName) {
+            if (!workbook.SheetNames.includes(sheetName)) {
+                return { exists: false, headers: [], rows: [] };
+            }
+            const worksheet = workbook.Sheets[sheetName];
+            const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+            if (rawRows.length < 1) {
+                return { exists: true, headers: [], rows: [] };
+            }
+            const headers = rawRows[0].map(h => getCellString(h).trim());
+            const rows = [];
+            for (let i = 1; i < rawRows.length; i++) {
+                const row = {};
+                let hasData = false;
+                for (let j = 0; j < headers.length; j++) {
+                    const val = getCellString(rawRows[i] ? rawRows[i][j] : '');
+                    row[headers[j]] = val;
+                    if (val) hasData = true;
+                }
+                if (hasData) rows.push({ row: i + 1, data: row });
+            }
+            return { exists: true, headers, rows };
+        }
+
+        // ============================================================
+        // VALIDATION CHECKS
+        // ============================================================
+
+        // Check 1: idA filled in person sheet
+        function checkPersonIdA(personSheet) {
+            const results = { passed: true, errors: [], count: 0 };
+            for (const row of personSheet.rows) {
+                const idA = row.data['idA'];
+                if (!idA || idA.startsWith('=')) {
+                    results.passed = false;
+                    results.errors.push(`Строка ${row.row}: idA пустой или содержит формулу`);
+                } else {
+                    results.count++;
+                }
+            }
+            return results;
+        }
+
+        // Check 2: idA filled in family sheet
+        function checkFamilyIdA(familySheet) {
+            const results = { passed: true, errors: [], count: 0 };
+            for (const row of familySheet.rows) {
+                const idA = row.data['idA'];
+                if (!idA || idA.startsWith('=')) {
+                    results.passed = false;
+                    results.errors.push(`Строка ${row.row}: idA пустой или содержит формулу`);
+                } else {
+                    results.count++;
+                }
+            }
+            return results;
+        }
+
+        // Check 3: husband and wife references exist in person.idA
+        function checkHusbandWifeInPerson(familySheet, personIdASet) {
+            const results = { passed: true, errors: [] };
+            for (const row of familySheet.rows) {
+                const husband = row.data['husband'];
+                const wife = row.data['wife'];
+                if (husband && !personIdASet.has(husband)) {
+                    results.passed = false;
+                    results.errors.push(`Строка ${row.row}: husband "${husband}" не найден в person.idA`);
+                }
+                if (wife && !personIdASet.has(wife)) {
+                    results.passed = false;
+                    results.errors.push(`Строка ${row.row}: wife "${wife}" не найдена в person.idA`);
+                }
+            }
+            return results;
+        }
+
+        // Check 4: hasFather and hasMother references exist in person.idA
+        function checkParentsInPerson(personSheet, personIdASet) {
+            const results = { passed: true, errors: [], warnings: [] };
+            for (const row of personSheet.rows) {
+                const hasFather = row.data['hasFather'];
+                const hasMother = row.data['hasMother'];
+                if (hasFather && !personIdASet.has(hasFather)) {
+                    results.warnings.push(`Строка ${row.row}: hasFather "${hasFather}" не найден в person.idA (может быть не внесён)`);
+                }
+                if (hasMother && !personIdASet.has(hasMother)) {
+                    results.warnings.push(`Строка ${row.row}: hasMother "${hasMother}" не найдена в person.idA (может быть не внесена)`);
+                }
+            }
+            return results;
+        }
+
+        // Check 5: id_personAll references (multiple, semicolon-separated) exist in person.idA
+        function checkIdPersonAllReferences(sheetData, sheetName, personIdASet) {
+            const results = { passed: true, errors: [] };
+            for (const row of sheetData.rows) {
+                const idPersonAll = row.data['id_personAll'];
+                if (!idPersonAll) continue;
+                const ids = parseMultipleIds(idPersonAll);
+                for (const id of ids) {
+                    if (!personIdASet.has(id)) {
+                        results.passed = false;
+                        results.errors.push(`${sheetName}, строка ${row.row}: id_personAll содержит "${id}", который не найден в person.idA`);
+                    }
+                }
+            }
+            return results;
+        }
+
+        // Check 6: id_familyAll references (multiple, semicolon-separated) exist in family.idA
+        function checkIdFamilyAllReferences(sheetData, sheetName, familyIdASet) {
+            const results = { passed: true, errors: [] };
+            for (const row of sheetData.rows) {
+                const idFamilyAll = row.data['id_familyAll'];
+                if (!idFamilyAll) continue;
+                const ids = parseMultipleIds(idFamilyAll);
+                for (const id of ids) {
+                    if (!familyIdASet.has(id)) {
+                        results.passed = false;
+                        results.errors.push(`${sheetName}, строка ${row.row}: id_familyAll содержит "${id}", который не найден в family.idA`);
+                    }
+                }
+            }
+            return results;
+        }
+
+        // Check 7: id_person references exist in person.idA (for foto_person, foto_group)
+        function checkIdPersonReferences(sheetData, sheetName, personIdASet) {
+            const results = { passed: true, errors: [] };
+            for (const row of sheetData.rows) {
+                const idPerson = row.data['id_person'];
+                if (!idPerson) continue;
+                if (!personIdASet.has(idPerson)) {
+                    results.passed = false;
+                    results.errors.push(`${sheetName}, строка ${row.row}: id_person "${idPerson}" не найден в person.idA`);
+                }
+            }
+            return results;
+        }
+
+        // Check 8: id_family references exist in family.idA (for foto_family)
+        function checkIdFamilyReferences(sheetData, sheetName, familyIdASet) {
+            const results = { passed: true, errors: [] };
+            for (const row of sheetData.rows) {
+                const idFamily = row.data['id_family'];
+                if (!idFamily) continue;
+                if (!familyIdASet.has(idFamily)) {
+                    results.passed = false;
+                    results.errors.push(`${sheetName}, строка ${row.row}: id_family "${idFamily}" не найден в family.idA`);
+                }
+            }
+            return results;
+        }
+
+        // Check 9: Check for duplicate idA values
+        function checkDuplicateIdA(sheetData, sheetName) {
+            const results = { passed: true, errors: [] };
+            const seen = {};
+            for (const row of sheetData.rows) {
+                const idA = row.data['idA'];
+                if (!idA || idA.startsWith('=')) continue;
+                if (seen[idA]) {
+                    results.passed = false;
+                    results.errors.push(`${sheetName}, строка ${row.row}: дублирующийся idA "${idA}" (первый в строке ${seen[idA]})`);
+                } else {
+                    seen[idA] = row.row;
+                }
+            }
+            return results;
+        }
+
+        // Check 10: Check sex field has valid values (М or Ж)
+        function checkSexField(personSheet) {
+            const results = { passed: true, errors: [], warnings: [] };
+            for (const row of personSheet.rows) {
+                const sex = row.data['sex'];
+                if (!sex) {
+                    results.warnings.push(`Строка ${row.row}: пол (sex) не указан`);
+                } else if (sex !== 'М' && sex !== 'Ж') {
+                    results.passed = false;
+                    results.errors.push(`Строка ${row.row}: недопустимое значение sex="${sex}" (должно быть М или Ж)`);
+                }
+            }
+            return results;
+        }
+
+        // Check 11: Check for circular parent references
+        function checkCircularParents(personSheet) {
+            const results = { passed: true, errors: [] };
+            const personMap = {};
+            for (const row of personSheet.rows) {
+                const idA = row.data['idA'];
+                if (idA && !idA.startsWith('=')) {
+                    personMap[idA] = {
+                        hasFather: row.data['hasFather'],
+                        hasMother: row.data['hasMother'],
+                        row: row.row
+                    };
+                }
+            }
+
+            function hasCircle(startId, visited = new Set()) {
+                if (visited.has(startId)) return true;
+                if (!personMap[startId]) return false;
+                visited.add(startId);
+                const father = personMap[startId].hasFather;
+                const mother = personMap[startId].hasMother;
+                if (father && hasCircle(father, new Set(visited))) return true;
+                if (mother && hasCircle(mother, new Set(visited))) return true;
+                return false;
+            }
+
+            for (const idA in personMap) {
+                if (hasCircle(idA)) {
+                    results.passed = false;
+                    results.errors.push(`Персона "${idA}" (строка ${personMap[idA].row}): обнаружена циклическая ссылка в родительских связях`);
+                }
+            }
+            return results;
+        }
+
+        // Check 12: Required sheets exist
+        function checkRequiredSheets(workbook) {
+            const required = ['person', 'family'];
+            const optional = ['foto_person', 'foto_family', 'foto_group', 'foto_location', 'event', 'language', 'help'];
+            const results = { passed: true, errors: [], warnings: [], info: [] };
+
+            for (const sheet of required) {
+                if (!workbook.SheetNames.includes(sheet)) {
+                    results.passed = false;
+                    results.errors.push(`Обязательный лист "${sheet}" не найден`);
+                }
+            }
+
+            for (const sheet of optional) {
+                if (!workbook.SheetNames.includes(sheet)) {
+                    results.info.push(`Необязательный лист "${sheet}" отсутствует`);
+                }
+            }
+
+            return results;
+        }
+
+        // Check 13: Validate years (birth, death) are reasonable
+        function checkYearsReasonable(personSheet) {
+            const results = { passed: true, errors: [], warnings: [] };
+            const currentYear = new Date().getFullYear();
+
+            for (const row of personSheet.rows) {
+                const birth = parseInt(row.data['birth'], 10);
+                const death = parseInt(row.data['death'], 10);
+                const idA = row.data['idA'] || `строка ${row.row}`;
+
+                if (birth && !isNaN(birth)) {
+                    if (birth < 1000 || birth > currentYear + 1) {
+                        results.warnings.push(`${idA}: год рождения ${birth} выглядит некорректным`);
+                    }
+                }
+                if (death && !isNaN(death)) {
+                    if (death < 1000 || death > currentYear + 1) {
+                        results.warnings.push(`${idA}: год смерти ${death} выглядит некорректным`);
+                    }
+                    if (birth && !isNaN(birth) && death < birth) {
+                        results.passed = false;
+                        results.errors.push(`${idA}: год смерти (${death}) раньше года рождения (${birth})`);
+                    }
+                }
+            }
+            return results;
+        }
+
+        // Check 14: foto references in event sheet
+        function checkEventFotoReferences(eventSheet, workbook) {
+            const results = { passed: true, errors: [], warnings: [] };
+            const fotoSheets = {
+                'foto_person': getSheetData(workbook, 'foto_person'),
+                'foto_family': getSheetData(workbook, 'foto_family'),
+                'foto_group': getSheetData(workbook, 'foto_group'),
+                'foto_location': getSheetData(workbook, 'foto_location')
+            };
+
+            // Build sets of valid idA values for each foto sheet
+            const fotoIdASets = {};
+            for (const [name, sheet] of Object.entries(fotoSheets)) {
+                if (!sheet.exists) continue;
+                fotoIdASets[name] = new Set();
+                for (const row of sheet.rows) {
+                    let idA = row.data['idA'];
+                    // Handle formula-based idA
+                    if (!idA || idA.startsWith('=')) {
+                        // Try to construct idA from components
+                        if (name === 'foto_person' || name === 'foto_group') {
+                            const idPerson = row.data['id_person'];
+                            const suffix = row.data['suffix'] || row.data['suffix_'];
+                            const ext = row.data['extension'];
+                            if (idPerson && suffix && ext) {
+                                idA = `${idPerson}-${suffix}.${ext}`;
+                            }
+                        } else if (name === 'foto_family') {
+                            const idFamily = row.data['id_family'];
+                            const suffix = row.data['suffix_'];
+                            const ext = row.data['extension'];
+                            if (idFamily && suffix && ext) {
+                                idA = `${idFamily}-${suffix}.${ext}`;
+                            }
+                        } else if (name === 'foto_location') {
+                            const idLoc = row.data['id_loc'];
+                            const suffix = row.data['suffix'];
+                            const ext = row.data['extension'];
+                            if (idLoc && suffix && ext) {
+                                idA = `${idLoc}-${suffix}.${ext}`;
+                            }
+                        }
+                    }
+                    if (idA && !idA.startsWith('=')) {
+                        fotoIdASets[name].add(idA);
+                    }
+                }
+            }
+
+            // Check event references
+            for (const row of eventSheet.rows) {
+                const checkFotoField = (fieldName, fotoSheetName) => {
+                    const value = row.data[fieldName];
+                    if (!value) return;
+                    const idASet = fotoIdASets[fotoSheetName];
+                    if (!idASet) {
+                        results.warnings.push(`event, строка ${row.row}: ${fieldName}="${value}" — лист ${fotoSheetName} не существует`);
+                        return;
+                    }
+                    if (!idASet.has(value)) {
+                        results.warnings.push(`event, строка ${row.row}: ${fieldName}="${value}" не найден в ${fotoSheetName}.idA`);
+                    }
+                };
+
+                checkFotoField('foto_person', 'foto_person');
+                checkFotoField('foto_family', 'foto_family');
+                checkFotoField('foto_group', 'foto_group');
+                checkFotoField('foto_location', 'foto_location');
+            }
+
+            return results;
+        }
+
+        // ============================================================
+        // MAIN VALIDATION FUNCTION
+        // ============================================================
+
+        function runValidation(workbook) {
+            const checks = [];
+            let totalPassed = 0;
+            let totalFailed = 0;
+            let totalWarnings = 0;
+
+            // Load sheet data
+            const personSheet = getSheetData(workbook, 'person');
+            const familySheet = getSheetData(workbook, 'family');
+            const fotoPersonSheet = getSheetData(workbook, 'foto_person');
+            const fotoFamilySheet = getSheetData(workbook, 'foto_family');
+            const fotoGroupSheet = getSheetData(workbook, 'foto_group');
+            const fotoLocationSheet = getSheetData(workbook, 'foto_location');
+            const eventSheet = getSheetData(workbook, 'event');
+
+            // Build ID sets
+            const personIdASet = new Set();
+            for (const row of personSheet.rows) {
+                const idA = row.data['idA'];
+                if (idA && !idA.startsWith('=')) personIdASet.add(idA);
+            }
+
+            const familyIdASet = new Set();
+            for (const row of familySheet.rows) {
+                const idA = row.data['idA'];
+                // Handle formula-based idA in family sheet
+                let effectiveIdA = idA;
+                if (!idA || idA.startsWith('=')) {
+                    const husband = row.data['husband'];
+                    const wife = row.data['wife'];
+                    if (husband && wife) {
+                        effectiveIdA = `${husband}-${wife}`;
+                    }
+                }
+                if (effectiveIdA && !effectiveIdA.startsWith('=')) {
+                    familyIdASet.add(effectiveIdA);
+                }
+            }
+
+            // Check 0: Required sheets
+            const sheetsCheck = checkRequiredSheets(workbook);
+            checks.push({
+                id: 'sheets',
+                title: 'Наличие обязательных листов',
+                description: 'Проверка наличия листов person и family',
+                result: sheetsCheck
+            });
+
+            if (!personSheet.exists || !familySheet.exists) {
+                // Cannot continue without required sheets
+                return { checks, totalPassed: 0, totalFailed: 1, totalWarnings: 0 };
+            }
+
+            // Check 1: person.idA filled
+            const check1 = checkPersonIdA(personSheet);
+            checks.push({
+                id: 'person_idA',
+                title: 'Заполненность idA в листе person',
+                description: `Все персоны должны иметь заполненный idA. Найдено: ${check1.count} записей.`,
+                result: check1
+            });
+
+            // Check 2: family.idA filled
+            const check2 = checkFamilyIdA(familySheet);
+            checks.push({
+                id: 'family_idA',
+                title: 'Заполненность idA в листе family',
+                description: `Все семьи должны иметь заполненный idA. Найдено: ${check2.count} записей.`,
+                result: check2
+            });
+
+            // Check 3: husband/wife exist in person.idA
+            const check3 = checkHusbandWifeInPerson(familySheet, personIdASet);
+            checks.push({
+                id: 'husband_wife_refs',
+                title: 'Ссылки husband и wife на person.idA',
+                description: 'Значения husband и wife должны существовать в листе person',
+                result: check3
+            });
+
+            // Check 4: hasFather/hasMother refs
+            const check4 = checkParentsInPerson(personSheet, personIdASet);
+            checks.push({
+                id: 'parents_refs',
+                title: 'Ссылки hasFather и hasMother на person.idA',
+                description: 'Родительские ссылки должны соответствовать существующим персонам (предупреждения допустимы)',
+                result: check4
+            });
+
+            // Check 5: Duplicate idA in person
+            const check5a = checkDuplicateIdA(personSheet, 'person');
+            checks.push({
+                id: 'person_duplicates',
+                title: 'Уникальность idA в листе person',
+                description: 'Идентификаторы персон не должны повторяться',
+                result: check5a
+            });
+
+            // Check 5b: Duplicate idA in family
+            const check5b = checkDuplicateIdA(familySheet, 'family');
+            checks.push({
+                id: 'family_duplicates',
+                title: 'Уникальность idA в листе family',
+                description: 'Идентификаторы семей не должны повторяться',
+                result: check5b
+            });
+
+            // Check 6: sex field
+            const check6 = checkSexField(personSheet);
+            checks.push({
+                id: 'sex_values',
+                title: 'Корректность значений sex',
+                description: 'Поле sex должно содержать М (мужской) или Ж (женский)',
+                result: check6
+            });
+
+            // Check 7: circular parents
+            const check7 = checkCircularParents(personSheet);
+            checks.push({
+                id: 'circular_parents',
+                title: 'Отсутствие циклических ссылок',
+                description: 'Родительские связи не должны образовывать циклов',
+                result: check7
+            });
+
+            // Check 8: years reasonable
+            const check8 = checkYearsReasonable(personSheet);
+            checks.push({
+                id: 'years_valid',
+                title: 'Корректность годов рождения и смерти',
+                description: 'Годы должны быть в разумных пределах, смерть не раньше рождения',
+                result: check8
+            });
+
+            // Check 9: id_person in foto_person
+            if (fotoPersonSheet.exists) {
+                const check9 = checkIdPersonReferences(fotoPersonSheet, 'foto_person', personIdASet);
+                checks.push({
+                    id: 'foto_person_refs',
+                    title: 'Ссылки id_person в foto_person',
+                    description: 'id_person должен существовать в person.idA',
+                    result: check9
+                });
+            }
+
+            // Check 10: id_personAll in foto_person
+            if (fotoPersonSheet.exists) {
+                const check10 = checkIdPersonAllReferences(fotoPersonSheet, 'foto_person', personIdASet);
+                checks.push({
+                    id: 'foto_person_all_refs',
+                    title: 'Ссылки id_personAll в foto_person',
+                    description: 'Все ID в id_personAll должны существовать в person.idA',
+                    result: check10
+                });
+            }
+
+            // Check 11: id_family in foto_family
+            if (fotoFamilySheet.exists) {
+                const check11 = checkIdFamilyReferences(fotoFamilySheet, 'foto_family', familyIdASet);
+                checks.push({
+                    id: 'foto_family_refs',
+                    title: 'Ссылки id_family в foto_family',
+                    description: 'id_family должен существовать в family.idA',
+                    result: check11
+                });
+            }
+
+            // Check 12: id_personAll in foto_family
+            if (fotoFamilySheet.exists) {
+                const check12 = checkIdPersonAllReferences(fotoFamilySheet, 'foto_family', personIdASet);
+                checks.push({
+                    id: 'foto_family_person_refs',
+                    title: 'Ссылки id_personAll в foto_family',
+                    description: 'Все ID в id_personAll должны существовать в person.idA',
+                    result: check12
+                });
+            }
+
+            // Check 13: id_person in foto_group
+            if (fotoGroupSheet.exists) {
+                const check13 = checkIdPersonReferences(fotoGroupSheet, 'foto_group', personIdASet);
+                checks.push({
+                    id: 'foto_group_refs',
+                    title: 'Ссылки id_person в foto_group',
+                    description: 'id_person должен существовать в person.idA',
+                    result: check13
+                });
+            }
+
+            // Check 14: id_personAll in foto_group
+            if (fotoGroupSheet.exists) {
+                const check14 = checkIdPersonAllReferences(fotoGroupSheet, 'foto_group', personIdASet);
+                checks.push({
+                    id: 'foto_group_all_refs',
+                    title: 'Ссылки id_personAll в foto_group',
+                    description: 'Все ID в id_personAll должны существовать в person.idA',
+                    result: check14
+                });
+            }
+
+            // Check 15: id_personAll in foto_location
+            if (fotoLocationSheet.exists) {
+                const check15 = checkIdPersonAllReferences(fotoLocationSheet, 'foto_location', personIdASet);
+                checks.push({
+                    id: 'foto_location_person_refs',
+                    title: 'Ссылки id_personAll в foto_location',
+                    description: 'Все ID в id_personAll должны существовать в person.idA',
+                    result: check15
+                });
+            }
+
+            // Check 16: id_familyAll in foto_location
+            if (fotoLocationSheet.exists) {
+                const check16 = checkIdFamilyAllReferences(fotoLocationSheet, 'foto_location', familyIdASet);
+                checks.push({
+                    id: 'foto_location_family_refs',
+                    title: 'Ссылки id_familyAll в foto_location',
+                    description: 'Все ID в id_familyAll должны существовать в family.idA',
+                    result: check16
+                });
+            }
+
+            // Check 17: id_personAll in event
+            if (eventSheet.exists) {
+                const check17 = checkIdPersonAllReferences(eventSheet, 'event', personIdASet);
+                checks.push({
+                    id: 'event_person_refs',
+                    title: 'Ссылки id_personAll в event',
+                    description: 'Все ID в id_personAll должны существовать в person.idA',
+                    result: check17
+                });
+            }
+
+            // Check 18: id_familyAll in event
+            if (eventSheet.exists) {
+                const check18 = checkIdFamilyAllReferences(eventSheet, 'event', familyIdASet);
+                checks.push({
+                    id: 'event_family_refs',
+                    title: 'Ссылки id_familyAll в event',
+                    description: 'Все ID в id_familyAll должны существовать в family.idA',
+                    result: check18
+                });
+            }
+
+            // Check 19: event foto references
+            if (eventSheet.exists) {
+                const check19 = checkEventFotoReferences(eventSheet, workbook);
+                checks.push({
+                    id: 'event_foto_refs',
+                    title: 'Ссылки на фото в event',
+                    description: 'foto_person, foto_family, foto_group, foto_location должны существовать в соответствующих листах',
+                    result: check19
+                });
+            }
+
+            // Calculate totals
+            for (const check of checks) {
+                if (check.result.passed) {
+                    totalPassed++;
+                } else {
+                    totalFailed++;
+                }
+                if (check.result.warnings && check.result.warnings.length > 0) {
+                    totalWarnings += check.result.warnings.length;
+                }
+            }
+
+            return { checks, totalPassed, totalFailed, totalWarnings };
+        }
+
+        // ============================================================
+        // REPORT RENDERING
+        // ============================================================
+
+        function renderReport(validation) {
+            let html = '';
+
+            // Summary
+            html += `
+                <div class="summary-box">
+                    <div class="summary-item passed">
+                        <span class="summary-count">${validation.totalPassed}</span>
+                        <span class="summary-label">Пройдено</span>
+                    </div>
+                    <div class="summary-item failed">
+                        <span class="summary-count">${validation.totalFailed}</span>
+                        <span class="summary-label">Ошибок</span>
+                    </div>
+                    <div class="summary-item warnings">
+                        <span class="summary-count">${validation.totalWarnings}</span>
+                        <span class="summary-label">Предупреждений</span>
+                    </div>
+                </div>
+            `;
+
+            // Detailed checks
+            html += '<h2>Результаты проверок</h2>';
+
+            for (const check of validation.checks) {
+                const result = check.result;
+                const passed = result.passed;
+                const hasWarnings = result.warnings && result.warnings.length > 0;
+                const hasInfo = result.info && result.info.length > 0;
+                const hasErrors = result.errors && result.errors.length > 0;
+
+                let itemClass = 'pass';
+                let icon = '';
+                if (!passed) {
+                    itemClass = 'fail';
+                    icon = '';
+                } else if (hasWarnings) {
+                    itemClass = 'warning';
+                    icon = '';
+                }
+
+                html += `
+                    <div class="check-item ${itemClass}">
+                        <span class="check-icon">${icon}</span>
+                        <div class="check-content">
+                            <div class="check-title">${check.title}</div>
+                            <div class="check-details">${check.description}</div>
+                `;
+
+                if (hasErrors) {
+                    const errorsId = `errors_${check.id}`;
+                    html += `
+                        <div class="collapsible" onclick="toggleCollapse('${errorsId}')">
+                             Ошибки (${result.errors.length}) - нажмите для раскрытия
+                        </div>
+                        <div id="${errorsId}" class="collapse-content error-list">
+                            <ul>${result.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
+                        </div>
+                    `;
+                }
+
+                if (hasWarnings) {
+                    const warningsId = `warnings_${check.id}`;
+                    html += `
+                        <div class="collapsible" onclick="toggleCollapse('${warningsId}')">
+                             Предупреждения (${result.warnings.length}) - нажмите для раскрытия
+                        </div>
+                        <div id="${warningsId}" class="collapse-content error-list">
+                            <ul>${result.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>
+                        </div>
+                    `;
+                }
+
+                if (hasInfo) {
+                    const infoId = `info_${check.id}`;
+                    html += `
+                        <div class="collapsible" onclick="toggleCollapse('${infoId}')">
+                             Информация (${result.info.length}) - нажмите для раскрытия
+                        </div>
+                        <div id="${infoId}" class="collapse-content error-list">
+                            <ul>${result.info.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>
+                        </div>
+                    `;
+                }
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            reportDiv.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Toggle collapse
+        window.toggleCollapse = function(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('show');
+        };
+
+        // ============================================================
+        // FILE LOADING
+        // ============================================================
+
+        async function loadAndValidate(arrayBuffer) {
+            try {
+                statusDiv.textContent = 'Анализ файла...';
+                statusDiv.className = 'status loading';
+
+                const workbook = loadWorkbook(arrayBuffer);
+                const validation = runValidation(workbook);
+
+                if (validation.totalFailed === 0) {
+                    statusDiv.textContent = ` Все проверки пройдены успешно!`;
+                    statusDiv.className = 'status success';
+                } else {
+                    statusDiv.textContent = ` Обнаружены проблемы: ${validation.totalFailed} ошибок`;
+                    statusDiv.className = 'status error';
+                }
+
+                renderReport(validation);
+            } catch (e) {
+                statusDiv.textContent = ` Ошибка чтения файла: ${e.message}`;
+                statusDiv.className = 'status error';
+                reportDiv.innerHTML = '';
+            }
+        }
+
+        async function loadFromUrl(url) {
+            statusDiv.textContent = ' Загрузка файла...';
+            statusDiv.className = 'status loading';
+            reportDiv.innerHTML = '';
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const arrayBuffer = await response.arrayBuffer();
+                await loadAndValidate(arrayBuffer);
+            } catch (e) {
+                statusDiv.textContent = ` Ошибка загрузки: ${e.message}`;
+                statusDiv.className = 'status error';
+                reportDiv.innerHTML = `<p>Попробуйте выбрать файл вручную или открыть страницу через веб-сервер.</p>`;
+            }
+        }
+
+        // Event handlers
+        loadBtn.addEventListener('click', () => loadFromUrl('tree.xlsx'));
+
+        selectFileBtn.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            statusDiv.textContent = ' Чтение файла...';
+            statusDiv.className = 'status loading';
+
+            const reader = new FileReader();
+            reader.onload = async ev => await loadAndValidate(ev.target.result);
+            reader.onerror = () => {
+                statusDiv.textContent = ' Ошибка чтения файла';
+                statusDiv.className = 'status error';
+            };
+            reader.readAsArrayBuffer(file);
+            fileInput.value = '';
+        });
+
+        // Auto-load if on HTTP
+        if (window.location.protocol !== 'file:') {
+            setTimeout(() => loadBtn.click(), 500);
+        }
+
+    })();
+    </script>
+</body>
+</html>
