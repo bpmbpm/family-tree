@@ -7,6 +7,7 @@
 
 ### run desktop
 - скачать файлы, например, архивом по кнопке zip (вначале запустить run github). Распоковать и запустить index.html   
+"Ошибка загрузки: Failed to fetch" - не обращать внимание и нажать "Выбрать файл" и указать tree.xlsx
 - для теста папок с фото использовать service_foto_desktop.html (не service_foto_github_v2.html)
 
 ### info
