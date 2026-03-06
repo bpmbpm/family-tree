@@ -1,7 +1,8 @@
 ### Верcия 3
-Добавлен treeview
+Добавлен treeview  
+Один код для двух режимов: github pages (иной статический web - server) и локальный (desktop)
 ### run
-- https://bpmbpm.github.io/family-tree/ver3/index.html
+- github pages https://bpmbpm.github.io/family-tree/ver3/index.html  
 
 ### info
 - Взаимосвязь полей Excel и папок проекта (v1) https://github.com/bpmbpm/family-tree/blob/main/design/relationship_between_fields_and_folders_v1.md
