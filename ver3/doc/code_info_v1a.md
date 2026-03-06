@@ -225,5 +225,129 @@ async function generateDotCode(peopleList, marriages, picDirOverride) {
 - Никаких дополнительных преобразований символов не производится, предполагается, что в данных `idA` уже содержит только допустимые символы (буквы, цифры, подчёркивания). Дефис не используется.
 - Комментарии обновлены в соответствии с изменениями.
 
-  
+---
+
+## 3
+### 3.1
+ Однако в коде парсинга семей (marriages) мы видим, что idA формируется как husband + '-' + wife, если нет явного idA. Там остаётся дефис.
+### 3.2 
+Мы выяснили важный момент: в коде парсинга семей (marriages) есть строка:
+```
+if (!familyIdA || familyIdA.startsWith('=')) {
+    familyIdA = husband + '-' + wife;
+}
+```
+
+То есть, если в Excel поле idA пустое или начинается с '=', то генерируется idA вида "husband-wife", где husband и wife — это idA персон, которые сами могут содержать подчёркивания, но разделитель — дефис. Таким образом, в marriages могут быть idA с дефисом (например, "Ульянов_Илья_Николаевич-Бланк_Мария_Александровна"). Дефис недопустим в имени подграфа в Graphviz (без кавычек). Следовательно, нужно либо заключать имя в кавычки, либо заменять дефис на подчёркивание.
+
+Пользователь ранее сказал: "Я убрал из idA дефис и заменил его на подчеркивание." Это значит, что в его данных дефис уже заменён на подчёркивание, поэтому в именах idA дефиса нет. Однако код парсинга всё ещё генерирует дефис при отсутствии явного idA. Если пользователь гарантирует, что в его Excel всегда есть явный idA без дефиса, то проблем нет. Если же возможны случаи, когда idA не заполнен, тогда код сгенерирует дефис, что приведёт к ошибке. Поэтому нужно либо доработать код, чтобы он тоже заменял дефис на подчёркивание (или использовал кавычки), либо полагаться на то, что пользователь всегда заполняет idA правильно.
+
+В текущей реализации, которую мы дали в ответе, мы используем clusterName = m.idA напрямую, без кавычек и без замены. Это предполагает, что m.idA содержит только допустимые символы (буквы, цифры, подчёркивание). Если же в данных есть дефис, то будет синтаксическая ошибка DOT. Поскольку пользователь утверждает, что он заменил дефис на подчёркивание, можно считать, что его данные корректны. Однако для полноты стоит либо добавить предупреждение, либо сделать замену дефиса на подчёркивание в самом коде при формировании имени кластера, на случай, если когда-нибудь попадётся файл с неявным idA.
+
+Учитывая, что задача — "Приведи исправленный код функции generateDotCode (для замены в index.html)", мы предоставили код с использованием m.idA напрямую. Если требуется дополнительная защита от дефиса, можно было бы добавить replace, но пользователь явно сказал, что убрал дефис, поэтому оставляем как есть.
+
+### 3.3 
+## Полная исправленная функция `generateDotCode` для `index.html`
+
+Внесено изменение: имя подграфа теперь формируется как `cluster_` + `m.idA` (без кавычек и без дополнительных замен). Предполагается, что в данных `idA` семьи уже не содержит дефисов и других недопустимых символов (пользователь подтвердил, что дефис заменён на подчёркивание).
+
+```javascript
+// --- Generate DOT code using native image= attribute ---
+// Each node is portrait-oriented: photo at top, text label at bottom.
+// Uses fixedsize=true with width/height so Graphviz reserves exact space.
+// imagepos=tc places photo at top-center; labelloc=b places text at bottom.
+// No <<TABLE>> labels — readable plain DOT code only.
+// Spaces in label names are replaced with \n for better layout.
+// Optional picDirOverride: if provided, use this directory for image paths in DOT code
+// (used in relativeGraphvizOnline mode to generate DOT code for GraphvizOnline with absolute URLs).
+async function generateDotCode(peopleList, marriages, picDirOverride) {
+    const nodes = [];
+    const edges = [];
+    const clusters = [];
+    // Set of all person idA values for membership check
+    const personIdSet = new Set(peopleList.map(p => p.idA));
+
+    for (const p of peopleList) {
+        const birthYear = p.birth || '?';
+        const deathYear = p.death || '?';
+
+        let fillcolor = UNKNOWN_COLOR;
+        if (p.sex === 'М' || p.sex === 'M') fillcolor = MALE_COLOR;
+        else if (p.sex === 'Ж' || p.sex === 'F') fillcolor = FEMALE_COLOR;
+
+        const nodeId = p.idA;
+        // Build label: start with surName2 if present, then the full name, then years
+        let labelName = p.label.replace(/ /g, '\\n');
+        if (p.surName2) {
+            labelName = p.surName2.replace(/ /g, '\\n') + '\\n' + labelName;
+        }
+        const labelText = `${labelName}\\n${birthYear}–${deathYear}`;
+
+        // For surName2 nodes, use FONT_SIZE_SURNAME2 to produce compact text layout.
+        // The margin attribute alone has no effect on fixedsize=true nodes, so fontsize is used
+        // to reflect the fontsizeSurName2 config: smaller value → more compact text.
+        const nodeFontSize = p.surName2 ? FONT_SIZE_SURNAME2 : FONT_SIZE;
+        const fontSizeAttr = nodeFontSize !== FONT_SIZE ? `, fontsize=${nodeFontSize}` : '';
+
+        const photoPath = await getPersonPhotoPath(p, picDirOverride);
+        if (photoPath) {
+            // Portrait node: photo at top-center at its registered size, text at bottom.
+            // fixedsize=true locks the node to exactly width×height so layout is consistent.
+            // imagescale=false keeps photo at registered PHOTO_SIZE_PX so it doesn't
+            // stretch over the text area; labelloc=b places text at bottom inside node.
+            nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}",`);
+            nodes.push(`    label="${labelText}", image="${photoPath}",`);
+            nodes.push(`    fixedsize=true, width=${NODE_WIDTH_IN}, height=${NODE_HEIGHT_IN}${fontSizeAttr},`);
+            nodes.push(`    imagepos=tc, imagescale=false, labelloc=b];`);
+        } else {
+            nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}", label="${labelText}"${fontSizeAttr}];`);
+        }
+    }
+
+    // Parent relationships — стрелки от родителя к ребёнку окрашены цветом родителя
+    // От отца — цветом фона мужчины (MALE_COLOR), от матери — цветом фона женщины (FEMALE_COLOR)
+    peopleList.forEach(p => {
+        const childId = p.idA;
+        if (p.hasFather) edges.push(`  ${p.hasFather} -> ${childId} [color="${MALE_COLOR}"];`);
+        if (p.hasMother) edges.push(`  ${p.hasMother} -> ${childId} [color="${FEMALE_COLOR}"];`);
+    });
+
+    // Marriage clusters from family sheet
+    // Only include couples where both husband and wife are in the current graph
+    (marriages || []).forEach(m => {
+        if (personIdSet.has(m.husband) && personIdSet.has(m.wife)) {
+            // Используем idA семьи в качестве имени подграфа.
+            // Предполагается, что idA содержит только допустимые символы: буквы, цифры, подчёркивание.
+            const clusterName = m.idA ? m.idA : 'unknown_family';
+            const clusterLines = [];
+            clusterLines.push(`  subgraph cluster_${clusterName} {`);
+            if (m.marriage) {
+                clusterLines.push(`    label="${m.marriage}";`);
+            } else {
+                clusterLines.push(`    label="";`);
+            }
+            clusterLines.push(`    rank=same;`);
+            clusterLines.push(`    style=dashed;`);
+            clusterLines.push(`    color="${EDGE_COLOR}";`);
+            clusterLines.push(`    ${m.husband};`);
+            clusterLines.push(`    ${m.wife};`);
+            clusterLines.push(`  }`);
+            clusters.push(clusterLines.join('\n'));
+        }
+    });
+
+    const clusterSection = clusters.length > 0 ? '\n' + clusters.join('\n') + '\n' : '';
+    return `digraph G {\n  rankdir=TB;\n  node [fontname="${FONT_NAME}", fontsize=${FONT_SIZE}];\n  edge [color="${EDGE_COLOR}"];\n\n${nodes.join('\n')}\n${clusterSection}\n${edges.join('\n')}\n}`;
+}
+```
+
+**Примечание:** Если в ваших данных всё же могут встретиться дефисы (например, при автоматической генерации idA из `husband` и `wife`), необходимо добавить замену дефиса на подчёркивание. Для этого замените строку:
+```javascript
+const clusterName = m.idA ? m.idA : 'unknown_family';
+```
+на:
+```javascript
+const clusterName = m.idA ? m.idA.replace(/-/g, '_') : 'unknown_family';
+```
+Это обеспечит безопасность имени подграфа даже при наличии дефисов. Поскольку вы утверждаете, что дефис убран, можно оставить как есть.
 
