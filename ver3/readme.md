@@ -16,15 +16,17 @@
 - Пример автозаполнения родословной известных персон https://github.com/bpmbpm/family-tree/issues/74
 ### service
 #### 1 service_foto_folder
-- https://bpmbpm.github.io/family-tree/ver3/service_foto_github_v2.html решение см. https://github.com/bpmbpm/family-tree/pull/63
+- .io: https://bpmbpm.github.io/family-tree/ver3/service_foto_github_v2.html решение см. https://github.com/bpmbpm/family-tree/pull/63
   - old https://bpmbpm.github.io/family-tree/ver2/service_foto_github.html
 - https://bpmbpm.github.io/family-tree/ver3/service_foto_desktop.html 
 
 #### 2 service_minifoto_edit
 - https://github.com/bpmbpm/family-tree/tree/main/services/minifoto см. https://github.com/bpmbpm/family-tree/pull/65
+- .io: https://bpmbpm.github.io/family-tree/services/minifoto
 
 #### 3 test tree
 - https://github.com/bpmbpm/family-tree/blob/main/ver3/test_tree_v1.html см. https://github.com/bpmbpm/family-tree/issues/82
+- .io: https://bpmbpm.github.io/family-tree/ver3/test_tree_v1.html
 ### related projects
 - https://github.com/bpmbpm/rdf-grapher/tree/main/ver9d https://bpmbpm.github.io/rdf-grapher/ver9d/
 - https://github.com/bpmbpm/graphviz-online/tree/main/ver1
