@@ -1,9 +1,12 @@
-// save.js — функции экспорта диаграммы в PDF и создания ZIP-архива для desktop.
+// save.js — функции экспорта диаграммы в PDF, SVG, Drawio и создания ZIP-архива для desktop.
 // Подключается через <script src="save.js"> в index.html.
 //
 // Экспортируемые функции (доступны глобально):
-//   exportToPdf()   — выгружает диаграмму в PDF файл
-//   downloadZip()   — создаёт ZIP-архив с файлами для развёртывания на desktop
+//   exportToPdf()      — выгружает диаграмму в PDF файл
+//   exportToSvg()      — выгружает диаграмму в SVG файл
+//   exportToDrawio()   — выгружает диаграмму в Drawio (XML) файл
+//   openDrawioOnline() — открывает диаграмму в diagrams.net онлайн
+//   downloadZip()      — создаёт ZIP-архив с файлами для развёртывания на desktop
 
 (function () {
 
@@ -215,6 +218,236 @@
             if (statusDiv) statusDiv.textContent = '❌ Ошибка скачивания';
         }
     }
+
+    // =====================================================================
+    // Экспорт в SVG
+    // =====================================================================
+
+    // --- Экспорт диаграммы в SVG ---
+    // Сохраняет SVG диаграмму в файл. Все изображения встраиваются как base64 для автономности.
+    window.exportToSvg = async function () {
+        var svgEl = document.querySelector('#graphvizContainer svg');
+        if (!svgEl) {
+            alert('Диаграмма не загружена');
+            return;
+        }
+
+        // Показать статус
+        var statusDiv = document.getElementById('status');
+        if (statusDiv) {
+            statusDiv.textContent = '⏳ Генерация SVG...';
+            statusDiv.style.backgroundColor = '#fff8e5';
+        }
+
+        try {
+            // Клонируем SVG чтобы не модифицировать оригинал
+            var svgClone = svgEl.cloneNode(true);
+
+            // Встраиваем все изображения как base64
+            if (statusDiv) statusDiv.textContent = '⏳ Загрузка изображений...';
+            await embedImagesInSvg(svgClone);
+
+            // Добавляем XML namespace если отсутствует
+            if (!svgClone.getAttribute('xmlns')) {
+                svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            }
+            if (!svgClone.getAttribute('xmlns:xlink')) {
+                svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+            }
+
+            // Сериализуем SVG в строку
+            var serializer = new XMLSerializer();
+            var svgString = serializer.serializeToString(svgClone);
+
+            // Добавляем XML декларацию
+            svgString = '<?xml version="1.0" encoding="UTF-8"?>\n' + svgString;
+
+            // Создаём Blob и скачиваем
+            var blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'family-tree.svg';
+            link.click();
+            URL.revokeObjectURL(link.href);
+
+            if (statusDiv) statusDiv.textContent = '✅ SVG скачан';
+
+        } catch (e) {
+            console.error('Ошибка экспорта в SVG:', e);
+            alert('Ошибка экспорта: ' + e.message);
+            if (statusDiv) statusDiv.textContent = '❌ Ошибка генерации SVG';
+        }
+    };
+
+    // =====================================================================
+    // Экспорт в Drawio (XML)
+    // =====================================================================
+
+    // --- Генерация Drawio XML из SVG ---
+    // Преобразует SVG в формат mxGraphModel, используемый draw.io/diagrams.net
+    function svgToDrawioXml(svgEl) {
+        // Получаем размеры SVG
+        var svgRect = svgEl.getBoundingClientRect();
+        var width = parseFloat(svgEl.getAttribute('width')) || svgRect.width || 800;
+        var height = parseFloat(svgEl.getAttribute('height')) || svgRect.height || 600;
+
+        // Сериализуем SVG в строку
+        var serializer = new XMLSerializer();
+        var svgString = serializer.serializeToString(svgEl);
+
+        // Экранируем SVG для вставки в XML
+        var escapedSvg = svgString
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+
+        // Создаём Drawio XML структуру
+        // Используем foreignObject для встраивания SVG целиком
+        var drawioXml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+            '<mxfile host="app.diagrams.net" modified="' + new Date().toISOString() + '" agent="Family Tree Export" version="1.0">\n' +
+            '  <diagram name="Family Tree" id="family-tree">\n' +
+            '    <mxGraphModel dx="0" dy="0" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="' + Math.ceil(width) + '" pageHeight="' + Math.ceil(height) + '">\n' +
+            '      <root>\n' +
+            '        <mxCell id="0"/>\n' +
+            '        <mxCell id="1" parent="0"/>\n' +
+            '        <mxCell id="2" value="" style="shape=image;verticalLabelPosition=bottom;verticalAlign=top;imageAspect=0;image=data:image/svg+xml,' + encodeURIComponent(svgString) + ';" vertex="1" parent="1">\n' +
+            '          <mxGeometry x="0" y="0" width="' + Math.ceil(width) + '" height="' + Math.ceil(height) + '" as="geometry"/>\n' +
+            '        </mxCell>\n' +
+            '      </root>\n' +
+            '    </mxGraphModel>\n' +
+            '  </diagram>\n' +
+            '</mxfile>';
+
+        return drawioXml;
+    }
+
+    // --- Экспорт диаграммы в Drawio (XML) ---
+    // Сохраняет диаграмму в формате .drawio (XML) для редактирования в diagrams.net
+    window.exportToDrawio = async function () {
+        var svgEl = document.querySelector('#graphvizContainer svg');
+        if (!svgEl) {
+            alert('Диаграмма не загружена');
+            return;
+        }
+
+        // Показать статус
+        var statusDiv = document.getElementById('status');
+        if (statusDiv) {
+            statusDiv.textContent = '⏳ Генерация Drawio...';
+            statusDiv.style.backgroundColor = '#fff8e5';
+        }
+
+        try {
+            // Клонируем SVG чтобы не модифицировать оригинал
+            var svgClone = svgEl.cloneNode(true);
+
+            // Встраиваем все изображения как base64
+            if (statusDiv) statusDiv.textContent = '⏳ Загрузка изображений...';
+            await embedImagesInSvg(svgClone);
+
+            // Добавляем XML namespace если отсутствует
+            if (!svgClone.getAttribute('xmlns')) {
+                svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            }
+            if (!svgClone.getAttribute('xmlns:xlink')) {
+                svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+            }
+
+            // Генерируем Drawio XML
+            var drawioXml = svgToDrawioXml(svgClone);
+
+            // Создаём Blob и скачиваем
+            var blob = new Blob([drawioXml], { type: 'application/xml;charset=utf-8' });
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'family-tree.drawio';
+            link.click();
+            URL.revokeObjectURL(link.href);
+
+            if (statusDiv) statusDiv.textContent = '✅ Drawio скачан';
+
+        } catch (e) {
+            console.error('Ошибка экспорта в Drawio:', e);
+            alert('Ошибка экспорта: ' + e.message);
+            if (statusDiv) statusDiv.textContent = '❌ Ошибка генерации Drawio';
+        }
+    };
+
+    // =====================================================================
+    // Открытие в Drawio Online
+    // =====================================================================
+
+    // --- Открыть диаграмму в diagrams.net онлайн ---
+    // Открывает SVG в новом окне diagrams.net для редактирования
+    window.openDrawioOnline = async function () {
+        var svgEl = document.querySelector('#graphvizContainer svg');
+        if (!svgEl) {
+            alert('Диаграмма не загружена');
+            return;
+        }
+
+        // Показать статус
+        var statusDiv = document.getElementById('status');
+        if (statusDiv) {
+            statusDiv.textContent = '⏳ Подготовка Drawio Online...';
+            statusDiv.style.backgroundColor = '#fff8e5';
+        }
+
+        try {
+            // Клонируем SVG чтобы не модифицировать оригинал
+            var svgClone = svgEl.cloneNode(true);
+
+            // Встраиваем все изображения как base64
+            if (statusDiv) statusDiv.textContent = '⏳ Загрузка изображений...';
+            await embedImagesInSvg(svgClone);
+
+            // Добавляем XML namespace если отсутствует
+            if (!svgClone.getAttribute('xmlns')) {
+                svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            }
+            if (!svgClone.getAttribute('xmlns:xlink')) {
+                svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+            }
+
+            // Генерируем Drawio XML
+            var drawioXml = svgToDrawioXml(svgClone);
+
+            // Кодируем XML для передачи через URL
+            // diagrams.net поддерживает передачу данных через параметр create с JSON
+            var encodedData = encodeURIComponent(drawioXml);
+
+            // Открываем diagrams.net с данными
+            // Используем метод с localStorage для обхода ограничений на длину URL
+            var drawioUrl = 'https://app.diagrams.net/';
+
+            // Создаём скрытую форму для отправки данных через POST
+            // Альтернативно: используем Blob URL
+            // diagrams.net не поддерживает прямую передачу больших данных через URL,
+            // поэтому создаём Blob URL и открываем редактор
+
+            // Вариант 1: Если данные небольшие, используем URL hash
+            if (encodedData.length < 32000) {
+                // Используем специальный формат: #R + base64 encoded data
+                var base64Data = btoa(unescape(encodeURIComponent(drawioXml)));
+                window.open(drawioUrl + '?create={"type":"xml","data":"' + encodeURIComponent(base64Data) + '"}', '_blank');
+            } else {
+                // Вариант 2: Для больших данных — сначала скачиваем файл,
+                // затем пользователь может импортировать его вручную
+                alert('Диаграмма слишком большая для прямого открытия.\nФайл .drawio будет скачан. Откройте его в diagrams.net.');
+                window.exportToDrawio();
+                return;
+            }
+
+            if (statusDiv) statusDiv.textContent = '✅ Drawio Online открыт';
+
+        } catch (e) {
+            console.error('Ошибка открытия Drawio Online:', e);
+            alert('Ошибка: ' + e.message);
+            if (statusDiv) statusDiv.textContent = '❌ Ошибка открытия Drawio Online';
+        }
+    };
 
     // =====================================================================
     // Создание ZIP-архива
