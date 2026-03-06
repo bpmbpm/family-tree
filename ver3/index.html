@@ -1849,6 +1849,16 @@
                 fotoGroupRows = parsedData.fotoGroupRows || [];
                 fotoLocationRows = parsedData.fotoLocationRows || [];
                 eventRows = parsedData.eventRows || [];
+
+                // Экспортируем данные для save.js (ZIP архив)
+                window.SAVE_DATA = {
+                    fotoFamilyRows: fotoFamilyRows,
+                    fotoPersonRows: fotoPersonRows,
+                    fotoGroupRows: fotoGroupRows,
+                    fotoLocationRows: fotoLocationRows,
+                    photoFilenames: []  // будет заполнено после preloadPhotoChecks
+                };
+
                 // Строим карту переводов: ключ = "object.name", значение = {name, ru, en}
                 langMap = {};
                 const langRowsData = parsedData.languageRows || [];
@@ -1858,6 +1868,17 @@
                 }
                 showStatus('⏳ Проверка наличия фото...');
                 await preloadPhotoChecks(people);
+
+                // Обновляем SAVE_DATA с найденными фото
+                if (window.SAVE_DATA) {
+                    window.SAVE_DATA.photoFilenames = [];
+                    for (var fn in photoExistsCache) {
+                        if (photoExistsCache[fn]) {
+                            window.SAVE_DATA.photoFilenames.push(fn);
+                        }
+                    }
+                }
+
                 showStatus('⏳ Генерация DOT кода...');
                 // Generate local DOT code (always uses relative pic dir for rendering)
                 dotCode = await generateDotCode(people, marriagesArray);

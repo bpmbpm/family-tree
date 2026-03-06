@@ -227,7 +227,9 @@
     //   - config.js (если существует)
     //   - foto.js, treeview.js, phototree.js, save.js
     //   - tree.xlsx
+    //   - service_foto_desktop.html
     //   - папка pic/ с фотографиями
+    //   - папки foto_family/, foto_person/, foto_group/, foto_location/ с фотографиями
     window.downloadZip = async function () {
         var statusDiv = document.getElementById('status');
         if (statusDiv) {
@@ -243,8 +245,8 @@
 
             var zip = new JSZip();
 
-            // Список файлов для включения в архив
-            var files = [
+            // Список текстовых файлов для включения в архив
+            var textFiles = [
                 'index.html',
                 'styles.css',
                 'config.js',
@@ -252,14 +254,20 @@
                 'treeview.js',
                 'phototree.js',
                 'save.js',
+                'service_foto_desktop.html',
+                'test_tree_v1.html'
+            ];
+
+            // Список бинарных файлов
+            var binaryFiles = [
                 'tree.xlsx'
             ];
 
-            // Добавляем основные файлы
-            for (var i = 0; i < files.length; i++) {
-                var filename = files[i];
+            // Добавляем текстовые файлы
+            for (var i = 0; i < textFiles.length; i++) {
+                var filename = textFiles[i];
                 try {
-                    var content = await fetchFileContent(filename);
+                    var content = await fetchFileContent(filename, false);
                     if (content !== null) {
                         zip.file(filename, content);
                     }
@@ -268,8 +276,22 @@
                 }
             }
 
+            // Добавляем бинарные файлы (xlsx)
+            for (var b = 0; b < binaryFiles.length; b++) {
+                var binaryFilename = binaryFiles[b];
+                try {
+                    var binaryContent = await fetchFileContent(binaryFilename, true);
+                    if (binaryContent !== null) {
+                        zip.file(binaryFilename, binaryContent);
+                    }
+                } catch (e) {
+                    console.warn('Не удалось загрузить бинарный файл:', binaryFilename, e);
+                }
+            }
+
+            if (statusDiv) statusDiv.textContent = '⏳ Загрузка фотографий...';
+
             // Добавляем папку pic/ с фотографиями
-            // Пытаемся найти фотографии через кэш или список из DOM
             var picDir = getPicDir();
             var photoFilenames = getPhotoFilenames();
             if (photoFilenames.length > 0) {
@@ -287,6 +309,7 @@
             }
 
             // Добавляем папки с фото других типов
+            // Используем глобальный объект window.SAVE_DATA для получения списка фото
             var fotoDirs = ['foto_family', 'foto_person', 'foto_group', 'foto_location'];
             for (var d = 0; d < fotoDirs.length; d++) {
                 var dir = fotoDirs[d];
@@ -302,6 +325,8 @@
                     }
                 }
             }
+
+            if (statusDiv) statusDiv.textContent = '⏳ Генерация архива...';
 
             // Генерируем ZIP и скачиваем
             var blob = await zip.generateAsync({ type: 'blob' });
@@ -366,6 +391,11 @@
     function getPhotoFilenames() {
         var filenames = [];
 
+        // Попробовать получить из глобального объекта SAVE_DATA
+        if (typeof window.SAVE_DATA !== 'undefined' && window.SAVE_DATA.photoFilenames) {
+            return window.SAVE_DATA.photoFilenames.slice();
+        }
+
         // Попробовать получить из photoExistsCache (если доступен)
         if (typeof photoExistsCache !== 'undefined') {
             for (var key in photoExistsCache) {
@@ -387,6 +417,21 @@
             });
         }
 
+        // Также попробовать получить из SVG диаграммы
+        if (filenames.length === 0) {
+            var svgImages = document.querySelectorAll('#graphvizContainer svg image');
+            svgImages.forEach(function (img) {
+                var href = img.getAttribute('href') || img.getAttribute('xlink:href');
+                if (href && !href.startsWith('data:') && !href.startsWith('http')) {
+                    var parts = href.split('/');
+                    var name = parts[parts.length - 1];
+                    if (filenames.indexOf(name) === -1) {
+                        filenames.push(name);
+                    }
+                }
+            });
+        }
+
         // Добавить дефолтные фото
         if (filenames.indexOf('dafaultm.png') === -1) filenames.push('dafaultm.png');
         if (filenames.indexOf('dafaultf.png') === -1) filenames.push('dafaultf.png');
@@ -395,20 +440,35 @@
     }
 
     // --- Получить список файлов фото из определённой папки ---
-    // Пытаемся получить из глобальных массивов fotoPersonRows, fotoFamilyRows и т.д.
+    // Использует глобальный объект window.SAVE_DATA для получения данных из index.html
     function getFotoFilenames(dirName) {
         var filenames = [];
         var rows = null;
 
-        // Определяем какой массив использовать
-        if (dirName === 'foto_person' && typeof fotoPersonRows !== 'undefined') {
-            rows = fotoPersonRows;
-        } else if (dirName === 'foto_family' && typeof fotoFamilyRows !== 'undefined') {
-            rows = fotoFamilyRows;
-        } else if (dirName === 'foto_group' && typeof fotoGroupRows !== 'undefined') {
-            rows = fotoGroupRows;
-        } else if (dirName === 'foto_location' && typeof fotoLocationRows !== 'undefined') {
-            rows = fotoLocationRows;
+        // Сначала пробуем получить из глобального объекта SAVE_DATA
+        if (typeof window.SAVE_DATA !== 'undefined') {
+            if (dirName === 'foto_person' && window.SAVE_DATA.fotoPersonRows) {
+                rows = window.SAVE_DATA.fotoPersonRows;
+            } else if (dirName === 'foto_family' && window.SAVE_DATA.fotoFamilyRows) {
+                rows = window.SAVE_DATA.fotoFamilyRows;
+            } else if (dirName === 'foto_group' && window.SAVE_DATA.fotoGroupRows) {
+                rows = window.SAVE_DATA.fotoGroupRows;
+            } else if (dirName === 'foto_location' && window.SAVE_DATA.fotoLocationRows) {
+                rows = window.SAVE_DATA.fotoLocationRows;
+            }
+        }
+
+        // Если SAVE_DATA недоступен, пробуем получить из глобальных переменных (для обратной совместимости)
+        if (!rows) {
+            if (dirName === 'foto_person' && typeof fotoPersonRows !== 'undefined') {
+                rows = fotoPersonRows;
+            } else if (dirName === 'foto_family' && typeof fotoFamilyRows !== 'undefined') {
+                rows = fotoFamilyRows;
+            } else if (dirName === 'foto_group' && typeof fotoGroupRows !== 'undefined') {
+                rows = fotoGroupRows;
+            } else if (dirName === 'foto_location' && typeof fotoLocationRows !== 'undefined') {
+                rows = fotoLocationRows;
+            }
         }
 
         if (rows && Array.isArray(rows)) {
