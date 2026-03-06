@@ -1,22 +1,30 @@
 ### Верcия 3
 Добавлен treeview  
 Один код для двух режимов: github pages (иной статический web - server) и локальный (desktop)
-### run
+### run github
 - github pages https://bpmbpm.github.io/family-tree/ver3/index.html   
 при мобильном интернете могут быть сложности (нажимать кнопку обновить, если не прочтется .xlsx).
+
+### run desktop
+- скачать файлы, например, архивом по кнопке zip (вначале запустить run github). Распоковать и запустить index.html   
+- для теста папок с фото использовать service_foto_desktop.html (не service_foto_github_v2.html)
+
 ### info
+- Инструкция пользователя https://github.com/bpmbpm/family-tree/blob/main/ver3/doc/user_manual_v1.md
 - Взаимосвязь полей Excel и папок проекта (v1) https://github.com/bpmbpm/family-tree/blob/main/design/relationship_between_fields_and_folders_v1.md
 - Предлагаемые новые функции (v1) https://github.com/bpmbpm/family-tree/blob/main/design/prototype/new_v1.md
 
 ### service
-#### service_foto_folder
+#### 1 service_foto_folder
 - https://bpmbpm.github.io/family-tree/ver3/service_foto_github_v2.html решение см. https://github.com/bpmbpm/family-tree/pull/63
   - old https://bpmbpm.github.io/family-tree/ver2/service_foto_github.html
 - https://bpmbpm.github.io/family-tree/ver3/service_foto_desktop.html 
 
-#### service_minifoto_edit
-https://github.com/bpmbpm/family-tree/tree/main/services/minifoto см. https://github.com/bpmbpm/family-tree/pull/65
+#### 2 service_minifoto_edit
+- https://github.com/bpmbpm/family-tree/tree/main/services/minifoto см. https://github.com/bpmbpm/family-tree/pull/65
 
+#### 3 test tree
+- https://github.com/bpmbpm/family-tree/blob/main/ver3/test_tree_v1.html
 ### related projects
 - https://github.com/bpmbpm/rdf-grapher/tree/main/ver9d https://bpmbpm.github.io/rdf-grapher/ver9d/
 - https://github.com/bpmbpm/graphviz-online/tree/main/ver1
