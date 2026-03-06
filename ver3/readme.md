@@ -24,7 +24,7 @@
 - https://github.com/bpmbpm/family-tree/tree/main/services/minifoto см. https://github.com/bpmbpm/family-tree/pull/65
 
 #### 3 test tree
-- https://github.com/bpmbpm/family-tree/blob/main/ver3/test_tree_v1.html
+- https://github.com/bpmbpm/family-tree/blob/main/ver3/test_tree_v1.html см. https://github.com/bpmbpm/family-tree/issues/82
 ### related projects
 - https://github.com/bpmbpm/rdf-grapher/tree/main/ver9d https://bpmbpm.github.io/rdf-grapher/ver9d/
 - https://github.com/bpmbpm/graphviz-online/tree/main/ver1
