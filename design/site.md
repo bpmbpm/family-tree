@@ -27,4 +27,4 @@
 - https://habr.com/ru/companies/skbkontur/articles/902748/#comment_29629842
 - https://habr.com/ru/articles/938464/
 - https://habr.com/ru/companies/ruvds/articles/716404/
-- https://habr.com/ru/articles/532894/ Модель данных
+- https://habr.com/ru/articles/532894/ Модель данных https://yulianovozhilova.ru/genealogya/
