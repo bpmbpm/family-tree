@@ -22,8 +22,7 @@
 
 #### 2 service_minifoto_edit
 - https://github.com/bpmbpm/family-tree/tree/main/services/minifoto см. https://github.com/bpmbpm/family-tree/pull/65
-- .io: https://bpmbpm.github.io/family-tree/services/minifoto
-
+- .io: https://bpmbpm.github.io/family-tree/services/minifoto/minifoto_v1.html
 #### 3 test tree
 - https://github.com/bpmbpm/family-tree/blob/main/ver3/test_tree_v1.html см. https://github.com/bpmbpm/family-tree/issues/82
 - .io: https://bpmbpm.github.io/family-tree/ver3/test_tree_v1.html
