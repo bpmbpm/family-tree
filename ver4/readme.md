@@ -30,3 +30,7 @@
 ### related projects
 - https://github.com/bpmbpm/rdf-grapher/tree/main/ver9d https://bpmbpm.github.io/rdf-grapher/ver9d/
 - https://github.com/bpmbpm/graphviz-online/tree/main/ver1
+
+### problem
+из - за того, что в dot в имени кластера можно только буквы, цифры и дефис (тире нельзя), то в именах семей заменил разделитель с - на _   
+https://github.com/bpmbpm/family-tree/blob/main/ver3/doc/issue_doc_v1.md  
