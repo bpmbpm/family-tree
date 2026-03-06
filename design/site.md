@@ -12,7 +12,7 @@
 ## soft
 - https://forum.tonfotos.com/d/1168-versiya-1100-semeinoe-drevo
 - https://rodnaya-vyatka.ru/blog/137/99721
-
+- https://generatree.com/ru/
 ## search WW2 
 - https://pamyat-naroda.ru/
 - https://poiskovikimo.ru/kak-najti-rodstvennika-voevavshego-v-gody-velikoj-otechestvennoj-vojny-vov/
@@ -21,3 +21,9 @@
 - https://forum.vgd.ru/
 - https://t-j.ru/list/genealogy-uchastniki-vov/?utm_referrer=https%3A%2F%2Fwww.google.com%2F
 - https://podvignaroda.ru/?#tab=navHome
+
+## habr
+- https://habr.com/ru/articles/919508/#comment_29629838
+- https://habr.com/ru/companies/skbkontur/articles/902748/#comment_29629842
+- https://habr.com/ru/articles/938464/
+- https://habr.com/ru/companies/ruvds/articles/716404/
