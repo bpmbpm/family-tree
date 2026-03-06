@@ -237,7 +237,7 @@ flowchart TD
     EndMarriages --> Combine[Объединить nodes + clusters + edges в строку]
     Combine --> Return[Вернуть DOT-код]
 ```
-
+где-то скобки не те 
 ---
 
 ## 3. Исправление кода: задание имени кластера через idA листа family
