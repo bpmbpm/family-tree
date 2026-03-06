@@ -351,3 +351,5 @@ const clusterName = m.idA ? m.idA.replace(/-/g, '_') : 'unknown_family';
 ```
 Это обеспечит безопасность имени подграфа даже при наличии дефисов. Поскольку вы утверждаете, что дефис убран, можно оставить как есть.
 
+### 3.4 error 
+https://github.com/bpmbpm/family-tree/pull/91
