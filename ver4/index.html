@@ -26,58 +26,6 @@
         </div>
         <div id="status" class="status">⏳ Ожидание загрузки файла...</div>
 
-        <!-- Информационные панели -->
-        <div class="info-panels">
-            <div class="panel" id="panel-link">
-                <div class="panel-header" onclick="togglePanel('panel-link-content')">
-                    <span>🔗 Ссылка на GraphvizOnline</span>
-                    <span class="toggle-icon">▶</span>
-                </div>
-                <div class="panel-content" id="panel-link-content">
-                    <div class="link-box">
-                        <input type="text" id="graphvizLinkInput" readonly value="(сгенерируется после загрузки)" />
-                        <button onclick="copyLink()">📋 Копировать</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel" id="panel-placeholders">
-                <div class="panel-header" onclick="togglePanel('panel-placeholders-content')">
-                    <span>🖼️ Фото персон</span>
-                    <span class="toggle-icon">▶</span>
-                </div>
-                <div class="panel-content" id="panel-placeholders-content">
-                    <div class="photos-grid" id="photosGrid">
-                        <em style="color:#888">Загрузите Excel для отображения фото</em>
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel" id="panel-code">
-                <div class="panel-header" onclick="togglePanel('panel-code-content')">
-                    <span>📄 Код DOT</span>
-                    <span class="toggle-icon">▶</span>
-                </div>
-                <div class="panel-content" id="panel-code-content">
-                    <textarea id="dotCodePre" class="dot-code">(код появится после загрузки)</textarea>
-                    <div class="dot-code-find-replace">
-                        <input type="text" id="dotFindInput" placeholder="Найти..." class="dot-find-input">
-                        <input type="text" id="dotReplaceInput" placeholder="Заменить на..." class="dot-find-input">
-                        <div class="dot-find-buttons">
-                            <button onclick="dotFindFirst()">🔍 Найти</button>
-                            <button onclick="dotFindNext()">⏭ Далее</button>
-                            <button onclick="dotReplaceOne()">✏️ Заменить</button>
-                            <button onclick="dotReplaceAll()">🔁 Заменить все</button>
-                            <span id="dotFindStatus" class="dot-find-status"></span>
-                        </div>
-                    </div>
-                    <div class="dot-code-toolbar">
-                        <button onclick="refreshDiagramFromEditor()">🔄 Обновить</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Основной макет: дерево слева, диаграмма справа -->
         <div class="main-layout">
 
@@ -98,6 +46,8 @@
                     <!-- Кнопки переключения линии -->
                     <button class="tv-btn tv-btn-active" id="tv-btn-male" onclick="tvSetMode('male')" title="Мужская линия (hasFather)">♂</button>
                     <button class="tv-btn" id="tv-btn-female" onclick="tvSetMode('female')" title="Женская линия (hasMother)">♀</button>
+                    <!-- Кнопка «Фото персон» — открыть/скрыть галерею фото -->
+                    <button class="tv-btn" id="tv-btn-photos" onclick="togglePersonPhotos()" title="Фото персон">🖼️</button>
                 </div>
             </div>
             <!-- Строка поиска -->
@@ -107,6 +57,12 @@
                 <button class="tv-btn" id="tv-btn-find-start" onclick="tvFindStart()" title="Начать с начала" disabled>⏮</button>
                 <button class="tv-btn" id="tv-btn-find-next" onclick="tvFindNext()" title="Найти следующего" disabled>⏭</button>
                 <span class="tv-search-status" id="tv-search-status"></span>
+            </div>
+            <!-- Фото персон (скрыто по умолчанию, открывается кнопкой 🖼️) -->
+            <div id="panel-placeholders-content" class="tv-photos-section" style="display:none;">
+                <div class="photos-grid" id="photosGrid">
+                    <em style="color:#888">Загрузите Excel для отображения фото</em>
+                </div>
             </div>
             <!-- Содержимое дерева -->
             <div class="treeview-content" id="tv-content">
@@ -159,11 +115,39 @@
 
         </div><!-- /main-layout -->
 
+        <!-- Код DOT (в самом низу страницы) -->
+        <div class="panel" id="panel-code" style="margin-bottom: 20px;">
+            <div class="panel-header" onclick="togglePanel('panel-code-content')">
+                <span>📄 Код DOT</span>
+                <span class="toggle-icon">▶</span>
+            </div>
+            <div class="panel-content" id="panel-code-content">
+                <textarea id="dotCodePre" class="dot-code">(код появится после загрузки)</textarea>
+                <div class="dot-code-find-replace">
+                    <input type="text" id="dotFindInput" placeholder="Найти..." class="dot-find-input">
+                    <input type="text" id="dotReplaceInput" placeholder="Заменить на..." class="dot-find-input">
+                    <div class="dot-find-buttons">
+                        <button onclick="dotFindFirst()">🔍 Найти</button>
+                        <button onclick="dotFindNext()">⏭ Далее</button>
+                        <button onclick="dotReplaceOne()">✏️ Заменить</button>
+                        <button onclick="dotReplaceAll()">🔁 Заменить все</button>
+                        <span id="dotFindStatus" class="dot-find-status"></span>
+                    </div>
+                </div>
+                <div class="dot-code-toolbar">
+                    <button onclick="refreshDiagramFromEditor()">🔄 Обновить</button>
+                </div>
+            </div>
+        </div>
+
         <footer>Фото из папки <code>pic/</code> (idA.png). Узел: <code>image=</code>, <code>fixedsize=true</code>, <code>imagepos=tc</code>, <code>labelloc=b</code> — фото сверху, имя и годы снизу, без наложения. Для мужчин рамка синяя, для женщин — розовая.</footer>
     </div>
 
     <!-- Properties panels container (fixed positioning) -->
     <div id="properties-panels-container"></div>
+
+    <!-- Скрытый элемент для хранения ссылки GraphvizOnline (используется в JS) -->
+    <input type="hidden" id="graphvizLinkInput" value="">
 
     <script>
         (function() {
@@ -373,10 +357,31 @@
                 icon.textContent = content.classList.contains('visible') ? '▼' : '▶';
             };
 
+            window.togglePersonPhotos = function() {
+                const section = document.getElementById('panel-placeholders-content');
+                if (!section) return;
+                const btn = document.getElementById('tv-btn-photos');
+                const isVisible = section.style.display !== 'none';
+                section.style.display = isVisible ? 'none' : 'block';
+                if (btn) btn.classList.toggle('tv-btn-active', !isVisible);
+            };
+
             window.copyLink = function() {
-                graphvizLinkInput.select();
-                document.execCommand('copy');
-                alert('Ссылка скопирована!');
+                const linkVal = graphvizLinkInput ? graphvizLinkInput.value : graphvizLink;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(linkVal).then(function() {
+                        alert('Ссылка скопирована!');
+                    });
+                } else {
+                    // Fallback: временный textarea для копирования
+                    const tmp = document.createElement('textarea');
+                    tmp.value = linkVal;
+                    document.body.appendChild(tmp);
+                    tmp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(tmp);
+                    alert('Ссылка скопирована!');
+                }
             };
 
             // --- Zoom controls ---
@@ -1267,13 +1272,16 @@ async function generateDotCode(peopleList, marriages, picDirOverride) {
 
                 const escapedIdA = familyObj.idA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
                 const escapedIdAForOnclick = familyObj.idA.replace(/'/g, "\\'");
+                // Для отображения: заменяем двойное подчёркивание (__) на перенос строки,
+                // чтобы длинные idA семьи вида «ФИО1__ФИО2» не перекрывали кнопку закрытия.
+                const displayIdA = familyObj.idA.replace(/__/g, '<br>');
 
                 const panelHtml =
                     '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
                     '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
                     '<div class="properties-header-content">' +
                     '<div class="properties-header-title">Основные свойства family</div>' +
-                    '<h3>' + familyObj.idA + '</h3>' +
+                    '<h3>' + displayIdA + '</h3>' +
                     '<div class="properties-header-buttons">' +
                     '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
                     '<button class="foto-family-btn" onclick="event.stopPropagation(); openFamilyGallery(\'' + escapedIdAForOnclick + '\')">foto_family</button>' +
@@ -1666,18 +1674,17 @@ async function generateDotCode(peopleList, marriages, picDirOverride) {
                     clusterEl.addEventListener('click', function(event) {
                         event.stopPropagation();
 
-                        // Название кластера берём из <title> (например cluster_marriage_0)
+                        // Название кластера берём из <title> (например cluster_Иванов_Иван__Петрова_Мария)
                         const titleEl = clusterEl.querySelector('title');
                         if (!titleEl) return;
                         const clusterName = titleEl.textContent.trim();
 
-                        // Извлекаем индекс кластера из имени вида cluster_marriage_N
-                        const match = clusterName.match(/cluster_marriage_(\d+)/);
-                        if (!match) return;
-                        const clusterIdx = parseInt(match[1], 10);
-                        if (clusterIdx >= marriages.length) return;
+                        // Извлекаем idA семьи из имени кластера вида cluster_<idA>
+                        if (!clusterName.startsWith('cluster_')) return;
+                        const familyIdA = clusterName.slice('cluster_'.length);
+                        const familyObj = marriages.find(function(m) { return m.idA === familyIdA; });
+                        if (!familyObj) return;
 
-                        const familyObj = marriages[clusterIdx];
                         showFamilyProperties(familyObj);
                     });
                 });
