@@ -2,7 +2,7 @@
 Добавлен treeview
 Один код для двух режимов: github pages (иной статический web - server) и локальный (desktop)
 ### run github
-- github pages https://bpmbpm.github.io/family-tree/ver4/index.html
+- github pages https://bpmbpm.github.io/family-tree/ver4/index.html  
 при мобильном интернете могут быть сложности (нажимать кнопку обновить, если не прочтется .xlsx). Потом устраним
 
 ### run desktop
