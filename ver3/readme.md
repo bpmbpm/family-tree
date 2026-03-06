@@ -3,7 +3,7 @@
 Один код для двух режимов: github pages (иной статический web - server) и локальный (desktop)
 ### run
 - github pages https://bpmbpm.github.io/family-tree/ver3/index.html   
-при мобильном интеренете могут быть сложности (нажимать кнопку обновить, если не прочтется xmsl).
+при мобильном интернете могут быть сложности (нажимать кнопку обновить, если не прочтется .xlsx).
 ### info
 - Взаимосвязь полей Excel и папок проекта (v1) https://github.com/bpmbpm/family-tree/blob/main/design/relationship_between_fields_and_folders_v1.md
 - Предлагаемые новые функции (v1) https://github.com/bpmbpm/family-tree/blob/main/design/prototype/new_v1.md
