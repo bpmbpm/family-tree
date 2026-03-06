@@ -13,7 +13,7 @@
 - Инструкция пользователя https://github.com/bpmbpm/family-tree/blob/main/ver3/doc/user_manual_v1.md
 - Взаимосвязь полей Excel и папок проекта (v1) https://github.com/bpmbpm/family-tree/blob/main/design/relationship_between_fields_and_folders_v1.md
 - Предлагаемые новые функции (v1) https://github.com/bpmbpm/family-tree/blob/main/design/prototype/new_v1.md
-
+- Пример автозаполнения родословной известных персон https://github.com/bpmbpm/family-tree/issues/74
 ### service
 #### 1 service_foto_folder
 - https://bpmbpm.github.io/family-tree/ver3/service_foto_github_v2.html решение см. https://github.com/bpmbpm/family-tree/pull/63
