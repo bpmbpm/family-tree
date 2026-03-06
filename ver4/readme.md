@@ -11,7 +11,7 @@
 - для теста папок с фото использовать service_foto_desktop.html (не service_foto_github_v2.html)
 
 ### info
-- Инструкция пользователя https://github.com/bpmbpm/family-tree/blob/main/ver4/doc/user_manual_v1.md
+- Инструкция пользователя https://github.com/bpmbpm/family-tree/blob/main/ver3/doc/user_manual_v1.md
 - Взаимосвязь полей Excel и папок проекта (v1) https://github.com/bpmbpm/family-tree/blob/main/design/relationship_between_fields_and_folders_v1.md
 - Предлагаемые новые функции (v1) https://github.com/bpmbpm/family-tree/blob/main/design/prototype/new_v1.md
 - Пример автозаполнения родословной известных персон https://github.com/bpmbpm/family-tree/issues/74
