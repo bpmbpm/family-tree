@@ -33,4 +33,5 @@
 
 ### problem
 из - за того, что в dot в имени кластера можно только буквы, цифры и дефис (тире нельзя), то в именах семей заменил разделитель с - (дефис) на _   
-https://github.com/bpmbpm/family-tree/blob/main/ver3/doc/issue_doc_v1.md  
+см. https://github.com/bpmbpm/family-tree/blob/main/ver3/doc/issue_doc_v1.md   
+в названии проектов github - наоборот - вместо нижнего подчеркивания указыватьтире (-)
