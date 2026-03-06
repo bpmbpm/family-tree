@@ -5,3 +5,4 @@
 
 ## tools
 - https://onlinemarkdowneditor.dev/
+- https://habr.com/ru/articles/1007200/ Всё ещё теряете важные документы? Тогда я иду к вам…
