@@ -22,17 +22,6 @@
             <input type="file" id="fileInput" accept=".xlsx, .xls">
         </div>
 
-        <!-- Панель журнала событий (растягиваемая, как окно Кода DOT) -->
-        <div class="panel" id="panel-status" style="margin-bottom: 20px;">
-            <div class="panel-header" onclick="togglePanel('panel-status-content')">
-                <span>📋 Журнал событий</span>
-                <span class="toggle-icon">▼</span>
-            </div>
-            <div class="panel-content visible" id="panel-status-content">
-                <textarea id="statusLog" class="dot-code" readonly style="height: 150px; resize: vertical; overflow-y: scroll;">⏳ Ожидание загрузки файла tree.xlsx...</textarea>
-            </div>
-        </div>
-
         <!-- Основной макет: дерево слева, диаграмма справа -->
         <div class="main-layout">
 
@@ -108,8 +97,8 @@
 
         </div><!-- /main-layout -->
 
-        <!-- Код DOT (в самом низу страницы) -->
-        <div class="panel" id="panel-code" style="margin-bottom: 20px;">
+        <!-- Код DOT (над журналом) -->
+        <div class="panel" id="panel-code" style="margin-bottom: 10px;">
             <div class="panel-header" onclick="togglePanel('panel-code-content')">
                 <span>📄 Код DOT</span>
                 <span class="toggle-icon">▶</span>
@@ -130,6 +119,17 @@
                 <div class="dot-code-toolbar">
                     <button onclick="refreshDiagramFromEditor()">🔄 Обновить</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Журнал событий (самый нижний, изначально свёрнут) -->
+        <div class="panel" id="panel-status" style="margin-bottom: 20px;">
+            <div class="panel-header" onclick="togglePanel('panel-status-content')">
+                <span>📋 Журнал событий</span>
+                <span class="toggle-icon">▶</span>
+            </div>
+            <div class="panel-content" id="panel-status-content">
+                <textarea id="statusLog" class="dot-code" readonly style="height: 150px; resize: vertical; overflow-y: scroll;">⏳ Ожидание загрузки файла tree.xlsx...</textarea>
             </div>
         </div>
 
@@ -186,6 +186,10 @@
             let PIC_DIR_GRAPHVIZ_ONLINE = '';
             let GRAPHVIZ_ONLINE_TYPE = 'https://dreampuf.github.io/GraphvizOnline/?engine=dot#';
 
+            // Переменные для загрузки XLSX (берутся из config.js)
+            let XLSX_URL_PRIMARY = 'https://bpmbpm.github.io/family-tree/lib/xlsx.full.min.js';
+            let XLSX_URL_FALLBACK = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';
+
             const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
             const graphvizContainer = document.getElementById('graphvizContainer');
             const zoomContent = document.getElementById('zoomContent');
@@ -198,7 +202,7 @@
             const dotCodePre = document.getElementById('dotCodePre');
             const statusLog = document.getElementById('statusLog');
 
-            // --- Функция логирования (добавляет запись в журнал и обновляет краткий статус) ---
+            // --- Функция логирования (добавляет запись в журнал) ---
             function logMessage(msg, isError = false) {
                 const log = document.getElementById('statusLog');
                 if (log) {
@@ -207,8 +211,8 @@
                     log.value += `[${timestamp}] ${prefix} ${msg}\n`;
                     log.scrollTop = log.scrollHeight; // автоскролл
                 }
-                // Также обновляем старый статус (если он остался) для обратной совместимости
-                const statusDiv = document.getElementById('status'); // может отсутствовать, но оставим
+                // Краткий статус также обновляем, если есть старый элемент (для совместимости)
+                const statusDiv = document.getElementById('status');
                 if (statusDiv) {
                     statusDiv.textContent = msg;
                     statusDiv.style.backgroundColor = isError ? '#fadbd8' : '#fff8e5';
@@ -216,10 +220,9 @@
                 }
             }
 
-            // Для краткости можно оставить showStatus как алиас
             window.showStatus = logMessage;
 
-            // --- Функция для гарантированной загрузки SheetJS ---
+            // --- Функция для гарантированной загрузки SheetJS с использованием двух URL из конфига ---
             function loadSheetJS() {
                 return new Promise((resolve, reject) => {
                     if (typeof XLSX !== 'undefined') {
@@ -227,32 +230,32 @@
                         resolve();
                         return;
                     }
-                    logMessage('⏳ Загрузка библиотеки XLSX с CDN...');
-                    const script = document.createElement('script');
-                    script.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';
-                    script.onload = () => {
-                        logMessage('✅ Библиотека XLSX успешно загружена с CDN.');
-                        resolve();
-                    };
-                    script.onerror = () => {
-                        logMessage('⚠️ Не удалось загрузить XLSX с CDN, пробуем локальный xlsx.full.min.js', true);
-                        const fallbackScript = document.createElement('script');
-                        fallbackScript.src = 'xlsx.full.min.js';
-                        fallbackScript.onload = () => {
-                            logMessage('✅ Библиотека XLSX загружена локально.');
+
+                    const tryLoad = (url, fallbackUrl) => {
+                        logMessage(`⏳ Загрузка библиотеки XLSX с ${url}...`);
+                        const script = document.createElement('script');
+                        script.src = url;
+                        script.onload = () => {
+                            logMessage(`✅ Библиотека XLSX успешно загружена с ${url}.`);
                             resolve();
                         };
-                        fallbackScript.onerror = () => {
-                            logMessage('❌ Не удалось загрузить библиотеку XLSX (ни CDN, ни локально). Проверьте подключение к интернету.', true);
-                            reject(new Error('XLSX library failed to load'));
+                        script.onerror = () => {
+                            if (fallbackUrl) {
+                                logMessage(`⚠️ Не удалось загрузить XLSX с ${url}, пробуем резервный ${fallbackUrl}`, true);
+                                tryLoad(fallbackUrl, null);
+                            } else {
+                                logMessage(`❌ Не удалось загрузить библиотеку XLSX ни по одному из URL. Проверьте подключение к интернету.`, true);
+                                reject(new Error('XLSX library failed to load'));
+                            }
                         };
-                        document.head.appendChild(fallbackScript);
+                        document.head.appendChild(script);
                     };
-                    document.head.appendChild(script);
+
+                    tryLoad(XLSX_URL_PRIMARY, XLSX_URL_FALLBACK);
                 });
             }
 
-            // --- Load config --- (без изменений, только логирование)
+            // --- Load config ---
             async function loadConfig() {
                 let config = null;
                 if (typeof window.CONFIG === 'object' && window.CONFIG !== null) {
@@ -298,6 +301,8 @@
                     logMessage('ℹ️ Конфигурационный файл не найден, используются значения по умолчанию.');
                     return;
                 }
+
+                // Параметры отображения
                 if (config.width) NODE_WIDTH_IN = config.width;
                 if (config.height) NODE_HEIGHT_IN = config.height;
                 if (config.fontname) FONT_NAME = config.fontname;
@@ -322,6 +327,9 @@
                 if (config.language && ['name','ru','en'].includes(config.language.trim())) {
                     LANGUAGE = config.language.trim();
                 }
+                // URL для загрузки XLSX
+                if (config.xlsxUrlPrimary) XLSX_URL_PRIMARY = config.xlsxUrlPrimary;
+                if (config.xlsxUrlFallback) XLSX_URL_FALLBACK = config.xlsxUrlFallback;
             }
 
             function getActivePicDir() {
@@ -787,7 +795,7 @@
                 }
             }
 
-            // --- Generate DOT code --- (без изменений)
+            // --- Generate DOT code ---
             async function generateDotCode(peopleList, marriages, picDirOverride) {
                 const nodes = [];
                 const edges = [];
@@ -1038,7 +1046,7 @@
                 updatePhotosPanel();
             }
 
-            // --- getFieldLabel и остальные функции панелей свойств (без изменений) ---
+            // --- getFieldLabel и остальные функции панелей свойств (без изменений, они длинные, оставим как есть) ---
             function getFieldLabel(sheetName, fieldKey) {
                 const mapKey = sheetName + '.' + fieldKey;
                 const entry = langMap[mapKey];
