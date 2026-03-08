@@ -1,0 +1,2019 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Семейное древо на excel + Graphviz (с фото)</title>
+    <script src="https://unpkg.com/@viz-js/viz@3.4.0/lib/viz-standalone.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <!-- config.js задаёт глобальную переменную CONFIG с параметрами.
+         Загрузка через <script> работает в том числе по протоколу file://
+         (без ошибок CORS, в отличие от fetch/XMLHttpRequest для config.json). -->
+    <script src="config.js"></script>
+    <script src="foto.js"></script>
+    <script src="treeview.js"></script>
+    <script src="phototree.js"></script>
+    <script src="save.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🌳 Семейное древо на excel + Graphviz (с фото)</h1>
+        <div class="toolbar">
+            <button id="loadBtn">📂 Загрузить tree.xlsx</button>
+            <button id="manualBtn">📁 Выбрать файл</button>
+            <input type="file" id="fileInput" accept=".xlsx, .xls">
+        </div>
+        <div id="status" class="status">⏳ Ожидание загрузки файла...</div>
+
+        <!-- Основной макет: дерево слева, диаграмма справа -->
+        <div class="main-layout">
+
+        <!-- Левая колонка: дерево + фото -->
+        <div class="left-panels-column">
+
+        <!-- Панель дерева (TreeView) -->
+        <div class="treeview-panel">
+            <div class="treeview-panel-header">
+                <span class="treeview-panel-title">🌿 Дерево</span>
+                <div class="tv-header-buttons">
+                    <!-- Кнопка «Домой» — свернуть дерево в исходное состояние (&#x2302; = ⌂) -->
+                    <button class="tv-btn" id="tv-btn-home" onclick="tvHome()" title="Домой — свернуть дерево в исходное состояние">&#x2302;</button>
+                    <!-- Кнопка «Раскрыть всё» — полностью развернуть все ветки (&#x25BD; = ▽) -->
+                    <button class="tv-btn" id="tv-btn-expand" onclick="tvExpandAll()" title="Раскрыть все ветки">&#x25BD;</button>
+                    <!-- Кнопка «V» — показать только супругу и потомков текущей персоны -->
+                    <button class="tv-btn" id="tv-btn-descendants" onclick="tvToggleDescendantsMode()" title="Потомки — показать только супругу и потомков выбранной персоны">V</button>
+                    <!-- Кнопки переключения линии -->
+                    <button class="tv-btn tv-btn-active" id="tv-btn-male" onclick="tvSetMode('male')" title="Мужская линия (hasFather)">♂</button>
+                    <button class="tv-btn" id="tv-btn-female" onclick="tvSetMode('female')" title="Женская линия (hasMother)">♀</button>
+                </div>
+            </div>
+            <!-- Строка поиска -->
+            <div class="treeview-search-row">
+                <input type="text" id="tv-search-input" class="tv-search-input"
+                    placeholder="Поиск..." oninput="tvSearchInputChange()" onkeydown="if(event.key==='Enter') tvFindNext()">
+                <button class="tv-btn" id="tv-btn-find-start" onclick="tvFindStart()" title="Начать с начала" disabled>⏮</button>
+                <button class="tv-btn" id="tv-btn-find-next" onclick="tvFindNext()" title="Найти следующего" disabled>⏭</button>
+                <span class="tv-search-status" id="tv-search-status"></span>
+            </div>
+            <!-- Содержимое дерева -->
+            <div class="treeview-content" id="tv-content">
+                <div class="tv-empty">Загрузите данные</div>
+            </div>
+        </div>
+
+        <!-- Панель Фото (PhotoTreeView) -->
+        <div class="phototree-panel">
+            <div class="phototree-panel-header">
+                <span class="phototree-panel-title">📷 Фото</span>
+                <div class="pt-header-buttons">
+                    <button class="tv-btn" id="pt-btn-home" onclick="ptHome()" title="Домой — свернуть дерево фото">&#x2302;</button>
+                    <button class="tv-btn" id="pt-btn-expand" onclick="ptExpandAll()" title="Раскрыть все ветки">&#x25BD;</button>
+                    <!-- Кнопка «Фото персон» — открыть окно галереи фото персон из папки pic/ -->
+                    <button class="tv-btn" id="pt-btn-photos" onclick="togglePersonPhotos()" title="Фото персон">🖼️</button>
+                </div>
+            </div>
+            <!-- Содержимое дерева фото -->
+            <div class="phototree-content" id="pt-content">
+                <div class="tv-empty">Загрузите данные</div>
+            </div>
+        </div>
+
+        </div><!-- /left-panels-column -->
+
+        <!-- Diagram panel: zoom container on top, zoom controls at bottom -->
+        <div class="diagram-panel">
+            <div class="diagram-panel-header">
+                <span class="diagram-panel-title">📊 Диаграмма</span>
+            </div>
+            <div class="zoom-container" id="zoomContainer">
+                <div class="zoom-content" id="zoomContent">
+                    <div id="graphvizContainer">Дерево будет построено здесь...</div>
+                </div>
+            </div>
+            <div class="zoom-controls" id="zoom-controls">
+                <button onclick="zoomIn()" title="Увеличить">+</button>
+                <span id="zoom-level">100%</span>
+                <button onclick="zoomOut()" title="Уменьшить">−</button>
+                <button onclick="zoomReset()" title="Сбросить масштаб">Сброс</button>
+                <button onclick="zoomFit()" title="Вписать в окно">Вписать</button>
+                <span class="zoom-separator"></span>
+                <button id="graphvizOnlineBtn" onclick="openGraphvizOnline()" disabled title="Показать в окне GraphvizOnline">GraphvizOnline</button>
+                <button id="pdfBtn" onclick="exportToPdf()" disabled title="Выгрузить диаграмму в PDF">pdf</button>
+                <button id="svgBtn" onclick="exportToSvg()" disabled title="Выгрузить диаграмму в SVG">SVG</button>
+                <button id="drawioBtn" onclick="exportToDrawio()" disabled title="Выгрузить диаграмму в Drawio">Drawio</button>
+                <button id="drawioOnlineBtn" onclick="openDrawioOnline()" disabled title="Открыть диаграмму в diagrams.net онлайн">Drawio online</button>
+                <button id="zipBtn" onclick="downloadZip()" disabled title="Создать архив для развёртывания на desktop">zip</button>
+            </div>
+        </div>
+
+        </div><!-- /main-layout -->
+
+        <!-- Код DOT (в самом низу страницы) -->
+        <div class="panel" id="panel-code" style="margin-bottom: 20px;">
+            <div class="panel-header" onclick="togglePanel('panel-code-content')">
+                <span>📄 Код DOT</span>
+                <span class="toggle-icon">▶</span>
+            </div>
+            <div class="panel-content" id="panel-code-content">
+                <textarea id="dotCodePre" class="dot-code">(код появится после загрузки)</textarea>
+                <div class="dot-code-find-replace">
+                    <input type="text" id="dotFindInput" placeholder="Найти..." class="dot-find-input">
+                    <input type="text" id="dotReplaceInput" placeholder="Заменить на..." class="dot-find-input">
+                    <div class="dot-find-buttons">
+                        <button onclick="dotFindFirst()">🔍 Найти</button>
+                        <button onclick="dotFindNext()">⏭ Далее</button>
+                        <button onclick="dotReplaceOne()">✏️ Заменить</button>
+                        <button onclick="dotReplaceAll()">🔁 Заменить все</button>
+                        <span id="dotFindStatus" class="dot-find-status"></span>
+                    </div>
+                </div>
+                <div class="dot-code-toolbar">
+                    <button onclick="refreshDiagramFromEditor()">🔄 Обновить</button>
+                </div>
+            </div>
+        </div>
+
+        <footer>Фото из папки <code>pic/</code> (idA.png). Узел: <code>image=</code>, <code>fixedsize=true</code>, <code>imagepos=tc</code>, <code>labelloc=b</code> — фото сверху, имя и годы снизу, без наложения. Для мужчин рамка синяя, для женщин — розовая.</footer>
+    </div>
+
+    <!-- Properties panels container (fixed positioning) -->
+    <div id="properties-panels-container"></div>
+
+    <!-- Скрытый элемент для хранения ссылки GraphvizOnline (используется в JS) -->
+    <input type="hidden" id="graphvizLinkInput" value="">
+
+    <script>
+        (function() {
+            let people = [];
+            let marriages = []; // массив браков (с полями idA, husband, wife, extraFields)
+            let fotoFamilyRows = []; // строки листа foto_family
+            let fotoPersonRows = []; // строки листа foto_person
+            let fotoGroupRows = []; // строки листа foto_group
+            let fotoLocationRows = []; // строки листа foto_location
+            let eventRows = []; // строки листа event
+            let dotCode = '';
+            let dotCodeForGraphvizOnline = ''; // отдельный DOT-код для GraphvizOnline (в режиме relativeGraphvizOnline)
+            let graphvizLink = '';
+            let currentScale = 1.0;
+
+            // Properties panel state
+            let openPropertiesPanels = [];
+            let propertiesPanelCounter = 0;
+            let selectedNodeElement = null;
+            let draggedPanel = null;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+
+            // Cache: filename -> true (exists) or false (not found)
+            const photoExistsCache = {};
+
+            // Node dimensions for Graphviz (in inches, at 72 DPI = 1 inch).
+            // Will be overridden by config.json values if available.
+            const PHOTO_SIZE_PX = 100;
+            let NODE_WIDTH_IN = 2.0;
+            let NODE_HEIGHT_IN = ((PHOTO_SIZE_PX + 32) / 72).toFixed(2) * 1; // ~1.83in
+
+            // Rendering parameters — will be overridden by config.json values if available.
+            let FONT_NAME = 'Arial';
+            let FONT_SIZE = 11;
+            let FONT_SIZE_SURNAME2 = 9.9;
+            let MALE_COLOR = '#a3c4f3';
+            let FEMALE_COLOR = '#fbb9c0';
+            let UNKNOWN_COLOR = '#d5d8dc';
+            let BORDER_COLOR = '#2c3e50';
+            let EDGE_COLOR = '#5d6d7e';
+            // Язык подписей полей в панелях свойств — берётся из config.language
+            // Значения: "name" (имена колонок Excel), "ru" (русский), "en" (английский)
+            let LANGUAGE = 'ru';
+            // Карта переводов поля → подпись: ключ = "sheetName.fieldKey", значение = {name, ru, en}
+            let langMap = {};
+
+            // Photo directory — relative path, will be overridden by config.json picDir
+            let PIC_DIR = 'pic';
+            // Photo directory type: "relative" (default), "global" (full absolute path),
+            // or "relativeGraphvizOnline" (relative for local render, picDirGraphvizOnline for GraphvizOnline DOT code)
+            let PIC_DIR_TYPE = 'relative';
+            // Global (absolute) photo directory path — used when picDirType = "global"
+            let PIC_DIR_GLOBAL = '';
+            // GraphvizOnline photo directory path — used in DOT code for GraphvizOnline when picDirType = "relativeGraphvizOnline"
+            let PIC_DIR_GRAPHVIZ_ONLINE = '';
+            // GraphvizOnline service URL — configurable via graphvizOnlineType in config.js/config.json
+            let GRAPHVIZ_ONLINE_TYPE = 'https://dreampuf.github.io/GraphvizOnline/?engine=dot#';
+
+            const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
+            const statusDiv = document.getElementById('status');
+            const graphvizContainer = document.getElementById('graphvizContainer');
+            const zoomContent = document.getElementById('zoomContent');
+            const zoomContainer = document.getElementById('zoomContainer');
+            const zoomLevelSpan = document.getElementById('zoom-level');
+            const loadBtn = document.getElementById('loadBtn');
+            const manualBtn = document.getElementById('manualBtn');
+            const fileInput = document.getElementById('fileInput');
+            const graphvizLinkInput = document.getElementById('graphvizLinkInput');
+            const dotCodePre = document.getElementById('dotCodePre');
+
+            // --- Load config ---
+            // Priority order:
+            // 1. window.CONFIG — global variable from config.js loaded via <script src="config.js">.
+            //    Works in file:// protocol without CORS errors (recommended approach).
+            // 2. fetch('config.json') — works when served over HTTP/HTTPS.
+            // 3. async XMLHttpRequest for config.json — fallback for HTTP/HTTPS.
+            // 4. synchronous XMLHttpRequest for config.json — last resort (file:// in some browsers).
+            // config.js / config.json are both optional; built-in defaults are used if neither is found.
+            async function loadConfig() {
+                let config = null;
+                // 1. Check for config.js (global CONFIG variable injected via <script src="config.js">)
+                if (typeof window.CONFIG === 'object' && window.CONFIG !== null) {
+                    config = window.CONFIG;
+                }
+                // 2. Try fetch('config.json') — works over HTTP/HTTPS
+                if (!config) {
+                    try {
+                        const response = await fetch('config.json');
+                        if (response.ok) {
+                            config = await response.json();
+                        }
+                    } catch (e) {
+                        // fetch() may be blocked in file:// protocol; try XMLHttpRequest as fallback
+                    }
+                }
+                // 3. Fallback: async XMLHttpRequest for config.json
+                if (!config) {
+                    try {
+                        config = await new Promise((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.open('GET', 'config.json', true);
+                            xhr.onload = () => {
+                                if (xhr.status === 200 || xhr.status === 0) {
+                                    try { resolve(JSON.parse(xhr.responseText)); } catch (e) { reject(e); }
+                                } else {
+                                    reject(new Error('XHR status ' + xhr.status));
+                                }
+                            };
+                            xhr.onerror = () => reject(new Error('XHR error'));
+                            xhr.send();
+                        });
+                    } catch (e) {
+                        // async XHR may also fail in file:// protocol; try synchronous XHR as last resort
+                    }
+                }
+                // 4. Last resort: synchronous XMLHttpRequest (works for local file:// in all browsers)
+                if (!config) {
+                    try {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('GET', 'config.json', false);
+                        xhr.send();
+                        if (xhr.status === 200 || xhr.status === 0) {
+                            config = JSON.parse(xhr.responseText);
+                        }
+                    } catch (e) {
+                        // config.json is optional; use defaults if not found
+                    }
+                }
+                if (!config) return;
+                if (typeof config.width === 'number' && config.width > 0) {
+                    NODE_WIDTH_IN = config.width;
+                }
+                if (typeof config.height === 'number' && config.height > 0) {
+                    NODE_HEIGHT_IN = config.height;
+                }
+                if (typeof config.fontname === 'string' && config.fontname.trim()) {
+                    FONT_NAME = config.fontname.trim();
+                }
+                if (typeof config.fontsize === 'number' && config.fontsize > 0) {
+                    FONT_SIZE = config.fontsize;
+                }
+                if (typeof config.fontsizeSurName2 === 'number' && config.fontsizeSurName2 > 0) {
+                    FONT_SIZE_SURNAME2 = config.fontsizeSurName2;
+                }
+                if (typeof config.maleColor === 'string' && config.maleColor.trim()) {
+                    MALE_COLOR = config.maleColor.trim();
+                }
+                if (typeof config.femaleColor === 'string' && config.femaleColor.trim()) {
+                    FEMALE_COLOR = config.femaleColor.trim();
+                }
+                if (typeof config.unknownColor === 'string' && config.unknownColor.trim()) {
+                    UNKNOWN_COLOR = config.unknownColor.trim();
+                }
+                if (typeof config.borderColor === 'string' && config.borderColor.trim()) {
+                    BORDER_COLOR = config.borderColor.trim();
+                }
+                if (typeof config.edgeColor === 'string' && config.edgeColor.trim()) {
+                    EDGE_COLOR = config.edgeColor.trim();
+                }
+                if (typeof config.picDir === 'string' && config.picDir.trim()) {
+                    // Normalize: remove trailing slash, support both relative and absolute paths
+                    PIC_DIR = config.picDir.trim().replace(/\/+$/, '');
+                }
+                if (typeof config.picDirType === 'string' && config.picDirType.trim()) {
+                    const t = config.picDirType.trim();
+                    if (t === 'global' || t === 'relative' || t === 'relativeGraphvizOnline') PIC_DIR_TYPE = t;
+                }
+                if (typeof config.picDirGlobal === 'string' && config.picDirGlobal.trim()) {
+                    PIC_DIR_GLOBAL = config.picDirGlobal.trim().replace(/[/\\]+$/, '');
+                }
+                if (typeof config.picDirGraphvizOnline === 'string' && config.picDirGraphvizOnline.trim()) {
+                    PIC_DIR_GRAPHVIZ_ONLINE = config.picDirGraphvizOnline.trim().replace(/\/+$/, '');
+                }
+                if (typeof config.graphvizOnlineType === 'string' && config.graphvizOnlineType.trim()) {
+                    // Ensure the URL ends with '#' so DOT code can be appended directly
+                    const url = config.graphvizOnlineType.trim().replace(/#$/, '');
+                    GRAPHVIZ_ONLINE_TYPE = url + '#';
+                }
+                if (typeof config.language === 'string' && config.language.trim()) {
+                    const lang = config.language.trim();
+                    if (lang === 'name' || lang === 'ru' || lang === 'en') LANGUAGE = lang;
+                }
+            }
+
+            // --- Return the active photo directory based on picDirType ---
+            // In "relative" / "relativeGraphvizOnline" mode: returns PIC_DIR (e.g. "pic")
+            // In "global" mode: returns PIC_DIR_GLOBAL if set, otherwise falls back to PIC_DIR
+            function getActivePicDir() {
+                if (PIC_DIR_TYPE === 'global' && PIC_DIR_GLOBAL) return PIC_DIR_GLOBAL;
+                return PIC_DIR;
+            }
+
+            // --- Return the photo directory to use in DOT code for GraphvizOnline ---
+            // In "relativeGraphvizOnline" mode: returns PIC_DIR_GRAPHVIZ_ONLINE (if set) or PIC_DIR
+            // In all other modes: same as getActivePicDir()
+            function getGraphvizOnlinePicDir() {
+                if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) return PIC_DIR_GRAPHVIZ_ONLINE;
+                return getActivePicDir();
+            }
+
+            // --- Panel toggling ---
+            window.togglePanel = function(contentId) {
+                const content = document.getElementById(contentId);
+                const icon = content.previousElementSibling.querySelector('.toggle-icon');
+                content.classList.toggle('visible');
+                icon.textContent = content.classList.contains('visible') ? '▼' : '▶';
+            };
+
+            window.togglePersonPhotos = function() {
+                const PANEL_ID = 'person-photos-panel';
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+
+                // Если окно уже открыто — закрыть его (toggle)
+                const existing = document.getElementById(PANEL_ID);
+                if (existing) {
+                    existing.remove();
+                    const btn = document.getElementById('pt-btn-photos');
+                    if (btn) btn.classList.remove('tv-btn-active');
+                    return;
+                }
+
+                // Строим содержимое галереи из уже проверенных фото
+                let gridHtml = '';
+                const existingFiles = [];
+                for (const fn of ['dafaultm.png', 'dafaultf.png']) {
+                    if (photoExistsCache[fn]) existingFiles.push(fn);
+                }
+                people.forEach(p => {
+                    const fn = p.idA + '.png';
+                    if (photoExistsCache[fn] && !existingFiles.includes(fn)) existingFiles.push(fn);
+                });
+                if (existingFiles.length === 0) {
+                    gridHtml = '<em style="color:#888">Файлы фото не найдены в папке pic/</em>';
+                } else {
+                    existingFiles.forEach(filename => {
+                        const shortName = filename.length > 20 ? filename.substring(0, 18) + '…' : filename;
+                        gridHtml +=
+                            '<div class="photo-item">' +
+                            '<img src="' + getActivePicDir() + '/' + filename + '" alt="' + filename + '" title="' + filename + '">' +
+                            '<div class="path" title="' + filename + '">' + shortName + '</div>' +
+                            '</div>';
+                    });
+                }
+
+                const panelHtml =
+                    '<div class="properties-panel visible" id="' + PANEL_ID + '" style="right: 60px; top: 150px; min-width: 360px; max-width: 560px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + PANEL_ID + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">🖼️ Фото персон</div>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="document.getElementById(\'' + PANEL_ID + '\').remove(); var b=document.getElementById(\'pt-btn-photos\'); if(b) b.classList.remove(\'tv-btn-active\');">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    '<div class="photos-grid" id="photosGrid">' + gridHtml + '</div>' +
+                    '</div>' +
+                    '</div>';
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+
+                const newPanel = document.getElementById(PANEL_ID);
+                if (newPanel && typeof bringPanelToFront === 'function') bringPanelToFront(newPanel);
+
+                const btn = document.getElementById('pt-btn-photos');
+                if (btn) btn.classList.add('tv-btn-active');
+            };
+
+            window.copyLink = function() {
+                const linkVal = graphvizLinkInput ? graphvizLinkInput.value : graphvizLink;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(linkVal).then(function() {
+                        alert('Ссылка скопирована!');
+                    });
+                } else {
+                    // Fallback: временный textarea для копирования
+                    const tmp = document.createElement('textarea');
+                    tmp.value = linkVal;
+                    document.body.appendChild(tmp);
+                    tmp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(tmp);
+                    alert('Ссылка скопирована!');
+                }
+            };
+
+            // --- Zoom controls ---
+            function applyZoom() {
+                zoomContent.style.transform = `scale(${currentScale})`;
+                zoomLevelSpan.textContent = Math.round(currentScale * 100) + '%';
+            }
+
+            window.zoomIn = function() {
+                if (currentScale < 5.0) { currentScale = Math.min(5.0, currentScale + 0.1); applyZoom(); }
+            };
+            window.zoomOut = function() {
+                if (currentScale > 0.1) { currentScale = Math.max(0.1, currentScale - 0.1); applyZoom(); }
+            };
+            window.zoomReset = function() {
+                currentScale = 1.0;
+                applyZoom();
+            };
+            window.zoomFit = function() {
+                const svg = graphvizContainer.querySelector('svg');
+                if (!svg) return;
+                const containerW = zoomContainer.clientWidth - 20;
+                const containerH = zoomContainer.clientHeight - 20;
+                const svgW = svg.getBoundingClientRect().width / currentScale;
+                const svgH = svg.getBoundingClientRect().height / currentScale;
+                if (svgW <= 0 || svgH <= 0) return;
+                const scaleX = containerW / svgW;
+                const scaleY = containerH / svgH;
+                currentScale = Math.min(scaleX, scaleY, 1.0);
+                applyZoom();
+            };
+
+            // Mouse wheel zoom
+            zoomContainer.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                currentScale = Math.min(5.0, Math.max(0.1, currentScale + delta));
+                applyZoom();
+            }, { passive: false });
+
+            // --- Status ---
+            function showStatus(msg, isError = false) {
+                statusDiv.textContent = msg;
+                statusDiv.style.backgroundColor = isError ? '#fadbd8' : '#fff8e5';
+                statusDiv.style.borderLeftColor = isError ? '#e74c3c' : '#f1c40f';
+            }
+
+            // --- Check if photo exists ---
+            // In "global" mode or file:// protocol, fetch() is blocked by browser security.
+            // Instead, we use an <img> element to test file existence: it loads the image and
+            // resolves true on success or false on error. This works for both file:// and http://.
+            async function checkPhotoExists(filename) {
+                if (photoExistsCache[filename] !== undefined) return photoExistsCache[filename];
+                const picDir = getActivePicDir();
+                const filePath = picDir + '/' + filename;
+                const isFileProtocol = window.location.protocol === 'file:';
+                if (isFileProtocol || (PIC_DIR_TYPE === 'global' && PIC_DIR_GLOBAL)) {
+                    // Use <img> element to check existence in file:// or global mode
+                    const exists = await new Promise(resolve => {
+                        const img = new Image();
+                        img.onload = () => resolve(true);
+                        img.onerror = () => resolve(false);
+                        img.src = filePath;
+                    });
+                    photoExistsCache[filename] = exists;
+                    return exists;
+                }
+                try {
+                    const response = await fetch(filePath, { method: 'HEAD' });
+                    photoExistsCache[filename] = response.ok;
+                    return response.ok;
+                } catch {
+                    photoExistsCache[filename] = false;
+                    return false;
+                }
+            }
+
+            // --- Determine which photo path to use for a person (returns path string or null) ---
+            // Optional picDirOverride: if provided, use this directory instead of getActivePicDir().
+            // Photo existence is always checked against getActivePicDir() (local files);
+            // picDirOverride only affects the path string in the returned value.
+            async function getPersonPhotoPath(person, picDirOverride) {
+                const picDir = getActivePicDir();
+                const outputDir = picDirOverride !== undefined ? picDirOverride : picDir;
+                const personalFile = person.idA + '.png';
+                if (await checkPhotoExists(personalFile)) return outputDir + '/' + personalFile;
+                // Fall back to default
+                const defaultFile = (person.sex === 'Ж' || person.sex === 'F') ? 'dafaultf.png' : 'dafaultm.png';
+                if (await checkPhotoExists(defaultFile)) return outputDir + '/' + defaultFile;
+                return null;
+            }
+
+            // --- Preload / check photo existence for all people ---
+            async function preloadPhotoChecks(peopleList) {
+                const filenames = new Set(['dafaultm.png', 'dafaultf.png']);
+                peopleList.forEach(p => { if (p.idA) filenames.add(p.idA + '.png'); });
+                await Promise.all(Array.from(filenames).map(fn => checkPhotoExists(fn)));
+            }
+
+            // --- Parse Excel ---
+            // Возвращает: { people, marriages, familyRows, fotoFamilyRows, fotoPersonRows }
+            // people — массив персон с полями idA, label, sex, surName2, hasFather, hasMother,
+            //           birth, death, а также extraFields (объект с полями, имя которых заканчивается на _)
+            // marriages — массив браков с полями idA, husband, wife, а также extraFields (_-поля)
+            // familyRows — сырые строки листа family (объекты с именами колонок)
+            // fotoFamilyRows — строки листа foto_family (объекты с именами колонок)
+            // fotoPersonRows — строки листа foto_person (объекты с именами колонок)
+            function parseExcel(arrayBuffer) {
+                try {
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+                    // --- Лист person ---
+                    const personSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase().includes('person'); }) || workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[personSheetName];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                    if (rows.length < 2) throw new Error('Нет данных на листе person');
+
+                    // Определяем индексы колонок по имени заголовка (нечувствительно к регистру)
+                    const headerRow = rows[0].map(function(h) { return (h || '').toString().trim().toLowerCase(); });
+                    const colIdx = {
+                        idA: headerRow.indexOf('ida'),
+                        label: headerRow.findIndex(function(h) { return h === 'label' || h === 'label_'; }),
+                        sex: headerRow.indexOf('sex'),
+                        surName2: headerRow.findIndex(function(h) { return h === 'surname2' || h === 'surname2_'; }),
+                        hasFather: headerRow.indexOf('hasfather'),
+                        hasMother: headerRow.indexOf('hasmother'),
+                        birth: headerRow.findIndex(function(h) { return h === 'birth' && !h.includes('full'); }),
+                        death: headerRow.findIndex(function(h) { return h === 'death' && !h.includes('full'); })
+                    };
+                    // Запасные позиционные значения
+                    if (colIdx.idA < 0) colIdx.idA = 0;
+                    if (colIdx.label < 0) colIdx.label = 1;
+                    if (colIdx.sex < 0) colIdx.sex = 2;
+                    if (colIdx.surName2 < 0) colIdx.surName2 = 3;
+                    if (colIdx.hasFather < 0) colIdx.hasFather = 4;
+                    if (colIdx.hasMother < 0) colIdx.hasMother = 5;
+                    if (colIdx.birth < 0) colIdx.birth = 6;
+                    if (colIdx.death < 0) colIdx.death = 7;
+
+                    // Исходные (сырые) имена колонок листа person (до приведения к нижнему регистру)
+                    const personRawHeaders = rows[0].map(function(h) { return (h || '').toString().trim(); });
+
+                    const dataRows = rows.slice(1).filter(function(row) { return row[colIdx.label] && row[colIdx.label].toString().trim() !== ''; });
+                    const peopleList = dataRows.map(function(row) {
+                        const label = row[colIdx.label] ? row[colIdx.label].toString().trim() : '';
+                        // idA может быть формулой (SheetJS не вычисляет) — тогда берём из label
+                        let idA = row[colIdx.idA] ? row[colIdx.idA].toString().trim() : '';
+                        if (!idA || idA.startsWith('=')) {
+                            idA = label.replace(/ /g, '_');
+                        }
+                        // Собираем поля с суффиксом _ (для отображения в панели свойств)
+                        const extraFields = {};
+                        for (let ci = 0; ci < personRawHeaders.length; ci++) {
+                            const colName = personRawHeaders[ci];
+                            if (colName.endsWith('_')) {
+                                const val = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                if (val) extraFields[colName] = val;
+                            }
+                        }
+                        return {
+                            idA: idA,
+                            label: label,
+                            sex: row[colIdx.sex] ? row[colIdx.sex].toString().trim() : '',
+                            surName2: (colIdx.surName2 >= 0 && row[colIdx.surName2]) ? row[colIdx.surName2].toString().trim() : '',
+                            hasFather: row[colIdx.hasFather] ? row[colIdx.hasFather].toString().trim() : '',
+                            hasMother: row[colIdx.hasMother] ? row[colIdx.hasMother].toString().trim() : '',
+                            birth: row[colIdx.birth] ? row[colIdx.birth].toString().trim() : '',
+                            death: row[colIdx.death] ? row[colIdx.death].toString().trim() : '',
+                            extraFields: extraFields
+                        };
+                    }).filter(function(p) { return p.idA && p.label; });
+                    if (peopleList.length === 0) throw new Error('Нет записей с idA и label');
+
+                    // --- Лист family ---
+                    const familySheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'family'; });
+                    let marriagesList = [];
+                    let familyRawRows = []; // сырые объекты строк family (ключи = имена колонок)
+                    if (familySheetName) {
+                        const familySheet = workbook.Sheets[familySheetName];
+                        const familyRows = XLSX.utils.sheet_to_json(familySheet, { header: 1, defval: '' });
+                        if (familyRows.length > 1) {
+                            const famRawHeaders = familyRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const famHeader = famRawHeaders.map(function(h) { return h.toLowerCase(); });
+                            const famIdx = {
+                                idA: famHeader.indexOf('ida'),
+                                husband: famHeader.indexOf('husband'),
+                                wife: famHeader.indexOf('wife'),
+                                marriage: famHeader.findIndex(function(h) { return h === 'marriage' || h === 'marriage_'; })
+                            };
+                            if (famIdx.idA < 0) famIdx.idA = 0;
+                            if (famIdx.husband < 0) famIdx.husband = 1;
+                            if (famIdx.wife < 0) famIdx.wife = 2;
+                            familyRows.slice(1).forEach(function(row) {
+                                const husband = row[famIdx.husband] ? row[famIdx.husband].toString().trim() : '';
+                                const wife = row[famIdx.wife] ? row[famIdx.wife].toString().trim() : '';
+                                if (husband && wife) {
+                                    // Собираем idA семьи
+                                    let familyIdA = (famIdx.idA >= 0 && row[famIdx.idA]) ? row[famIdx.idA].toString().trim() : '';
+                                    if (!familyIdA || familyIdA.startsWith('=')) {
+                                        familyIdA = husband + '-' + wife;
+                                    }
+                                    // Собираем поля с суффиксом _ для панели свойств
+                                    const extraFields = {};
+                                    for (let ci = 0; ci < famRawHeaders.length; ci++) {
+                                        const colName = famRawHeaders[ci];
+                                        if (colName.endsWith('_')) {
+                                            const val = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                            if (val) extraFields[colName] = val;
+                                        }
+                                    }
+                                    // Значение marriage для метки кластера в DOT-коде
+                                    const marriageLabel = (famIdx.marriage >= 0 && row[famIdx.marriage]) ? row[famIdx.marriage].toString().trim() : '';
+                                    marriagesList.push({
+                                        idA: familyIdA,
+                                        husband: husband,
+                                        wife: wife,
+                                        marriage: marriageLabel,
+                                        extraFields: extraFields
+                                    });
+                                    // Сохраняем сырую строку с именами колонок для поиска по idA
+                                    const rawObj = { idA: familyIdA };
+                                    for (let ci = 0; ci < famRawHeaders.length; ci++) {
+                                        rawObj[famRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                    }
+                                    familyRawRows.push(rawObj);
+                                }
+                            });
+                        }
+                    }
+
+                    // --- Лист foto_family ---
+                    const fotoFamilySheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'foto_family'; });
+                    let fotoFamilyRowsList = [];
+                    if (fotoFamilySheetName) {
+                        const ffSheet = workbook.Sheets[fotoFamilySheetName];
+                        const ffRows = XLSX.utils.sheet_to_json(ffSheet, { header: 1, defval: '' });
+                        if (ffRows.length > 1) {
+                            const ffRawHeaders = ffRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const ffHeaderLower = ffRawHeaders.map(function(h) { return h.toLowerCase(); });
+                            ffRows.slice(1).forEach(function(row) {
+                                // Пропускаем пустые строки
+                                const idFamilyIdx = ffHeaderLower.indexOf('id_family');
+                                const idFamilyVal = idFamilyIdx >= 0 ? row[idFamilyIdx] : '';
+                                if (!idFamilyVal || idFamilyVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < ffRawHeaders.length; ci++) {
+                                    obj[ffRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                // idA в Excel — формула; SheetJS её не вычисляет. Вычисляем вручную.
+                                if (!obj.idA) {
+                                    const suffixIdx = ffHeaderLower.findIndex(function(h) { return h === 'suffix' || h === 'suffix_'; });
+                                    const extIdx = ffHeaderLower.indexOf('extension');
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (suffix && ext) obj.idA = obj.id_family + '-' + suffix + '.' + ext;
+                                }
+                                fotoFamilyRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    // --- Лист foto_person ---
+                    const fotoPersonSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'foto_person'; });
+                    let fotoPersonRowsList = [];
+                    if (fotoPersonSheetName) {
+                        const fpSheet = workbook.Sheets[fotoPersonSheetName];
+                        const fpRows = XLSX.utils.sheet_to_json(fpSheet, { header: 1, defval: '' });
+                        if (fpRows.length > 1) {
+                            const fpRawHeaders = fpRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const fpHeaderLower = fpRawHeaders.map(function(h) { return h.toLowerCase(); });
+                            fpRows.slice(1).forEach(function(row) {
+                                // Пропускаем строки без id_person
+                                const idPersonIdx = fpHeaderLower.indexOf('id_person');
+                                const idPersonVal = idPersonIdx >= 0 ? row[idPersonIdx] : '';
+                                if (!idPersonVal || idPersonVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < fpRawHeaders.length; ci++) {
+                                    obj[fpRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                // idA в Excel — формула; SheetJS её не вычисляет. Вычисляем вручную.
+                                if (!obj.idA) {
+                                    const suffixIdx = fpHeaderLower.findIndex(function(h) { return h === 'suffix' || h === 'suffix_'; });
+                                    const extIdx = fpHeaderLower.indexOf('extension');
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (suffix && ext) obj.idA = obj.id_person + '-' + suffix + '.' + ext;
+                                }
+                                fotoPersonRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    // --- Лист foto_group ---
+                    const fotoGroupSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'foto_group'; });
+                    let fotoGroupRowsList = [];
+                    if (fotoGroupSheetName) {
+                        const fgSheet = workbook.Sheets[fotoGroupSheetName];
+                        const fgRows = XLSX.utils.sheet_to_json(fgSheet, { header: 1, defval: '' });
+                        if (fgRows.length > 1) {
+                            const fgRawHeaders = fgRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const fgHeaderLower = fgRawHeaders.map(function(h) { return h.toLowerCase(); });
+                            fgRows.slice(1).forEach(function(row) {
+                                // Пропускаем строки без id_personAll
+                                const idPersonAllIdx = fgHeaderLower.indexOf('id_personall');
+                                const idPersonAllVal = idPersonAllIdx >= 0 ? row[idPersonAllIdx] : '';
+                                if (!idPersonAllVal || idPersonAllVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < fgRawHeaders.length; ci++) {
+                                    obj[fgRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                // idA в Excel — формула; SheetJS её не вычисляет. Вычисляем вручную.
+                                if (!obj.idA) {
+                                    const idPersonIdx = fgHeaderLower.indexOf('id_person');
+                                    const suffixIdx = fgHeaderLower.findIndex(function(h) { return h === 'suffix' || h === 'suffix_'; });
+                                    const extIdx = fgHeaderLower.indexOf('extension');
+                                    const idPerson = idPersonIdx >= 0 ? row[idPersonIdx].toString().trim() : '';
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (idPerson && suffix && ext) obj.idA = idPerson + '-' + suffix + '.' + ext;
+                                }
+                                fotoGroupRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    // --- Лист foto_location ---
+                    const fotoLocationSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'foto_location'; });
+                    let fotoLocationRowsList = [];
+                    if (fotoLocationSheetName) {
+                        const flSheet = workbook.Sheets[fotoLocationSheetName];
+                        const flRows = XLSX.utils.sheet_to_json(flSheet, { header: 1, defval: '' });
+                        if (flRows.length > 1) {
+                            const flRawHeaders = flRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const flHeaderLower = flRawHeaders.map(function(h) { return h.toLowerCase(); });
+                            flRows.slice(1).forEach(function(row) {
+                                // Пропускаем строки без id_loc
+                                const idLocIdx = flHeaderLower.indexOf('id_loc');
+                                const idLocVal = idLocIdx >= 0 ? row[idLocIdx] : '';
+                                if (!idLocVal || idLocVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < flRawHeaders.length; ci++) {
+                                    obj[flRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                // idA в Excel — формула; SheetJS её не вычисляет. Вычисляем вручную.
+                                if (!obj.idA) {
+                                    const suffixIdx = flHeaderLower.findIndex(function(h) { return h === 'suffix' || h === 'suffix_'; });
+                                    const extIdx = flHeaderLower.indexOf('extension');
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (suffix && ext) obj.idA = obj.id_loc + '-' + suffix + '.' + ext;
+                                }
+                                fotoLocationRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    // --- Лист event ---
+                    const eventSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'event'; });
+                    let eventRowsList = [];
+                    if (eventSheetName) {
+                        const evSheet = workbook.Sheets[eventSheetName];
+                        const evRows = XLSX.utils.sheet_to_json(evSheet, { header: 1, defval: '' });
+                        if (evRows.length > 1) {
+                            const evRawHeaders = evRows[0].map(function(h) { return (h || '').toString().trim(); });
+                            const evHeaderLower = evRawHeaders.map(function(h) { return h.toLowerCase(); });
+                            evRows.slice(1).forEach(function(row) {
+                                // Пропускаем строки без id_event
+                                const idEventIdx = evHeaderLower.indexOf('id_event');
+                                const idEventVal = idEventIdx >= 0 ? row[idEventIdx] : '';
+                                if (!idEventVal || idEventVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < evRawHeaders.length; ci++) {
+                                    obj[evRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                eventRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    // --- Лист language ---
+                    const languageSheetName = workbook.SheetNames.find(function(name) { return name.toLowerCase() === 'language'; });
+                    let languageRowsList = [];
+                    if (languageSheetName) {
+                        const langSheet = workbook.Sheets[languageSheetName];
+                        const langRows = XLSX.utils.sheet_to_json(langSheet, { header: 1, defval: '' });
+                        if (langRows.length > 1) {
+                            const langRawHeaders = langRows[0].map(function(h) { return (h || '').toString().trim().toLowerCase(); });
+                            const objectIdx = langRawHeaders.indexOf('object');
+                            const nameIdx = langRawHeaders.indexOf('name');
+                            const ruIdx = langRawHeaders.indexOf('ru');
+                            const enIdx = langRawHeaders.indexOf('en');
+                            langRows.slice(1).forEach(function(row) {
+                                const objectVal = objectIdx >= 0 ? (row[objectIdx] || '').toString().trim() : '';
+                                const nameVal = nameIdx >= 0 ? (row[nameIdx] || '').toString().trim() : '';
+                                if (!objectVal || !nameVal) return;
+                                languageRowsList.push({
+                                    object: objectVal,
+                                    name: nameVal,
+                                    ru: ruIdx >= 0 ? (row[ruIdx] || '').toString().trim() : '',
+                                    en: enIdx >= 0 ? (row[enIdx] || '').toString().trim() : ''
+                                });
+                            });
+                        }
+                    }
+
+                    return { people: peopleList, marriages: marriagesList, familyRows: familyRawRows, fotoFamilyRows: fotoFamilyRowsList, fotoPersonRows: fotoPersonRowsList, fotoGroupRows: fotoGroupRowsList, fotoLocationRows: fotoLocationRowsList, eventRows: eventRowsList, languageRows: languageRowsList };
+                } catch (e) {
+                    showStatus('Ошибка парсинга Excel: ' + e.message, true);
+                    throw e;
+                }
+            }
+
+// --- Generate DOT code using native image= attribute ---
+// Each node is portrait-oriented: photo at top, text label at bottom.
+// Uses fixedsize=true with width/height so Graphviz reserves exact space.
+// imagepos=tc places photo at top-center; labelloc=b places text at bottom.
+// No <<TABLE>> labels — readable plain DOT code only.
+// Spaces in label names are replaced with \n for better layout.
+// Optional picDirOverride: if provided, use this directory for image paths in DOT code
+// (used in relativeGraphvizOnline mode to generate DOT code for GraphvizOnline with absolute URLs).
+async function generateDotCode(peopleList, marriages, picDirOverride) {
+    const nodes = [];
+    const edges = [];
+    const clusters = [];
+    // Set of all person idA values for membership check
+    const personIdSet = new Set(peopleList.map(p => p.idA));
+
+    for (const p of peopleList) {
+        const birthYear = p.birth || '?';
+        const deathYear = p.death || '?';
+
+        let fillcolor = UNKNOWN_COLOR;
+        if (p.sex === 'М' || p.sex === 'M') fillcolor = MALE_COLOR;
+        else if (p.sex === 'Ж' || p.sex === 'F') fillcolor = FEMALE_COLOR;
+
+        const nodeId = p.idA;
+        // Build label: start with surName2 if present, then the full name, then years
+        let labelName = p.label.replace(/ /g, '\\n');
+        if (p.surName2) {
+            labelName = p.surName2.replace(/ /g, '\\n') + '\\n' + labelName;
+        }
+        const labelText = `${labelName}\\n${birthYear}–${deathYear}`;
+
+        // For surName2 nodes, use FONT_SIZE_SURNAME2 to produce compact text layout.
+        // The margin attribute alone has no effect on fixedsize=true nodes, so fontsize is used
+        // to reflect the fontsizeSurName2 config: smaller value → more compact text.
+        const nodeFontSize = p.surName2 ? FONT_SIZE_SURNAME2 : FONT_SIZE;
+        const fontSizeAttr = nodeFontSize !== FONT_SIZE ? `, fontsize=${nodeFontSize}` : '';
+
+        const photoPath = await getPersonPhotoPath(p, picDirOverride);
+        if (photoPath) {
+            // Portrait node: photo at top-center at its registered size, text at bottom.
+            // fixedsize=true locks the node to exactly width×height so layout is consistent.
+            // imagescale=false keeps photo at registered PHOTO_SIZE_PX so it doesn't
+            // stretch over the text area; labelloc=b places text at bottom inside node.
+            nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}",`);
+            nodes.push(`    label="${labelText}", image="${photoPath}",`);
+            nodes.push(`    fixedsize=true, width=${NODE_WIDTH_IN}, height=${NODE_HEIGHT_IN}${fontSizeAttr},`);
+            nodes.push(`    imagepos=tc, imagescale=false, labelloc=b];`);
+        } else {
+            nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}", label="${labelText}"${fontSizeAttr}];`);
+        }
+    }
+
+    // Parent relationships — стрелки от родителя к ребёнку окрашены цветом родителя
+    // От отца — цветом фона мужчины (MALE_COLOR), от матери — цветом фона женщины (FEMALE_COLOR)
+    peopleList.forEach(p => {
+        const childId = p.idA;
+        if (p.hasFather) edges.push(`  ${p.hasFather} -> ${childId} [color="${MALE_COLOR}"];`);
+        if (p.hasMother) edges.push(`  ${p.hasMother} -> ${childId} [color="${FEMALE_COLOR}"];`);
+    });
+
+    // Marriage clusters from family sheet
+    // Only include couples where both husband and wife are in the current graph
+    (marriages || []).forEach(m => {
+        if (personIdSet.has(m.husband) && personIdSet.has(m.wife)) {
+            // Используем idA семьи в качестве имени подграфа.
+            // Предполагается, что idA содержит только допустимые символы: буквы, цифры, подчёркивание.
+            const clusterName = m.idA ? m.idA : 'unknown_family';
+            const clusterLines = [];
+            clusterLines.push(`  subgraph cluster_${clusterName} {`);
+            if (m.marriage) {
+                clusterLines.push(`    label="${m.marriage}";`);
+            } else {
+                clusterLines.push(`    label="";`);
+            }
+            clusterLines.push(`    rank=same;`);
+            clusterLines.push(`    style=dashed;`);
+            clusterLines.push(`    color="${EDGE_COLOR}";`);
+            clusterLines.push(`    ${m.husband};`);
+            clusterLines.push(`    ${m.wife};`);
+            clusterLines.push(`  }`);
+            clusters.push(clusterLines.join('\n'));
+        }
+    });
+
+    const clusterSection = clusters.length > 0 ? '\n' + clusters.join('\n') + '\n' : '';
+    return `digraph G {\n  rankdir=TB;\n  node [fontname="${FONT_NAME}", fontsize=${FONT_SIZE}];\n  edge [color="${EDGE_COLOR}"];\n\n${nodes.join('\n')}\n${clusterSection}\n${edges.join('\n')}\n}`;
+}
+// ручная вставка из https://github.com/bpmbpm/family-tree/blob/main/ver3/doc/code_info_v1a.md
+
+            // --- Build images array for viz.renderString() images option ---
+            // Collects all unique photo paths used in the DOT code and registers them
+            // with square dimensions matching the node width so the photo fills the top portion.
+            async function buildImagesOption(peopleList) {
+                const imageMap = new Map(); // path -> true (deduplicate)
+                for (const p of peopleList) {
+                    const photoPath = await getPersonPhotoPath(p);
+                    if (photoPath) imageMap.set(photoPath, true);
+                }
+                return Array.from(imageMap.keys()).map(path => ({
+                    name: path,
+                    width: PHOTO_SIZE_PX,
+                    height: PHOTO_SIZE_PX
+                }));
+            }
+
+            // --- Render DOT code ---
+            async function renderDot(dotStr, imagesOption) {
+                try {
+                    const viz = await Viz.instance();
+                    const svgStr = await viz.renderString(dotStr, {
+                        format: 'svg',
+                        images: imagesOption
+                    });
+                    graphvizContainer.innerHTML = svgStr;
+
+                    // Add node click handlers
+                    const svgEl = graphvizContainer.querySelector('svg');
+                    if (svgEl) {
+                        addNodeClickHandlers(svgEl);
+                    }
+                } catch (error) {
+                    graphvizContainer.innerHTML = `<p style="color:red">Ошибка рендеринга: ${error.message}</p>`;
+                    console.error(error);
+                }
+            }
+
+            // --- Find/Replace in DOT editor ---
+            let dotFindLastIndex = -1;
+            let dotFindLastTerm = '';
+
+            function getDotFindTerm() {
+                return document.getElementById('dotFindInput').value;
+            }
+
+            function getDotReplaceTerm() {
+                return document.getElementById('dotReplaceInput').value;
+            }
+
+            function setDotFindStatus(msg) {
+                document.getElementById('dotFindStatus').textContent = msg;
+            }
+
+            window.dotFindFirst = function() {
+                const term = getDotFindTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                const idx = text.indexOf(term);
+                if (idx === -1) {
+                    setDotFindStatus('Не найдено');
+                    dotFindLastIndex = -1;
+                } else {
+                    dotCodePre.focus();
+                    dotCodePre.setSelectionRange(idx, idx + term.length);
+                    dotFindLastIndex = idx;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('');
+                }
+            };
+
+            window.dotFindNext = function() {
+                const term = getDotFindTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                // If term changed, start from beginning
+                const startFrom = (term === dotFindLastTerm && dotFindLastIndex !== -1)
+                    ? dotFindLastIndex + 1 : 0;
+                const idx = text.indexOf(term, startFrom);
+                if (idx === -1) {
+                    // Wrap around
+                    const idxWrap = text.indexOf(term, 0);
+                    if (idxWrap === -1) {
+                        setDotFindStatus('Не найдено');
+                        dotFindLastIndex = -1;
+                    } else {
+                        dotCodePre.focus();
+                        dotCodePre.setSelectionRange(idxWrap, idxWrap + term.length);
+                        dotFindLastIndex = idxWrap;
+                        dotFindLastTerm = term;
+                        setDotFindStatus('С начала');
+                    }
+                } else {
+                    dotCodePre.focus();
+                    dotCodePre.setSelectionRange(idx, idx + term.length);
+                    dotFindLastIndex = idx;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('');
+                }
+            };
+
+            window.dotReplaceOne = function() {
+                const term = getDotFindTerm();
+                const replacement = getDotReplaceTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                // Replace only at the current selection if it matches
+                const selStart = dotCodePre.selectionStart;
+                const selEnd = dotCodePre.selectionEnd;
+                if (selEnd - selStart === term.length && text.substring(selStart, selEnd) === term) {
+                    dotCodePre.value = text.substring(0, selStart) + replacement + text.substring(selEnd);
+                    dotFindLastIndex = selStart + replacement.length - 1;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('Заменено');
+                    // Move to next match
+                    window.dotFindNext();
+                } else {
+                    // Just find first
+                    window.dotFindFirst();
+                }
+            };
+
+            window.dotReplaceAll = function() {
+                const term = getDotFindTerm();
+                const replacement = getDotReplaceTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                const count = (text.split(term).length - 1);
+                if (count === 0) {
+                    setDotFindStatus('Не найдено');
+                    return;
+                }
+                dotCodePre.value = text.split(term).join(replacement);
+                dotFindLastIndex = -1;
+                setDotFindStatus(`Заменено: ${count}`);
+            };
+
+            // --- Refresh diagram from DOT editor ---
+            window.refreshDiagramFromEditor = async function() {
+                const editedDot = dotCodePre.value;
+                if (!editedDot || editedDot === '(код появится после загрузки)') return;
+                showStatus('⏳ Перерисовка диаграммы...');
+                // When editor is updated, use the edited code for both local render and GraphvizOnline link
+                dotCode = editedDot;
+                dotCodeForGraphvizOnline = editedDot;
+                // Update graphviz link
+                const encoded = encodeURIComponent(editedDot);
+                graphvizLink = `${GRAPHVIZ_ONLINE_TYPE}${encoded}`;
+                graphvizLinkInput.value = graphvizLink;
+                // Re-render without re-loading images (use already loaded people)
+                const imagesOption = await buildImagesOption(people);
+                await renderDot(editedDot, imagesOption);
+                showStatus('✅ Диаграмма обновлена');
+            };
+
+            // --- Update photos panel ---
+            // Shows only files that actually exist in pic/ folder (no empty placeholders).
+            // Only updates if the floating "Фото персон" panel is currently open.
+            function updatePhotosPanel() {
+                const grid = document.getElementById('photosGrid');
+                if (!grid) return;
+                grid.innerHTML = '';
+
+                // Build list of files that were checked and found to exist
+                const existingFiles = [];
+
+                // Always include defaults if they exist
+                for (const fn of ['dafaultm.png', 'dafaultf.png']) {
+                    if (photoExistsCache[fn]) existingFiles.push(fn);
+                }
+
+                // Add person photos that exist
+                people.forEach(p => {
+                    const fn = p.idA + '.png';
+                    if (photoExistsCache[fn] && !existingFiles.includes(fn)) {
+                        existingFiles.push(fn);
+                    }
+                });
+
+                if (existingFiles.length === 0) {
+                    grid.innerHTML = '<em style="color:#888">Файлы фото не найдены в папке pic/</em>';
+                    return;
+                }
+
+                existingFiles.forEach(filename => {
+                    const div = document.createElement('div');
+                    div.className = 'photo-item';
+
+                    const img = document.createElement('img');
+                    img.src = getActivePicDir() + '/' + filename;
+                    img.alt = filename;
+                    img.title = filename;
+
+                    const label = document.createElement('div');
+                    label.className = 'path';
+                    const shortName = filename.length > 20 ? filename.substring(0, 18) + '…' : filename;
+                    label.textContent = shortName;
+                    label.title = filename;
+
+                    div.appendChild(img);
+                    div.appendChild(label);
+                    grid.appendChild(div);
+                });
+            }
+
+            // --- Update info panels ---
+            function updateInfoPanels() {
+                if (dotCode) {
+                    // In relativeGraphvizOnline mode, the DOT panel shows the GraphvizOnline
+                    // code (with absolute photo URLs) so users can copy it for use with GraphvizOnline.
+                    // In all other modes, the panel shows the local DOT code (with relative paths).
+                    const codeForLink = dotCodeForGraphvizOnline || dotCode;
+                    const showGraphvizCode = PIC_DIR_TYPE === 'relativeGraphvizOnline' && dotCodeForGraphvizOnline && dotCodeForGraphvizOnline !== dotCode;
+                    dotCodePre.value = showGraphvizCode ? dotCodeForGraphvizOnline : dotCode;
+                    const encoded = encodeURIComponent(codeForLink);
+                    graphvizLink = `${GRAPHVIZ_ONLINE_TYPE}${encoded}`;
+                    graphvizLinkInput.value = graphvizLink;
+                } else {
+                    dotCodePre.value = '(код появится после загрузки)';
+                    graphvizLinkInput.value = '(сгенерируется после загрузки)';
+                }
+                updatePhotosPanel();
+            }
+
+            // ================================================================
+            // PROPERTIES PANEL (Свойство объекта диаграммы)
+            // Based on rdf-grapher ver9d implementation
+            // ================================================================
+
+            // --- Получить подпись поля для отображения в панели свойств ---
+            // sheetName — название листа Excel (например "person", "family", "event")
+            // fieldKey  — имя поля с суффиксом _ (например "surName2_")
+            // Если в langMap нет записи для данного поля, выводит предупреждение на экран
+            // и возвращает имя поля без суффикса _ (fallback).
+            function getFieldLabel(sheetName, fieldKey) {
+                const mapKey = sheetName + '.' + fieldKey;
+                const entry = langMap[mapKey];
+                if (!entry) {
+                    // Предупреждение: поле не найдено в листе language
+                    const warnMsg = 'Предупреждение: поле "' + fieldKey + '" листа "' + sheetName + '" не найдено в листе language';
+                    console.warn(warnMsg);
+                    showStatus(warnMsg, false);
+                    return fieldKey.replace(/_$/, '');
+                }
+                if (LANGUAGE === 'ru') return entry.ru || entry.name.replace(/_$/, '');
+                if (LANGUAGE === 'en') return entry.en || entry.name.replace(/_$/, '');
+                // LANGUAGE === 'name' или любое другое значение — возвращаем имя колонки без суффикса
+                return entry.name.replace(/_$/, '');
+            }
+            // Делаем getFieldLabel доступной из foto.js
+            window.getFieldLabel = getFieldLabel;
+
+            // --- Построить HTML ссылки/ссылок из строки hyperLink (через ;) ---
+            function buildLinksHtml(hyperLinkStr) {
+                if (!hyperLinkStr) return '';
+                const links = hyperLinkStr.split(';').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+                return links.map(function(href) {
+                    const safeHref = href.replace(/"/g, '&quot;');
+                    let displayText = href;
+                    try {
+                        const url = new URL(href);
+                        // Показываем только домен второго уровня (например ruwiki.ru из ru.wikipedia.org)
+                        const hostParts = url.hostname.replace(/^www\./, '').split('.');
+                        displayText = hostParts.length >= 2 ? hostParts.slice(-2).join('.') : url.hostname;
+                    } catch (e) { /* не URL — показываем как есть */ }
+                    return '<a href="' + safeHref + '" target="_blank" rel="noopener noreferrer">' + displayText + '</a>';
+                }).join(' ');
+            }
+
+            // --- Панель свойств персоны ---
+            // Показывает только поля с суффиксом _ (из extraFields) плюс мини-фото.
+            // Заголовок: "Основные свойства person", затем idA персоны.
+            function showNodeProperties(person) {
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+
+                // Если панель уже открыта — вывести на передний план
+                const existingPanel = openPropertiesPanels.find(function(p) { return p.idA === person.idA; });
+                if (existingPanel) {
+                    const panel = document.getElementById(existingPanel.panelId);
+                    if (panel) bringPanelToFront(panel);
+                    return;
+                }
+
+                propertiesPanelCounter++;
+                const panelId = 'properties-panel-' + propertiesPanelCounter;
+
+                const offsetMultiplier = openPropertiesPanels.length % 5;
+                const rightOffset = 20 + (offsetMultiplier * 30);
+                const topOffset = 100 + (offsetMultiplier * 30);
+
+                // Мини-фото (если есть)
+                const photoFile = photoExistsCache[person.idA + '.png'] ? person.idA + '.png' : null;
+
+                // Строим строки свойств только из полей с суффиксом _
+                let propertiesHtml = '';
+                if (person.extraFields) {
+                    const fieldNames = Object.keys(person.extraFields);
+                    for (let fi = 0; fi < fieldNames.length; fi++) {
+                        const key = fieldNames[fi];
+                        let val = person.extraFields[key];
+                        if (!val) continue;
+                        const labelText = getFieldLabel('person', key);
+                        let valHtml = val;
+                        // Поля hyperLink_ — делаем кликабельные ссылки
+                        if (key.toLowerCase().includes('hyperlink')) {
+                            valHtml = buildLinksHtml(val) || val;
+                        }
+                        propertiesHtml += '<div class="property-item"><div class="property-predicate">' + labelText + '</div><div class="property-value">' + valHtml + '</div></div>';
+                    }
+                }
+                if (photoFile) {
+                    propertiesHtml += '<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="' + getActivePicDir() + '/' + photoFile + '" alt="' + person.label + '"></div></div>';
+                }
+
+                const escapedIdA = person.idA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                const escapedIdAForOnclick = person.idA.replace(/'/g, "\\'");
+
+                const panelHtml =
+                    '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">Основные свойства person</div>' +
+                    '<h3>' + person.idA + '</h3>' +
+                    '<div class="properties-header-buttons">' +
+                    '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
+                    '<button class="foto-person-btn" onclick="event.stopPropagation(); openPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_person</button>' +
+                    '<button class="foto-family-btn" onclick="event.stopPropagation(); openFamilyGalleryForPerson(\'' + escapedIdAForOnclick + '\')">foto_family</button>' +
+                    '<button class="foto-group-btn" onclick="event.stopPropagation(); openGroupGallery(\'' + escapedIdAForOnclick + '\')">foto_group</button>' +
+                    '<button class="foto-location-btn" onclick="event.stopPropagation(); openLocationPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_location</button>' +
+                    '<button class="event-btn" onclick="event.stopPropagation(); openEventPanel(\'' + escapedIdAForOnclick + '\')">Event</button>' +
+                    '</div>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    propertiesHtml +
+                    '</div>' +
+                    '</div>';
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                openPropertiesPanels.push({ panelId: panelId, idA: person.idA });
+
+                const newPanel = document.getElementById(panelId);
+                if (newPanel) bringPanelToFront(newPanel);
+            }
+
+            // --- Панель свойств семьи ---
+            // Открывается по клику на кластер (субграф) в SVG.
+            // Показывает только поля с суффиксом _ из листа family.
+            // Заголовок: "Основные свойства family", затем idA семьи.
+            // В заголовке рядом с кнопкой Копировать — кнопка "foto_family" для открытия галереи.
+            function showFamilyProperties(familyObj) {
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+
+                // Если панель уже открыта — вывести на передний план
+                const existingKey = 'family-' + familyObj.idA;
+                const existingPanel = openPropertiesPanels.find(function(p) { return p.idA === existingKey; });
+                if (existingPanel) {
+                    const panel = document.getElementById(existingPanel.panelId);
+                    if (panel) bringPanelToFront(panel);
+                    return;
+                }
+
+                propertiesPanelCounter++;
+                const panelId = 'properties-panel-' + propertiesPanelCounter;
+
+                const offsetMultiplier = openPropertiesPanels.length % 5;
+                const rightOffset = 20 + (offsetMultiplier * 30);
+                const topOffset = 100 + (offsetMultiplier * 30);
+
+                // Строим строки свойств только из полей с суффиксом _
+                let propertiesHtml = '';
+                if (familyObj.extraFields) {
+                    const fieldNames = Object.keys(familyObj.extraFields);
+                    for (let fi = 0; fi < fieldNames.length; fi++) {
+                        const key = fieldNames[fi];
+                        let val = familyObj.extraFields[key];
+                        if (!val) continue;
+                        const labelText = getFieldLabel('family', key);
+                        let valHtml = val;
+                        if (key.toLowerCase().includes('hyperlink')) {
+                            valHtml = buildLinksHtml(val) || val;
+                        }
+                        propertiesHtml += '<div class="property-item"><div class="property-predicate">' + labelText + '</div><div class="property-value">' + valHtml + '</div></div>';
+                    }
+                }
+
+                const escapedIdA = familyObj.idA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const escapedIdAForOnclick = familyObj.idA.replace(/'/g, "\\'");
+                // Для отображения: заменяем двойное подчёркивание (__) на перенос строки,
+                // чтобы длинные idA семьи вида «ФИО1__ФИО2» не перекрывали кнопку закрытия.
+                const displayIdA = familyObj.idA.replace(/__/g, '<br>');
+
+                const panelHtml =
+                    '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">Основные свойства family</div>' +
+                    '<h3>' + displayIdA + '</h3>' +
+                    '<div class="properties-header-buttons">' +
+                    '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
+                    '<button class="foto-family-btn" onclick="event.stopPropagation(); openFamilyGallery(\'' + escapedIdAForOnclick + '\')">foto_family</button>' +
+                    '<button class="foto-location-btn" onclick="event.stopPropagation(); openLocationFamilyGallery(\'' + escapedIdAForOnclick + '\')">foto_location</button>' +
+                    '</div>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    propertiesHtml +
+                    '</div>' +
+                    '</div>';
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                openPropertiesPanels.push({ panelId: panelId, idA: existingKey });
+
+                const newPanel = document.getElementById(panelId);
+                if (newPanel) bringPanelToFront(newPanel);
+            }
+
+            // --- Открыть галерею foto_family по idA семьи ---
+            window.openFamilyGallery = function(familyIdA) {
+                if (window.FOTO && window.FOTO.showFamilyGallery) {
+                    window.FOTO.showFamilyGallery(familyIdA, fotoFamilyRows, 'foto_family');
+                }
+            };
+
+            // --- Открыть галерею foto_family по idA персоны (по полю id_personAll) ---
+            window.openFamilyGalleryForPerson = function(personIdA) {
+                if (window.FOTO && window.FOTO.showFamilyGalleryForPerson) {
+                    window.FOTO.showFamilyGalleryForPerson(personIdA, fotoFamilyRows, 'foto_family');
+                }
+            };
+
+            // --- Открыть галерею foto_person по idA персоны ---
+            window.openPersonGallery = function(personIdA) {
+                if (window.FOTO && window.FOTO.showPersonGallery) {
+                    window.FOTO.showPersonGallery(personIdA, fotoPersonRows, 'foto_person');
+                }
+            };
+
+            // --- Открыть галерею foto_group по idA персоны ---
+            window.openGroupGallery = function(personIdA) {
+                if (window.FOTO && window.FOTO.showGroupGallery) {
+                    window.FOTO.showGroupGallery(personIdA, fotoGroupRows, 'foto_group');
+                }
+            };
+
+            // --- Открыть галерею foto_location по idA персоны ---
+            window.openLocationPersonGallery = function(personIdA) {
+                if (window.FOTO && window.FOTO.showLocationPersonGallery) {
+                    window.FOTO.showLocationPersonGallery(personIdA, fotoLocationRows, 'foto_location');
+                }
+            };
+
+            // --- Открыть галерею foto_location по idA семьи ---
+            window.openLocationFamilyGallery = function(familyIdA) {
+                if (window.FOTO && window.FOTO.showLocationFamilyGallery) {
+                    window.FOTO.showLocationFamilyGallery(familyIdA, fotoLocationRows, 'foto_location');
+                }
+            };
+
+            // --- Открыть панель событий по idA персоны ---
+            window.openEventPanel = function(personIdA) {
+                showEventPanel(personIdA);
+            };
+
+            // --- Панель событий персоны ---
+            // Показывает список событий из листа event, где id_personAll содержит personIdA.
+            // Каждое событие содержит свой выпадающий список FotoList с доступными типами фото.
+            function showEventPanel(personIdA) {
+                var container = document.getElementById('properties-panels-container');
+                if (!container) return;
+
+                // Если панель уже открыта — вывести на передний план
+                var existingKey = 'event-' + personIdA;
+                var existingPanel = openPropertiesPanels.find(function(p) { return p.idA === existingKey; });
+                if (existingPanel) {
+                    var ep = document.getElementById(existingPanel.panelId);
+                    if (ep) bringPanelToFront(ep);
+                    return;
+                }
+
+                // Отфильтровать события, где personIdA присутствует в id_personAll
+                var matchingEvents = [];
+                for (var i = 0; i < eventRows.length; i++) {
+                    var row = eventRows[i];
+                    var idPersonAll = row.id_personAll || '';
+                    // Разбиваем по ';', убираем пробелы вокруг каждого элемента
+                    var ids = idPersonAll.split(';').map(function(s) { return s.trim(); });
+                    if (ids.indexOf(personIdA) !== -1) {
+                        matchingEvents.push(row);
+                    }
+                }
+
+                propertiesPanelCounter++;
+                var panelId = 'properties-panel-' + propertiesPanelCounter;
+
+                var offsetMultiplier = openPropertiesPanels.length % 5;
+                var rightOffset = 20 + (offsetMultiplier * 30);
+                var topOffset = 100 + (offsetMultiplier * 30);
+
+                // Строим список событий, для каждого события — свой FotoList
+                var fotoTypes = ['foto_person', 'foto_family', 'foto_group', 'foto_location'];
+                var eventsHtml = '';
+                if (matchingEvents.length === 0) {
+                    eventsHtml = '<div class="property-item"><em style="color:#888">События не найдены</em></div>';
+                } else {
+                    for (var mi = 0; mi < matchingEvents.length; mi++) {
+                        var ev = matchingEvents[mi];
+                        var escapedEventId = (ev.id_event || '').replace(/'/g, "\\'");
+
+                        // Строим FotoList для этого конкретного события
+                        var evAvailableFotoTypes = [];
+                        for (var fi = 0; fi < fotoTypes.length; fi++) {
+                            var ft = fotoTypes[fi];
+                            if (ev[ft] && ev[ft].trim() !== '') {
+                                evAvailableFotoTypes.push(ft);
+                            }
+                        }
+                        var evFotoListHtml = '';
+                        if (evAvailableFotoTypes.length > 0) {
+                            var evOptHtml = '<option value="">-- FotoList --</option>';
+                            for (var oi = 0; oi < evAvailableFotoTypes.length; oi++) {
+                                evOptHtml += '<option value="' + evAvailableFotoTypes[oi] + '">' + evAvailableFotoTypes[oi] + '</option>';
+                            }
+                            evFotoListHtml = '<select class="event-fotolist-select" onchange="openSingleEventFotoGallery(\'' + escapedEventId + '\', this.value, this)">' + evOptHtml + '</select>';
+                        }
+
+                        // Строим поля события (только _-суффиксные)
+                        var evKeys = Object.keys(ev);
+                        for (var eki = 0; eki < evKeys.length; eki++) {
+                            var evKey = evKeys[eki];
+                            if (!evKey.endsWith('_')) continue;
+                            var evVal = ev[evKey];
+                            if (!evVal) continue;
+                            var evLabel = getFieldLabel('event', evKey);
+                            var evValHtml = String(evVal);
+                            if (evKey.toLowerCase().includes('hyperlink')) {
+                                var links = evVal.split(';').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+                                evValHtml = links.map(function(href) {
+                                    return '<a href="' + href + '" target="_blank" rel="noopener noreferrer">[↗]</a>';
+                                }).join(' ');
+                            }
+                            eventsHtml += '<div class="property-item"><div class="property-predicate">' + evLabel + '</div><div class="property-value">' + evValHtml + '</div></div>';
+                        }
+                        // FotoList в строке события (после полей события)
+                        if (evFotoListHtml) {
+                            eventsHtml += '<div class="property-item event-fotolist-row"><div class="property-predicate">FotoList</div><div class="property-value">' + evFotoListHtml + '</div></div>';
+                        }
+                        eventsHtml += '<hr class="event-separator">';
+                    }
+                    // Убираем последний <hr>
+                    if (matchingEvents.length > 0) {
+                        eventsHtml = eventsHtml.replace(/<hr class="event-separator">$/, '');
+                    }
+                }
+
+                var escapedIdA = personIdA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                var panelHtml =
+                    '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">События person</div>' +
+                    '<h3>' + personIdA + '</h3>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    eventsHtml +
+                    '</div>' +
+                    '</div>';
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                openPropertiesPanels.push({ panelId: panelId, idA: existingKey });
+
+                var newPanel = document.getElementById(panelId);
+                if (newPanel) bringPanelToFront(newPanel);
+            }
+
+            // --- Открыть галерею фото для конкретного события по выбранному типу в FotoList ---
+            // eventId — id_event конкретного события, fotoType — тип фото
+            // selectEl — элемент <select>, чтобы сбросить выбор после открытия
+            window.openSingleEventFotoGallery = function(eventId, fotoType, selectEl) {
+                if (!fotoType) return;
+                // Сброс выбора в dropdown
+                if (selectEl) selectEl.value = '';
+
+                // Найти строку события по id_event
+                var eventRow = null;
+                for (var i = 0; i < eventRows.length; i++) {
+                    if ((eventRows[i].id_event || '').trim() === eventId.trim()) {
+                        eventRow = eventRows[i];
+                        break;
+                    }
+                }
+                if (!eventRow) return;
+
+                // Значение ячейки fotoType — имя файла фото
+                var fotoFileName = eventRow[fotoType] ? eventRow[fotoType].trim() : '';
+                if (!fotoFileName) return;
+
+                // Формируем объект строки для галереи: idA = имя файла, _-поля из события
+                var fotoObj = { idA: fotoFileName };
+                var keys = Object.keys(eventRow);
+                for (var k = 0; k < keys.length; k++) {
+                    var key = keys[k];
+                    if (key.endsWith('_') && eventRow[key]) {
+                        fotoObj[key] = eventRow[key];
+                    }
+                }
+
+                if (window.FOTO && window.FOTO.showEventFotoGallery) {
+                    window.FOTO.showEventFotoGallery(eventId + '_' + fotoType, [fotoObj], fotoType, fotoType);
+                }
+            };
+
+            // --- Открыть галерею фото из события по выбранному типу в FotoList ---
+            // personIdA — idA персоны, fotoType — тип фото ('foto_person', 'foto_family', 'foto_group', 'foto_location')
+            // selectEl — элемент <select>, чтобы сбросить выбор после открытия
+            window.openEventFotoGallery = function(personIdA, fotoType, selectEl) {
+                if (!fotoType) return;
+                // Сброс выбора в dropdown
+                if (selectEl) selectEl.value = '';
+
+                // Собрать строки нужного foto-листа из событий для данной персоны
+                // Событие включается, если personIdA присутствует в id_personAll
+                var fotoRowsFromEvents = [];
+                var seenIdA = {};
+                for (var i = 0; i < eventRows.length; i++) {
+                    var row = eventRows[i];
+                    var idPersonAll = row.id_personAll || '';
+                    var ids = idPersonAll.split(';').map(function(s) { return s.trim(); });
+                    if (ids.indexOf(personIdA) === -1) continue;
+                    // Значение ячейки fotoType — имя файла фото (например 'Ульянов_Владимир_Ильич-1922.jpg')
+                    var fotoFileName = row[fotoType] ? row[fotoType].trim() : '';
+                    if (!fotoFileName) continue;
+                    // Дедублируем по имени файла
+                    if (seenIdA[fotoFileName]) continue;
+                    seenIdA[fotoFileName] = true;
+                    // Формируем объект строки для галереи: idA = имя файла, _-поля из события
+                    var fotoObj = { idA: fotoFileName };
+                    var keys = Object.keys(row);
+                    for (var k = 0; k < keys.length; k++) {
+                        var key = keys[k];
+                        if (key.endsWith('_') && row[key]) {
+                            fotoObj[key] = row[key];
+                        }
+                    }
+                    fotoRowsFromEvents.push(fotoObj);
+                }
+
+                if (window.FOTO && window.FOTO.showEventFotoGallery) {
+                    window.FOTO.showEventFotoGallery(personIdA + '_' + fotoType, fotoRowsFromEvents, fotoType, fotoType);
+                }
+            };
+
+            window.closePropertiesPanel = function(panelId) {
+                const panel = document.getElementById(panelId);
+                if (panel) {
+                    panel.remove();
+                    openPropertiesPanels = openPropertiesPanels.filter(p => p.panelId !== panelId);
+                }
+                if (selectedNodeElement) {
+                    selectedNodeElement.classList.remove('selected');
+                    selectedNodeElement = null;
+                }
+            };
+
+            window.copyObjectId = function(label, btn) {
+                navigator.clipboard.writeText(label).then(() => {
+                    const orig = btn.textContent;
+                    btn.textContent = '✓';
+                    setTimeout(() => { btn.textContent = orig; }, 1500);
+                }).catch(() => {
+                    // Fallback
+                    const el = document.createElement('textarea');
+                    el.value = label;
+                    document.body.appendChild(el);
+                    el.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(el);
+                });
+            };
+
+            function bringPanelToFront(panel) {
+                let maxZIndex = 2000;
+                openPropertiesPanels.forEach(function(p) {
+                    const el = document.getElementById(p.panelId);
+                    if (el) {
+                        const z = parseInt(el.style.zIndex) || 2000;
+                        if (z > maxZIndex) maxZIndex = z;
+                    }
+                });
+                panel.style.zIndex = maxZIndex + 1;
+            }
+            // Делаем bringPanelToFront доступной из foto.js
+            window.bringPanelToFront = bringPanelToFront;
+
+            window.startDragPanel = function(event, panelId) {
+                if (event.target.classList.contains('properties-close-btn') ||
+                    event.target.classList.contains('properties-copy-btn') ||
+                    event.target.classList.contains('foto-family-btn') ||
+                    event.target.classList.contains('foto-person-btn') ||
+                    event.target.classList.contains('foto-group-btn') ||
+                    event.target.classList.contains('foto-location-btn') ||
+                    event.target.classList.contains('event-btn') ||
+                    event.target.classList.contains('event-fotolist-select')) return;
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+
+                draggedPanel = panel;
+                const rect = panel.getBoundingClientRect();
+                dragOffsetX = event.clientX - rect.left;
+                dragOffsetY = event.clientY - rect.top;
+
+                bringPanelToFront(panel);
+                document.addEventListener('mousemove', dragPanel);
+                document.addEventListener('mouseup', stopDragPanel);
+                event.preventDefault();
+            };
+
+            function dragPanel(event) {
+                if (!draggedPanel) return;
+                const newLeft = event.clientX - dragOffsetX;
+                const newTop = event.clientY - dragOffsetY;
+                draggedPanel.style.left = newLeft + 'px';
+                draggedPanel.style.top = newTop + 'px';
+                draggedPanel.style.right = 'auto';
+            }
+
+            function stopDragPanel() {
+                draggedPanel = null;
+                document.removeEventListener('mousemove', dragPanel);
+                document.removeEventListener('mouseup', stopDragPanel);
+            }
+
+            // --- Добавить обработчики кликов на узлы и кластеры SVG ---
+            function addNodeClickHandlers(svgEl) {
+                // Graphviz добавляет белый фоновый polygon в корневой группе (#graph0).
+                // Он перекрывает весь SVG и перехватывает pointer-события кластеров.
+                // Отключаем pointer-events на нём, чтобы клики доходили до кластеров и узлов.
+                svgEl.querySelectorAll('g#graph0 > polygon[fill="white"]').forEach(function(poly) {
+                    poly.style.pointerEvents = 'none';
+                });
+
+                // Клики по узлам персон (g.node)
+                const nodes = svgEl.querySelectorAll('g.node');
+                nodes.forEach(function(node) {
+                    node.style.cursor = 'pointer';
+                    node.addEventListener('click', function(event) {
+                        event.stopPropagation();
+
+                        const titleEl = node.querySelector('title');
+                        if (!titleEl) return;
+                        const nodeId = titleEl.textContent.trim();
+                        const person = people.find(function(p) { return p.idA === nodeId; });
+                        if (!person) return;
+
+                        // Обновить подсветку выбранного узла
+                        if (selectedNodeElement) {
+                            selectedNodeElement.classList.remove('selected');
+                        }
+                        node.classList.add('selected');
+                        selectedNodeElement = node;
+
+                        showNodeProperties(person);
+
+                        // Выделить персону в TreeView
+                        if (typeof window.tvHighlightPerson === 'function') {
+                            window.tvHighlightPerson(nodeId);
+                        }
+                    });
+                });
+
+                // Клики по кластерам (субграфам) браков (g.cluster или g.graph)
+                // Graphviz рендерит subgraph cluster_* как <g class="cluster"> в SVG
+                const clusters = svgEl.querySelectorAll('g.cluster');
+                clusters.forEach(function(clusterEl) {
+                    clusterEl.style.cursor = 'pointer';
+                    // Белый фоновый polygon Graphviz перехватывает pointer-события.
+                    // Отключаем pointer-events на нём, чтобы клик доходил до g.cluster.
+                    clusterEl.querySelectorAll('polygon').forEach(function(poly) {
+                        var fillAttr = poly.getAttribute('fill');
+                        if (fillAttr === 'white' || fillAttr === '#ffffff') {
+                            poly.style.pointerEvents = 'none';
+                        }
+                    });
+                    clusterEl.addEventListener('click', function(event) {
+                        event.stopPropagation();
+
+                        // Название кластера берём из <title> (например cluster_Иванов_Иван__Петрова_Мария)
+                        const titleEl = clusterEl.querySelector('title');
+                        if (!titleEl) return;
+                        const clusterName = titleEl.textContent.trim();
+
+                        // Извлекаем idA семьи из имени кластера вида cluster_<idA>
+                        if (!clusterName.startsWith('cluster_')) return;
+                        const familyIdA = clusterName.slice('cluster_'.length);
+                        const familyObj = marriages.find(function(m) { return m.idA === familyIdA; });
+                        if (!familyObj) return;
+
+                        showFamilyProperties(familyObj);
+                    });
+                });
+
+                // Клик по пустой области SVG — снять выделение
+                svgEl.addEventListener('click', function() {
+                    if (selectedNodeElement) {
+                        selectedNodeElement.classList.remove('selected');
+                        selectedNodeElement = null;
+                    }
+                });
+            }
+
+            // --- Обработчик выбора персоны из TreeView (только фокус, без панели свойств) ---
+            // Вызывается при одиночном клике на персону в treeview
+            document.addEventListener('treeview-select-person-focus', function(event) {
+                var personId = event.detail && event.detail.personId;
+                if (!personId) return;
+
+                var svgEl = document.querySelector('#graphvizContainer svg');
+                if (!svgEl) return;
+
+                // Снять выделение с предыдущего
+                if (selectedNodeElement) {
+                    selectedNodeElement.classList.remove('selected');
+                    selectedNodeElement = null;
+                }
+
+                // Найти узел по <title> и выделить его
+                var nodes = svgEl.querySelectorAll('g.node');
+                for (var i = 0; i < nodes.length; i++) {
+                    var titleEl = nodes[i].querySelector('title');
+                    if (titleEl && titleEl.textContent.trim() === personId) {
+                        nodes[i].classList.add('selected');
+                        selectedNodeElement = nodes[i];
+                        nodes[i].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        break;
+                    }
+                }
+                // Панель свойств НЕ открывается при одиночном клике
+            });
+
+            // --- Обработчик выбора персоны из TreeView (с открытием панели свойств) ---
+            // Вызывается при двойном клике на персону в treeview
+            document.addEventListener('treeview-select-person', function(event) {
+                var personId = event.detail && event.detail.personId;
+                if (!personId) return;
+
+                var svgEl = document.querySelector('#graphvizContainer svg');
+                if (!svgEl) return;
+
+                // Снять выделение с предыдущего
+                if (selectedNodeElement) {
+                    selectedNodeElement.classList.remove('selected');
+                    selectedNodeElement = null;
+                }
+
+                // Найти узел по <title> и выделить его
+                var nodes = svgEl.querySelectorAll('g.node');
+                for (var i = 0; i < nodes.length; i++) {
+                    var titleEl = nodes[i].querySelector('title');
+                    if (titleEl && titleEl.textContent.trim() === personId) {
+                        nodes[i].classList.add('selected');
+                        selectedNodeElement = nodes[i];
+                        nodes[i].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        break;
+                    }
+                }
+
+                // Открыть панель свойств персоны (при двойном клике)
+                var person = people.find(function(p) { return p.idA === personId; });
+                if (person) {
+                    showNodeProperties(person);
+                }
+            });
+
+            // --- Обработчик переключения режима потомков «V» ---
+            // Когда treeview.js переключает режим потомков, перерисовываем диаграмму.
+            // В режиме потомков показываем: выбранную персону, супругу, всех потомков.
+            document.addEventListener('treeview-descendants-mode', async function(event) {
+                var active = event.detail && event.detail.active;
+                var personIdA = event.detail && event.detail.personIdA;
+
+                if (active && personIdA) {
+                    // Активируем режим потомков — фильтруем people до супруги и потомков
+                    var filteredPeople = filterDescendants(people, marriages, personIdA);
+                    showStatus('⏳ Перерисовка диаграммы (потомки)...');
+                    dotCode = await generateDotCode(filteredPeople, marriages);
+                    if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                        dotCodeForGraphvizOnline = await generateDotCode(filteredPeople, marriages, PIC_DIR_GRAPHVIZ_ONLINE);
+                    } else {
+                        dotCodeForGraphvizOnline = dotCode;
+                    }
+                    updateInfoPanels();
+                    var imagesOption = await buildImagesOption(filteredPeople);
+                    await renderDot(dotCode, imagesOption);
+                    showStatus('✅ Диаграмма: потомки ' + personIdA);
+                } else {
+                    // Деактивируем режим потомков — возвращаем полное дерево
+                    showStatus('⏳ Перерисовка полного дерева...');
+                    dotCode = await generateDotCode(people, marriages);
+                    if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                        dotCodeForGraphvizOnline = await generateDotCode(people, marriages, PIC_DIR_GRAPHVIZ_ONLINE);
+                    } else {
+                        dotCodeForGraphvizOnline = dotCode;
+                    }
+                    updateInfoPanels();
+                    var imagesOption = await buildImagesOption(people);
+                    await renderDot(dotCode, imagesOption);
+                    showStatus('✅ Дерево построено');
+                }
+            });
+
+            // --- Фильтрация персон: оставить только супругу и потомков заданной персоны ---
+            // Возвращает массив персон, которые являются:
+            //   - заданной персоной (personIdA)
+            //   - супругой (ами) персоны (из листа marriages)
+            //   - всеми потомками (дети, внуки, правнуки, ...) по обеим линиям
+            function filterDescendants(peopleList, marriagesList, personIdA) {
+                var resultSet = {}; // idA -> person
+
+                // Добавляем заданную персону
+                var person = peopleList.find(function(p) { return p.idA === personIdA; });
+                if (person) resultSet[personIdA] = person;
+
+                // Добавляем супругов из браков
+                (marriagesList || []).forEach(function(m) {
+                    if (m.husband === personIdA) {
+                        var wife = peopleList.find(function(p) { return p.idA === m.wife; });
+                        if (wife) resultSet[m.wife] = wife;
+                    } else if (m.wife === personIdA) {
+                        var husband = peopleList.find(function(p) { return p.idA === m.husband; });
+                        if (husband) resultSet[m.husband] = husband;
+                    }
+                });
+
+                // Рекурсивно добавляем всех потомков
+                // Дети — те, у кого hasFather === personIdA или hasMother === personIdA
+                function addDescendants(parentIdA) {
+                    peopleList.forEach(function(p) {
+                        if (p.hasFather === parentIdA || p.hasMother === parentIdA) {
+                            if (!resultSet[p.idA]) {
+                                resultSet[p.idA] = p;
+                                // Также добавляем супругов детей (для отображения браков на диаграмме)
+                                (marriagesList || []).forEach(function(m) {
+                                    if (m.husband === p.idA) {
+                                        var spouse = peopleList.find(function(pp) { return pp.idA === m.wife; });
+                                        if (spouse && !resultSet[m.wife]) resultSet[m.wife] = spouse;
+                                    } else if (m.wife === p.idA) {
+                                        var spouse = peopleList.find(function(pp) { return pp.idA === m.husband; });
+                                        if (spouse && !resultSet[m.husband]) resultSet[m.husband] = spouse;
+                                    }
+                                });
+                                // Рекурсивно добавляем потомков этого ребёнка
+                                addDescendants(p.idA);
+                            }
+                        }
+                    });
+                }
+                addDescendants(personIdA);
+
+                return Object.values(resultSet);
+            }
+
+            // --- Build tree ---
+            async function buildTree(parsedData) {
+                const peopleArray = parsedData.people || parsedData;
+                const marriagesArray = parsedData.marriages || [];
+                if (!peopleArray.length) return;
+                people = peopleArray;
+                marriages = marriagesArray;
+                fotoFamilyRows = parsedData.fotoFamilyRows || [];
+                fotoPersonRows = parsedData.fotoPersonRows || [];
+                fotoGroupRows = parsedData.fotoGroupRows || [];
+                fotoLocationRows = parsedData.fotoLocationRows || [];
+                eventRows = parsedData.eventRows || [];
+
+                // Экспортируем данные для save.js (ZIP архив)
+                window.SAVE_DATA = {
+                    fotoFamilyRows: fotoFamilyRows,
+                    fotoPersonRows: fotoPersonRows,
+                    fotoGroupRows: fotoGroupRows,
+                    fotoLocationRows: fotoLocationRows,
+                    photoFilenames: []  // будет заполнено после preloadPhotoChecks
+                };
+
+                // Строим карту переводов: ключ = "object.name", значение = {name, ru, en}
+                langMap = {};
+                const langRowsData = parsedData.languageRows || [];
+                for (let li = 0; li < langRowsData.length; li++) {
+                    const lr = langRowsData[li];
+                    langMap[lr.object + '.' + lr.name] = lr;
+                }
+                showStatus('⏳ Проверка наличия фото...');
+                await preloadPhotoChecks(people);
+
+                // Обновляем SAVE_DATA с найденными фото
+                if (window.SAVE_DATA) {
+                    window.SAVE_DATA.photoFilenames = [];
+                    for (var fn in photoExistsCache) {
+                        if (photoExistsCache[fn]) {
+                            window.SAVE_DATA.photoFilenames.push(fn);
+                        }
+                    }
+                }
+
+                showStatus('⏳ Генерация DOT кода...');
+                // Generate local DOT code (always uses relative pic dir for rendering)
+                dotCode = await generateDotCode(people, marriagesArray);
+                // In relativeGraphvizOnline mode, generate a separate DOT code with the GraphvizOnline pic dir
+                if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                    dotCodeForGraphvizOnline = await generateDotCode(people, marriagesArray, PIC_DIR_GRAPHVIZ_ONLINE);
+                } else {
+                    dotCodeForGraphvizOnline = dotCode;
+                }
+                graphvizOnlineBtn.disabled = false;
+                document.getElementById('pdfBtn').disabled = false;
+                document.getElementById('svgBtn').disabled = false;
+                document.getElementById('drawioBtn').disabled = false;
+                document.getElementById('drawioOnlineBtn').disabled = false;
+                document.getElementById('zipBtn').disabled = false;
+                updateInfoPanels();
+                showStatus('⏳ Построение дерева...');
+                const imagesOption = await buildImagesOption(people);
+                await renderDot(dotCode, imagesOption);
+                showStatus('✅ Дерево построено');
+
+                // Инициализировать TreeView после загрузки данных
+                if (typeof window.tvInit === 'function') {
+                    window.tvInit(people);
+                }
+
+                // Инициализировать PhotoTreeView после загрузки данных
+                if (typeof window.ptInit === 'function') {
+                    window.ptInit(fotoPersonRows, fotoFamilyRows, fotoGroupRows, fotoLocationRows);
+                }
+            }
+
+            async function loadFromUrl(url) {
+                try {
+                    showStatus('⏳ Загрузка...');
+                    await configPromise;
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = parseExcel(await response.arrayBuffer());
+                    await buildTree(data);
+                } catch (e) {
+                    showStatus('Ошибка загрузки: ' + e.message, true);
+                }
+            }
+
+            function loadFromFile(file) {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        await configPromise;
+                        const data = parseExcel(e.target.result);
+                        await buildTree(data);
+                    } catch (err) {
+                        showStatus('Ошибка чтения: ' + err.message, true);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            loadBtn.addEventListener('click', () => loadFromUrl('tree.xlsx'));
+            manualBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files[0]) loadFromFile(e.target.files[0]);
+                fileInput.value = '';
+            });
+
+            // --- GraphvizOnline открытие в новом окне ---
+            window.openGraphvizOnline = function() {
+                if (graphvizLink) window.open(graphvizLink, '_blank');
+            };
+
+            // Load config first, then start loading tree data.
+            // configPromise is also awaited in loadFromFile to ensure config is applied
+            // before building the tree when a file is chosen via "Choose file" button.
+            const configPromise = loadConfig();
+            configPromise.then(() => loadFromUrl('tree.xlsx'));
+        })();
+    </script>
+</body>
+</html>
