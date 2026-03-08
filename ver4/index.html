@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Семейное древо на excel + Graphviz (с фото)</title>
     <script src="https://unpkg.com/@viz-js/viz@3.4.0/lib/viz-standalone.js"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <!-- SheetJS будет загружен динамически для гарантии -->
     <link rel="stylesheet" href="styles.css">
     <!-- config.js задаёт глобальную переменную CONFIG с параметрами.
          Загрузка через <script> работает в том числе по протоколу file://
@@ -212,6 +212,30 @@
             const fileInput = document.getElementById('fileInput');
             const graphvizLinkInput = document.getElementById('graphvizLinkInput');
             const dotCodePre = document.getElementById('dotCodePre');
+
+            // --- Функция для гарантированной загрузки SheetJS ---
+            function loadSheetJS() {
+                return new Promise((resolve, reject) => {
+                    if (typeof XLSX !== 'undefined') {
+                        resolve();
+                        return;
+                    }
+                    // Пробуем загрузить с CDN
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';
+                    script.onload = resolve;
+                    script.onerror = () => {
+                        console.warn('Не удалось загрузить SheetJS с CDN, пробуем локальный xlsx.full.min.js');
+                        // Fallback на локальный файл (предполагается, что он лежит рядом)
+                        const fallbackScript = document.createElement('script');
+                        fallbackScript.src = 'xlsx.full.min.js';
+                        fallbackScript.onload = resolve;
+                        fallbackScript.onerror = () => reject(new Error('Не удалось загрузить библиотеку XLSX'));
+                        document.head.appendChild(fallbackScript);
+                    };
+                    document.head.appendChild(script);
+                });
+            }
 
             // --- Load config ---
             // Priority order:
@@ -1973,6 +1997,8 @@ async function generateDotCode(peopleList, marriages, picDirOverride) {
                 try {
                     showStatus('⏳ Загрузка...');
                     await configPromise;
+                    // Убедимся, что SheetJS загружен
+                    await loadSheetJS();
                     const response = await fetch(url);
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const data = parseExcel(await response.arrayBuffer());
@@ -1987,6 +2013,8 @@ async function generateDotCode(peopleList, marriages, picDirOverride) {
                 reader.onload = async (e) => {
                     try {
                         await configPromise;
+                        // Убедимся, что SheetJS загружен
+                        await loadSheetJS();
                         const data = parseExcel(e.target.result);
                         await buildTree(data);
                     } catch (err) {
@@ -2008,11 +2036,17 @@ async function generateDotCode(peopleList, marriages, picDirOverride) {
                 if (graphvizLink) window.open(graphvizLink, '_blank');
             };
 
-            // Load config first, then start loading tree data.
-            // configPromise is also awaited in loadFromFile to ensure config is applied
-            // before building the tree when a file is chosen via "Choose file" button.
+            // --- Запуск: загружаем конфиг, затем ждём SheetJS и загружаем tree.xlsx ---
             const configPromise = loadConfig();
-            configPromise.then(() => loadFromUrl('tree.xlsx'));
+            configPromise.then(async () => {
+                try {
+                    await loadSheetJS(); // гарантируем загрузку SheetJS
+                    loadFromUrl('tree.xlsx');
+                } catch (e) {
+                    showStatus('Ошибка загрузки библиотеки XLSX. Проверьте подключение к интернету.', true);
+                    console.error(e);
+                }
+            });
         })();
     </script>
 </body>
