@@ -3,9 +3,9 @@
 Ошибка загрузки: файл XLSX is not defined  
 Хотя он присутствует в папке. Укажи причины и предложи решение. Код приложен.
 
-PS проблема была в
-<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-
+PS проблема была в 
+`<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>`
+см. https://github.com/bpmbpm/family-tree/blob/main/ver4/old/index_v1.html
 ## 1
 ## Причины ошибки "XLSX is not defined"
 
