@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Семейное древо на excel + Graphviz (с фото)</title>
+    <script src="https://unpkg.com/@viz-js/viz@3.4.0/lib/viz-standalone.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <!-- config.js задаёт глобальную переменную CONFIG с параметрами. -->
+    <script src="config.js"></script>
+    <script src="foto.js"></script>
+    <script src="treeview.js"></script>
+    <script src="phototree.js"></script>
+    <script src="save.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🌳 Семейное древо на excel + Graphviz (с фото)</h1>
+        <div class="toolbar">
+            <button id="loadBtn">📂 Загрузить tree.xlsx</button>
+            <button id="manualBtn">📁 Выбрать файл</button>
+            <input type="file" id="fileInput" accept=".xlsx, .xls">
+        </div>
+
+        <!-- Основной макет: дерево слева, диаграмма справа -->
+        <div class="main-layout">
+
+        <!-- Левая колонка: дерево + фото -->
+        <div class="left-panels-column">
+
+        <!-- Панель дерева (TreeView) -->
+        <div class="treeview-panel">
+            <div class="treeview-panel-header">
+                <span class="treeview-panel-title">🌿 Дерево</span>
+                <div class="tv-header-buttons">
+                    <button class="tv-btn" id="tv-btn-home" onclick="tvHome()" title="Домой — свернуть дерево в исходное состояние">&#x2302;</button>
+                    <button class="tv-btn" id="tv-btn-expand" onclick="tvExpandAll()" title="Раскрыть все ветки">&#x25BD;</button>
+                    <button class="tv-btn" id="tv-btn-descendants" onclick="tvToggleDescendantsMode()" title="Потомки — показать только супругу и потомков выбранной персоны">V</button>
+                    <button class="tv-btn tv-btn-active" id="tv-btn-male" onclick="tvSetMode('male')" title="Мужская линия (hasFather)">♂</button>
+                    <button class="tv-btn" id="tv-btn-female" onclick="tvSetMode('female')" title="Женская линия (hasMother)">♀</button>
+                </div>
+            </div>
+            <div class="treeview-search-row">
+                <input type="text" id="tv-search-input" class="tv-search-input"
+                    placeholder="Поиск..." oninput="tvSearchInputChange()" onkeydown="if(event.key==='Enter') tvFindNext()">
+                <button class="tv-btn" id="tv-btn-find-start" onclick="tvFindStart()" title="Начать с начала" disabled>⏮</button>
+                <button class="tv-btn" id="tv-btn-find-next" onclick="tvFindNext()" title="Найти следующего" disabled>⏭</button>
+                <span class="tv-search-status" id="tv-search-status"></span>
+            </div>
+            <div class="treeview-content" id="tv-content">
+                <div class="tv-empty">Загрузите данные</div>
+            </div>
+        </div>
+
+        <!-- Панель Фото (PhotoTreeView) -->
+        <div class="phototree-panel">
+            <div class="phototree-panel-header">
+                <span class="phototree-panel-title">📷 Фото</span>
+                <div class="pt-header-buttons">
+                    <button class="tv-btn" id="pt-btn-home" onclick="ptHome()" title="Домой — свернуть дерево фото">&#x2302;</button>
+                    <button class="tv-btn" id="pt-btn-expand" onclick="ptExpandAll()" title="Раскрыть все ветки">&#x25BD;</button>
+                    <button class="tv-btn" id="pt-btn-photos" onclick="togglePersonPhotos()" title="Фото персон">🖼️</button>
+                </div>
+            </div>
+            <div class="phototree-content" id="pt-content">
+                <div class="tv-empty">Загрузите данные</div>
+            </div>
+        </div>
+
+        </div><!-- /left-panels-column -->
+
+        <!-- Diagram panel: zoom container on top, zoom controls at bottom -->
+        <div class="diagram-panel">
+            <div class="diagram-panel-header">
+                <span class="diagram-panel-title">📊 Диаграмма</span>
+            </div>
+            <div class="zoom-container" id="zoomContainer">
+                <div class="zoom-content" id="zoomContent">
+                    <div id="graphvizContainer">Дерево будет построено здесь...</div>
+                </div>
+            </div>
+            <div class="zoom-controls" id="zoom-controls">
+                <button onclick="zoomIn()" title="Увеличить">+</button>
+                <span id="zoom-level">100%</span>
+                <button onclick="zoomOut()" title="Уменьшить">−</button>
+                <button onclick="zoomReset()" title="Сбросить масштаб">Сброс</button>
+                <button onclick="zoomFit()" title="Вписать в окно">Вписать</button>
+                <span class="zoom-separator"></span>
+                <button id="graphvizOnlineBtn" onclick="openGraphvizOnline()" disabled title="Показать в окне GraphvizOnline">GraphvizOnline</button>
+                <button id="pdfBtn" onclick="exportToPdf()" disabled title="Выгрузить диаграмму в PDF">pdf</button>
+                <button id="svgBtn" onclick="exportToSvg()" disabled title="Выгрузить диаграмму в SVG">SVG</button>
+                <button id="drawioBtn" onclick="exportToDrawio()" disabled title="Выгрузить диаграмму в Drawio">Drawio</button>
+                <button id="drawioOnlineBtn" onclick="openDrawioOnline()" disabled title="Открыть диаграмму в diagrams.net онлайн">Drawio online</button>
+                <button id="zipBtn" onclick="downloadZip()" disabled title="Создать архив для развёртывания на desktop">zip</button>
+            </div>
+        </div>
+
+        </div><!-- /main-layout -->
+
+        <!-- Код DOT (над журналом) -->
+        <div class="panel" id="panel-code" style="margin-bottom: 10px;">
+            <div class="panel-header" onclick="togglePanel('panel-code-content')">
+                <span>📄 Код DOT</span>
+                <span class="toggle-icon">▶</span>
+            </div>
+            <div class="panel-content" id="panel-code-content">
+                <textarea id="dotCodePre" class="dot-code">(код появится после загрузки)</textarea>
+                <div class="dot-code-find-replace">
+                    <input type="text" id="dotFindInput" placeholder="Найти..." class="dot-find-input">
+                    <input type="text" id="dotReplaceInput" placeholder="Заменить на..." class="dot-find-input">
+                    <div class="dot-find-buttons">
+                        <button onclick="dotFindFirst()">🔍 Найти</button>
+                        <button onclick="dotFindNext()">⏭ Далее</button>
+                        <button onclick="dotReplaceOne()">✏️ Заменить</button>
+                        <button onclick="dotReplaceAll()">🔁 Заменить все</button>
+                        <span id="dotFindStatus" class="dot-find-status"></span>
+                    </div>
+                </div>
+                <div class="dot-code-toolbar">
+                    <button onclick="refreshDiagramFromEditor()">🔄 Обновить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Журнал событий (самый нижний, изначально свёрнут) -->
+        <div class="panel" id="panel-status" style="margin-bottom: 20px;">
+            <div class="panel-header" onclick="togglePanel('panel-status-content')">
+                <span>📋 Журнал событий</span>
+                <span class="toggle-icon">▶</span>
+            </div>
+            <div class="panel-content" id="panel-status-content">
+                <textarea id="statusLog" class="dot-code" readonly style="height: 150px; resize: vertical; overflow-y: scroll;">⏳ Ожидание загрузки файла tree.xlsx...</textarea>
+            </div>
+        </div>
+
+        <footer>Фото из папки <code>pic/</code> (idA.png). Узел: <code>image=</code>, <code>fixedsize=true</code>, <code>imagepos=tc</code>, <code>labelloc=b</code> — фото сверху, имя и годы снизу, без наложения. Для мужчин рамка синяя, для женщин — розовая.</footer>
+    </div>
+
+    <!-- Properties panels container (fixed positioning) -->
+    <div id="properties-panels-container"></div>
+
+    <!-- Скрытый элемент для хранения ссылки GraphvizOnline (используется в JS) -->
+    <input type="hidden" id="graphvizLinkInput" value="">
+
+    <script>
+        (function() {
+            let people = [];
+            let marriages = [];
+            let fotoFamilyRows = [];
+            let fotoPersonRows = [];
+            let fotoGroupRows = [];
+            let fotoLocationRows = [];
+            let eventRows = [];
+            let dotCode = '';
+            let dotCodeForGraphvizOnline = '';
+            let graphvizLink = '';
+            let currentScale = 1.0;
+
+            let openPropertiesPanels = [];
+            let propertiesPanelCounter = 0;
+            let selectedNodeElement = null;
+            let draggedPanel = null;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+
+            const photoExistsCache = {};
+
+            const PHOTO_SIZE_PX = 100;
+            let NODE_WIDTH_IN = 2.0;
+            let NODE_HEIGHT_IN = ((PHOTO_SIZE_PX + 32) / 72).toFixed(2) * 1;
+
+            let FONT_NAME = 'Arial';
+            let FONT_SIZE = 11;
+            let FONT_SIZE_SURNAME2 = 9.9;
+            let MALE_COLOR = '#a3c4f3';
+            let FEMALE_COLOR = '#fbb9c0';
+            let UNKNOWN_COLOR = '#d5d8dc';
+            let BORDER_COLOR = '#2c3e50';
+            let EDGE_COLOR = '#5d6d7e';
+            let LANGUAGE = 'ru';
+            let langMap = {};
+
+            let PIC_DIR = 'pic';
+            let PIC_DIR_TYPE = 'relative';
+            let PIC_DIR_GLOBAL = '';
+            let PIC_DIR_GRAPHVIZ_ONLINE = '';
+            let GRAPHVIZ_ONLINE_TYPE = 'https://dreampuf.github.io/GraphvizOnline/?engine=dot#';
+
+            // Переменные для загрузки XLSX (берутся из config.js)
+            let XLSX_URL_PRIMARY = 'https://bpmbpm.github.io/family-tree/lib/xlsx.full.min.js';
+            let XLSX_URL_FALLBACK = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';
+
+            const graphvizOnlineBtn = document.getElementById('graphvizOnlineBtn');
+            const graphvizContainer = document.getElementById('graphvizContainer');
+            const zoomContent = document.getElementById('zoomContent');
+            const zoomContainer = document.getElementById('zoomContainer');
+            const zoomLevelSpan = document.getElementById('zoom-level');
+            const loadBtn = document.getElementById('loadBtn');
+            const manualBtn = document.getElementById('manualBtn');
+            const fileInput = document.getElementById('fileInput');
+            const graphvizLinkInput = document.getElementById('graphvizLinkInput');
+            const dotCodePre = document.getElementById('dotCodePre');
+            const statusLog = document.getElementById('statusLog');
+
+            // --- Функция логирования (добавляет запись в журнал) ---
+            function logMessage(msg, isError = false) {
+                const log = document.getElementById('statusLog');
+                if (log) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const prefix = isError ? '❌' : 'ℹ️';
+                    log.value += `[${timestamp}] ${prefix} ${msg}\n`;
+                    log.scrollTop = log.scrollHeight; // автоскролл
+                }
+                // Краткий статус также обновляем, если есть старый элемент (для совместимости)
+                const statusDiv = document.getElementById('status');
+                if (statusDiv) {
+                    statusDiv.textContent = msg;
+                    statusDiv.style.backgroundColor = isError ? '#fadbd8' : '#fff8e5';
+                    statusDiv.style.borderLeftColor = isError ? '#e74c3c' : '#f1c40f';
+                }
+            }
+
+            window.showStatus = logMessage;
+
+            // --- Функция для гарантированной загрузки SheetJS с использованием двух URL из конфига ---
+            function loadSheetJS() {
+                return new Promise((resolve, reject) => {
+                    if (typeof XLSX !== 'undefined') {
+                        logMessage('✅ Библиотека XLSX уже загружена.');
+                        resolve();
+                        return;
+                    }
+
+                    const tryLoad = (url, fallbackUrl) => {
+                        logMessage(`⏳ Загрузка библиотеки XLSX с ${url}...`);
+                        const script = document.createElement('script');
+                        script.src = url;
+                        script.onload = () => {
+                            logMessage(`✅ Библиотека XLSX успешно загружена с ${url}.`);
+                            resolve();
+                        };
+                        script.onerror = () => {
+                            if (fallbackUrl) {
+                                logMessage(`⚠️ Не удалось загрузить XLSX с ${url}, пробуем резервный ${fallbackUrl}`, true);
+                                tryLoad(fallbackUrl, null);
+                            } else {
+                                logMessage(`❌ Не удалось загрузить библиотеку XLSX ни по одному из URL. Проверьте подключение к интернету.`, true);
+                                reject(new Error('XLSX library failed to load'));
+                            }
+                        };
+                        document.head.appendChild(script);
+                    };
+
+                    tryLoad(XLSX_URL_PRIMARY, XLSX_URL_FALLBACK);
+                });
+            }
+
+            // --- Load config ---
+            async function loadConfig() {
+                let config = null;
+                if (typeof window.CONFIG === 'object' && window.CONFIG !== null) {
+                    config = window.CONFIG;
+                }
+                if (!config) {
+                    try {
+                        const response = await fetch('config.json');
+                        if (response.ok) {
+                            config = await response.json();
+                            logMessage('✅ Конфигурация загружена из config.json');
+                        }
+                    } catch (e) {}
+                }
+                if (!config) {
+                    try {
+                        config = await new Promise((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.open('GET', 'config.json', true);
+                            xhr.onload = () => {
+                                if (xhr.status === 200 || xhr.status === 0) {
+                                    try { resolve(JSON.parse(xhr.responseText)); } catch (e) { reject(e); }
+                                } else reject();
+                            };
+                            xhr.onerror = reject;
+                            xhr.send();
+                        });
+                        if (config) logMessage('✅ Конфигурация загружена через XHR');
+                    } catch (e) {}
+                }
+                if (!config) {
+                    try {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('GET', 'config.json', false);
+                        xhr.send();
+                        if (xhr.status === 200 || xhr.status === 0) {
+                            config = JSON.parse(xhr.responseText);
+                            logMessage('✅ Конфигурация загружена синхронно');
+                        }
+                    } catch (e) {}
+                }
+                if (!config) {
+                    logMessage('ℹ️ Конфигурационный файл не найден, используются значения по умолчанию.');
+                    return;
+                }
+
+                // Параметры отображения
+                if (config.width) NODE_WIDTH_IN = config.width;
+                if (config.height) NODE_HEIGHT_IN = config.height;
+                if (config.fontname) FONT_NAME = config.fontname;
+                if (config.fontsize) FONT_SIZE = config.fontsize;
+                if (config.fontsizeSurName2) FONT_SIZE_SURNAME2 = config.fontsizeSurName2;
+                if (config.maleColor) MALE_COLOR = config.maleColor;
+                if (config.femaleColor) FEMALE_COLOR = config.femaleColor;
+                if (config.unknownColor) UNKNOWN_COLOR = config.unknownColor;
+                if (config.borderColor) BORDER_COLOR = config.borderColor;
+                if (config.edgeColor) EDGE_COLOR = config.edgeColor;
+                if (config.picDir) PIC_DIR = config.picDir.replace(/\/+$/, '');
+                if (config.picDirType) {
+                    const t = config.picDirType.trim();
+                    if (['global','relative','relativeGraphvizOnline'].includes(t)) PIC_DIR_TYPE = t;
+                }
+                if (config.picDirGlobal) PIC_DIR_GLOBAL = config.picDirGlobal.replace(/[/\\]+$/, '');
+                if (config.picDirGraphvizOnline) PIC_DIR_GRAPHVIZ_ONLINE = config.picDirGraphvizOnline.replace(/\/+$/, '');
+                if (config.graphvizOnlineType) {
+                    const url = config.graphvizOnlineType.trim().replace(/#$/, '');
+                    GRAPHVIZ_ONLINE_TYPE = url + '#';
+                }
+                if (config.language && ['name','ru','en'].includes(config.language.trim())) {
+                    LANGUAGE = config.language.trim();
+                }
+                // URL для загрузки XLSX
+                if (config.xlsxUrlPrimary) XLSX_URL_PRIMARY = config.xlsxUrlPrimary;
+                if (config.xlsxUrlFallback) XLSX_URL_FALLBACK = config.xlsxUrlFallback;
+            }
+
+            function getActivePicDir() {
+                if (PIC_DIR_TYPE === 'global' && PIC_DIR_GLOBAL) return PIC_DIR_GLOBAL;
+                return PIC_DIR;
+            }
+
+            function getGraphvizOnlinePicDir() {
+                if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) return PIC_DIR_GRAPHVIZ_ONLINE;
+                return getActivePicDir();
+            }
+
+            window.togglePanel = function(contentId) {
+                const content = document.getElementById(contentId);
+                const icon = content.previousElementSibling.querySelector('.toggle-icon');
+                content.classList.toggle('visible');
+                icon.textContent = content.classList.contains('visible') ? '▼' : '▶';
+            };
+
+            window.togglePersonPhotos = function() {
+                const PANEL_ID = 'person-photos-panel';
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+
+                const existing = document.getElementById(PANEL_ID);
+                if (existing) {
+                    existing.remove();
+                    const btn = document.getElementById('pt-btn-photos');
+                    if (btn) btn.classList.remove('tv-btn-active');
+                    return;
+                }
+
+                let gridHtml = '';
+                const existingFiles = [];
+                for (const fn of ['dafaultm.png', 'dafaultf.png']) {
+                    if (photoExistsCache[fn]) existingFiles.push(fn);
+                }
+                people.forEach(p => {
+                    const fn = p.idA + '.png';
+                    if (photoExistsCache[fn] && !existingFiles.includes(fn)) existingFiles.push(fn);
+                });
+                if (existingFiles.length === 0) {
+                    gridHtml = '<em style="color:#888">Файлы фото не найдены в папке pic/</em>';
+                } else {
+                    existingFiles.forEach(filename => {
+                        const shortName = filename.length > 20 ? filename.substring(0, 18) + '…' : filename;
+                        gridHtml +=
+                            '<div class="photo-item">' +
+                            '<img src="' + getActivePicDir() + '/' + filename + '" alt="' + filename + '" title="' + filename + '">' +
+                            '<div class="path" title="' + filename + '">' + shortName + '</div>' +
+                            '</div>';
+                    });
+                }
+
+                const panelHtml =
+                    '<div class="properties-panel visible" id="' + PANEL_ID + '" style="right: 60px; top: 150px; min-width: 360px; max-width: 560px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + PANEL_ID + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">🖼️ Фото персон</div>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="document.getElementById(\'' + PANEL_ID + '\').remove(); var b=document.getElementById(\'pt-btn-photos\'); if(b) b.classList.remove(\'tv-btn-active\');">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    '<div class="photos-grid" id="photosGrid">' + gridHtml + '</div>' +
+                    '</div>' +
+                    '</div>';
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                const newPanel = document.getElementById(PANEL_ID);
+                if (newPanel && typeof bringPanelToFront === 'function') bringPanelToFront(newPanel);
+                const btn = document.getElementById('pt-btn-photos');
+                if (btn) btn.classList.add('tv-btn-active');
+            };
+
+            window.copyLink = function() {
+                const linkVal = graphvizLinkInput ? graphvizLinkInput.value : graphvizLink;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(linkVal).then(() => alert('Ссылка скопирована!'));
+                } else {
+                    const tmp = document.createElement('textarea');
+                    tmp.value = linkVal;
+                    document.body.appendChild(tmp);
+                    tmp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(tmp);
+                    alert('Ссылка скопирована!');
+                }
+            };
+
+            function applyZoom() {
+                zoomContent.style.transform = `scale(${currentScale})`;
+                zoomLevelSpan.textContent = Math.round(currentScale * 100) + '%';
+            }
+
+            window.zoomIn = function() {
+                if (currentScale < 5.0) { currentScale = Math.min(5.0, currentScale + 0.1); applyZoom(); }
+            };
+            window.zoomOut = function() {
+                if (currentScale > 0.1) { currentScale = Math.max(0.1, currentScale - 0.1); applyZoom(); }
+            };
+            window.zoomReset = function() {
+                currentScale = 1.0;
+                applyZoom();
+            };
+            window.zoomFit = function() {
+                const svg = graphvizContainer.querySelector('svg');
+                if (!svg) return;
+                const containerW = zoomContainer.clientWidth - 20;
+                const containerH = zoomContainer.clientHeight - 20;
+                const svgW = svg.getBoundingClientRect().width / currentScale;
+                const svgH = svg.getBoundingClientRect().height / currentScale;
+                if (svgW <= 0 || svgH <= 0) return;
+                const scaleX = containerW / svgW;
+                const scaleY = containerH / svgH;
+                currentScale = Math.min(scaleX, scaleY, 1.0);
+                applyZoom();
+            };
+
+            zoomContainer.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                currentScale = Math.min(5.0, Math.max(0.1, currentScale + delta));
+                applyZoom();
+            }, { passive: false });
+
+            async function checkPhotoExists(filename) {
+                if (photoExistsCache[filename] !== undefined) return photoExistsCache[filename];
+                const picDir = getActivePicDir();
+                const filePath = picDir + '/' + filename;
+                const isFileProtocol = window.location.protocol === 'file:';
+                if (isFileProtocol || (PIC_DIR_TYPE === 'global' && PIC_DIR_GLOBAL)) {
+                    const exists = await new Promise(resolve => {
+                        const img = new Image();
+                        img.onload = () => resolve(true);
+                        img.onerror = () => resolve(false);
+                        img.src = filePath;
+                    });
+                    photoExistsCache[filename] = exists;
+                    return exists;
+                }
+                try {
+                    const response = await fetch(filePath, { method: 'HEAD' });
+                    photoExistsCache[filename] = response.ok;
+                    return response.ok;
+                } catch {
+                    photoExistsCache[filename] = false;
+                    return false;
+                }
+            }
+
+            async function getPersonPhotoPath(person, picDirOverride) {
+                const picDir = getActivePicDir();
+                const outputDir = picDirOverride !== undefined ? picDirOverride : picDir;
+                const personalFile = person.idA + '.png';
+                if (await checkPhotoExists(personalFile)) return outputDir + '/' + personalFile;
+                const defaultFile = (person.sex === 'Ж' || person.sex === 'F') ? 'dafaultf.png' : 'dafaultm.png';
+                if (await checkPhotoExists(defaultFile)) return outputDir + '/' + defaultFile;
+                return null;
+            }
+
+            async function preloadPhotoChecks(peopleList) {
+                const filenames = new Set(['dafaultm.png', 'dafaultf.png']);
+                peopleList.forEach(p => { if (p.idA) filenames.add(p.idA + '.png'); });
+                await Promise.all(Array.from(filenames).map(fn => checkPhotoExists(fn)));
+            }
+
+            function parseExcel(arrayBuffer) {
+                logMessage('⏳ Парсинг Excel файла...');
+                try {
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+                    // --- person ---
+                    const personSheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('person')) || workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[personSheetName];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                    if (rows.length < 2) throw new Error('Нет данных на листе person');
+
+                    const headerRow = rows[0].map(h => (h || '').toString().trim().toLowerCase());
+                    const colIdx = {
+                        idA: headerRow.indexOf('ida'),
+                        label: headerRow.findIndex(h => h === 'label' || h === 'label_'),
+                        sex: headerRow.indexOf('sex'),
+                        surName2: headerRow.findIndex(h => h === 'surname2' || h === 'surname2_'),
+                        hasFather: headerRow.indexOf('hasfather'),
+                        hasMother: headerRow.indexOf('hasmother'),
+                        birth: headerRow.findIndex(h => h === 'birth' && !h.includes('full')),
+                        death: headerRow.findIndex(h => h === 'death' && !h.includes('full'))
+                    };
+                    if (colIdx.idA < 0) colIdx.idA = 0;
+                    if (colIdx.label < 0) colIdx.label = 1;
+                    if (colIdx.sex < 0) colIdx.sex = 2;
+                    if (colIdx.surName2 < 0) colIdx.surName2 = 3;
+                    if (colIdx.hasFather < 0) colIdx.hasFather = 4;
+                    if (colIdx.hasMother < 0) colIdx.hasMother = 5;
+                    if (colIdx.birth < 0) colIdx.birth = 6;
+                    if (colIdx.death < 0) colIdx.death = 7;
+
+                    const personRawHeaders = rows[0].map(h => (h || '').toString().trim());
+
+                    const dataRows = rows.slice(1).filter(row => row[colIdx.label] && row[colIdx.label].toString().trim() !== '');
+                    const peopleList = dataRows.map(row => {
+                        const label = row[colIdx.label] ? row[colIdx.label].toString().trim() : '';
+                        let idA = row[colIdx.idA] ? row[colIdx.idA].toString().trim() : '';
+                        if (!idA || idA.startsWith('=')) {
+                            idA = label.replace(/ /g, '_');
+                        }
+                        const extraFields = {};
+                        for (let ci = 0; ci < personRawHeaders.length; ci++) {
+                            const colName = personRawHeaders[ci];
+                            if (colName.endsWith('_')) {
+                                const val = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                if (val) extraFields[colName] = val;
+                            }
+                        }
+                        return {
+                            idA, label,
+                            sex: row[colIdx.sex] ? row[colIdx.sex].toString().trim() : '',
+                            surName2: (colIdx.surName2 >= 0 && row[colIdx.surName2]) ? row[colIdx.surName2].toString().trim() : '',
+                            hasFather: row[colIdx.hasFather] ? row[colIdx.hasFather].toString().trim() : '',
+                            hasMother: row[colIdx.hasMother] ? row[colIdx.hasMother].toString().trim() : '',
+                            birth: row[colIdx.birth] ? row[colIdx.birth].toString().trim() : '',
+                            death: row[colIdx.death] ? row[colIdx.death].toString().trim() : '',
+                            extraFields
+                        };
+                    }).filter(p => p.idA && p.label);
+                    if (peopleList.length === 0) throw new Error('Нет записей с idA и label');
+                    logMessage(`✅ Загружено ${peopleList.length} персон.`);
+
+                    // --- family ---
+                    const familySheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'family');
+                    let marriagesList = [];
+                    let familyRawRows = [];
+                    if (familySheetName) {
+                        const familySheet = workbook.Sheets[familySheetName];
+                        const familyRows = XLSX.utils.sheet_to_json(familySheet, { header: 1, defval: '' });
+                        if (familyRows.length > 1) {
+                            const famRawHeaders = familyRows[0].map(h => (h || '').toString().trim());
+                            const famHeader = famRawHeaders.map(h => h.toLowerCase());
+                            const famIdx = {
+                                idA: famHeader.indexOf('ida'),
+                                husband: famHeader.indexOf('husband'),
+                                wife: famHeader.indexOf('wife'),
+                                marriage: famHeader.findIndex(h => h === 'marriage' || h === 'marriage_')
+                            };
+                            if (famIdx.idA < 0) famIdx.idA = 0;
+                            if (famIdx.husband < 0) famIdx.husband = 1;
+                            if (famIdx.wife < 0) famIdx.wife = 2;
+                            familyRows.slice(1).forEach(row => {
+                                const husband = row[famIdx.husband] ? row[famIdx.husband].toString().trim() : '';
+                                const wife = row[famIdx.wife] ? row[famIdx.wife].toString().trim() : '';
+                                if (husband && wife) {
+                                    let familyIdA = (famIdx.idA >= 0 && row[famIdx.idA]) ? row[famIdx.idA].toString().trim() : '';
+                                    if (!familyIdA || familyIdA.startsWith('=')) {
+                                        familyIdA = husband + '__' + wife;
+                                    }
+                                    const extraFields = {};
+                                    for (let ci = 0; ci < famRawHeaders.length; ci++) {
+                                        const colName = famRawHeaders[ci];
+                                        if (colName.endsWith('_')) {
+                                            const val = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                            if (val) extraFields[colName] = val;
+                                        }
+                                    }
+                                    const marriageLabel = (famIdx.marriage >= 0 && row[famIdx.marriage]) ? row[famIdx.marriage].toString().trim() : '';
+                                    marriagesList.push({
+                                        idA: familyIdA,
+                                        husband, wife,
+                                        marriage: marriageLabel,
+                                        extraFields
+                                    });
+                                    const rawObj = { idA: familyIdA };
+                                    for (let ci = 0; ci < famRawHeaders.length; ci++) {
+                                        rawObj[famRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                    }
+                                    familyRawRows.push(rawObj);
+                                }
+                            });
+                        }
+                    }
+                    logMessage(`✅ Загружено ${marriagesList.length} семей.`);
+
+                    // --- foto_family ---
+                    let fotoFamilyRowsList = [];
+                    const fotoFamilySheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'foto_family');
+                    if (fotoFamilySheetName) {
+                        const ffSheet = workbook.Sheets[fotoFamilySheetName];
+                        const ffRows = XLSX.utils.sheet_to_json(ffSheet, { header: 1, defval: '' });
+                        if (ffRows.length > 1) {
+                            const ffRawHeaders = ffRows[0].map(h => (h || '').toString().trim());
+                            const ffHeaderLower = ffRawHeaders.map(h => h.toLowerCase());
+                            ffRows.slice(1).forEach(row => {
+                                const idFamilyIdx = ffHeaderLower.indexOf('id_family');
+                                const idFamilyVal = idFamilyIdx >= 0 ? row[idFamilyIdx] : '';
+                                if (!idFamilyVal || idFamilyVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < ffRawHeaders.length; ci++) {
+                                    obj[ffRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                if (!obj.idA) {
+                                    const suffixIdx = ffHeaderLower.findIndex(h => h === 'suffix' || h === 'suffix_');
+                                    const extIdx = ffHeaderLower.indexOf('extension');
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (suffix && ext) obj.idA = obj.id_family + '-' + suffix + '.' + ext;
+                                }
+                                fotoFamilyRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    // --- foto_person ---
+                    let fotoPersonRowsList = [];
+                    const fotoPersonSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'foto_person');
+                    if (fotoPersonSheetName) {
+                        const fpSheet = workbook.Sheets[fotoPersonSheetName];
+                        const fpRows = XLSX.utils.sheet_to_json(fpSheet, { header: 1, defval: '' });
+                        if (fpRows.length > 1) {
+                            const fpRawHeaders = fpRows[0].map(h => (h || '').toString().trim());
+                            const fpHeaderLower = fpRawHeaders.map(h => h.toLowerCase());
+                            fpRows.slice(1).forEach(row => {
+                                const idPersonIdx = fpHeaderLower.indexOf('id_person');
+                                const idPersonVal = idPersonIdx >= 0 ? row[idPersonIdx] : '';
+                                if (!idPersonVal || idPersonVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < fpRawHeaders.length; ci++) {
+                                    obj[fpRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                if (!obj.idA) {
+                                    const suffixIdx = fpHeaderLower.findIndex(h => h === 'suffix' || h === 'suffix_');
+                                    const extIdx = fpHeaderLower.indexOf('extension');
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (suffix && ext) obj.idA = obj.id_person + '-' + suffix + '.' + ext;
+                                }
+                                fotoPersonRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    // --- foto_group ---
+                    let fotoGroupRowsList = [];
+                    const fotoGroupSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'foto_group');
+                    if (fotoGroupSheetName) {
+                        const fgSheet = workbook.Sheets[fotoGroupSheetName];
+                        const fgRows = XLSX.utils.sheet_to_json(fgSheet, { header: 1, defval: '' });
+                        if (fgRows.length > 1) {
+                            const fgRawHeaders = fgRows[0].map(h => (h || '').toString().trim());
+                            const fgHeaderLower = fgRawHeaders.map(h => h.toLowerCase());
+                            fgRows.slice(1).forEach(row => {
+                                const idPersonAllIdx = fgHeaderLower.indexOf('id_personall');
+                                const idPersonAllVal = idPersonAllIdx >= 0 ? row[idPersonAllIdx] : '';
+                                if (!idPersonAllVal || idPersonAllVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < fgRawHeaders.length; ci++) {
+                                    obj[fgRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                if (!obj.idA) {
+                                    const idPersonIdx = fgHeaderLower.indexOf('id_person');
+                                    const suffixIdx = fgHeaderLower.findIndex(h => h === 'suffix' || h === 'suffix_');
+                                    const extIdx = fgHeaderLower.indexOf('extension');
+                                    const idPerson = idPersonIdx >= 0 ? row[idPersonIdx].toString().trim() : '';
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (idPerson && suffix && ext) obj.idA = idPerson + '-' + suffix + '.' + ext;
+                                }
+                                fotoGroupRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    // --- foto_location ---
+                    let fotoLocationRowsList = [];
+                    const fotoLocationSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'foto_location');
+                    if (fotoLocationSheetName) {
+                        const flSheet = workbook.Sheets[fotoLocationSheetName];
+                        const flRows = XLSX.utils.sheet_to_json(flSheet, { header: 1, defval: '' });
+                        if (flRows.length > 1) {
+                            const flRawHeaders = flRows[0].map(h => (h || '').toString().trim());
+                            const flHeaderLower = flRawHeaders.map(h => h.toLowerCase());
+                            flRows.slice(1).forEach(row => {
+                                const idLocIdx = flHeaderLower.indexOf('id_loc');
+                                const idLocVal = idLocIdx >= 0 ? row[idLocIdx] : '';
+                                if (!idLocVal || idLocVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < flRawHeaders.length; ci++) {
+                                    obj[flRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                if (!obj.idA) {
+                                    const suffixIdx = flHeaderLower.findIndex(h => h === 'suffix' || h === 'suffix_');
+                                    const extIdx = flHeaderLower.indexOf('extension');
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (suffix && ext) obj.idA = obj.id_loc + '-' + suffix + '.' + ext;
+                                }
+                                fotoLocationRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    // --- event ---
+                    let eventRowsList = [];
+                    const eventSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'event');
+                    if (eventSheetName) {
+                        const evSheet = workbook.Sheets[eventSheetName];
+                        const evRows = XLSX.utils.sheet_to_json(evSheet, { header: 1, defval: '' });
+                        if (evRows.length > 1) {
+                            const evRawHeaders = evRows[0].map(h => (h || '').toString().trim());
+                            const evHeaderLower = evRawHeaders.map(h => h.toLowerCase());
+                            evRows.slice(1).forEach(row => {
+                                const idEventIdx = evHeaderLower.indexOf('id_event');
+                                const idEventVal = idEventIdx >= 0 ? row[idEventIdx] : '';
+                                if (!idEventVal || idEventVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < evRawHeaders.length; ci++) {
+                                    obj[evRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                eventRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    // --- language ---
+                    let languageRowsList = [];
+                    const languageSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'language');
+                    if (languageSheetName) {
+                        const langSheet = workbook.Sheets[languageSheetName];
+                        const langRows = XLSX.utils.sheet_to_json(langSheet, { header: 1, defval: '' });
+                        if (langRows.length > 1) {
+                            const langRawHeaders = langRows[0].map(h => (h || '').toString().trim().toLowerCase());
+                            const objectIdx = langRawHeaders.indexOf('object');
+                            const nameIdx = langRawHeaders.indexOf('name');
+                            const ruIdx = langRawHeaders.indexOf('ru');
+                            const enIdx = langRawHeaders.indexOf('en');
+                            langRows.slice(1).forEach(row => {
+                                const objectVal = objectIdx >= 0 ? (row[objectIdx] || '').toString().trim() : '';
+                                const nameVal = nameIdx >= 0 ? (row[nameIdx] || '').toString().trim() : '';
+                                if (!objectVal || !nameVal) return;
+                                languageRowsList.push({
+                                    object: objectVal,
+                                    name: nameVal,
+                                    ru: ruIdx >= 0 ? (row[ruIdx] || '').toString().trim() : '',
+                                    en: enIdx >= 0 ? (row[enIdx] || '').toString().trim() : ''
+                                });
+                            });
+                        }
+                    }
+
+                    logMessage('✅ Парсинг Excel завершён успешно.');
+                    return {
+                        people: peopleList,
+                        marriages: marriagesList,
+                        familyRows: familyRawRows,
+                        fotoFamilyRows: fotoFamilyRowsList,
+                        fotoPersonRows: fotoPersonRowsList,
+                        fotoGroupRows: fotoGroupRowsList,
+                        fotoLocationRows: fotoLocationRowsList,
+                        eventRows: eventRowsList,
+                        languageRows: languageRowsList
+                    };
+                } catch (e) {
+                    logMessage('❌ Ошибка парсинга Excel: ' + e.message, true);
+                    throw e;
+                }
+            }
+
+            // --- Generate DOT code ---
+            async function generateDotCode(peopleList, marriages, picDirOverride) {
+                const nodes = [];
+                const edges = [];
+                const clusters = [];
+                const personIdSet = new Set(peopleList.map(p => p.idA));
+
+                for (const p of peopleList) {
+                    const birthYear = p.birth || '?';
+                    const deathYear = p.death || '?';
+
+                    let fillcolor = UNKNOWN_COLOR;
+                    if (p.sex === 'М' || p.sex === 'M') fillcolor = MALE_COLOR;
+                    else if (p.sex === 'Ж' || p.sex === 'F') fillcolor = FEMALE_COLOR;
+
+                    const nodeId = p.idA;
+                    let labelName = p.label.replace(/ /g, '\\n');
+                    if (p.surName2) {
+                        labelName = p.surName2.replace(/ /g, '\\n') + '\\n' + labelName;
+                    }
+                    const labelText = `${labelName}\\n${birthYear}–${deathYear}`;
+
+                    const nodeFontSize = p.surName2 ? FONT_SIZE_SURNAME2 : FONT_SIZE;
+                    const fontSizeAttr = nodeFontSize !== FONT_SIZE ? `, fontsize=${nodeFontSize}` : '';
+
+                    const photoPath = await getPersonPhotoPath(p, picDirOverride);
+                    if (photoPath) {
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}",`);
+                        nodes.push(`    label="${labelText}", image="${photoPath}",`);
+                        nodes.push(`    fixedsize=true, width=${NODE_WIDTH_IN}, height=${NODE_HEIGHT_IN}${fontSizeAttr},`);
+                        nodes.push(`    imagepos=tc, imagescale=false, labelloc=b];`);
+                    } else {
+                        nodes.push(`  ${nodeId} [shape=box, style="filled", fillcolor="${fillcolor}", color="${BORDER_COLOR}", label="${labelText}"${fontSizeAttr}];`);
+                    }
+                }
+
+                peopleList.forEach(p => {
+                    const childId = p.idA;
+                    if (p.hasFather) edges.push(`  ${p.hasFather} -> ${childId} [color="${MALE_COLOR}"];`);
+                    if (p.hasMother) edges.push(`  ${p.hasMother} -> ${childId} [color="${FEMALE_COLOR}"];`);
+                });
+
+                (marriages || []).forEach(m => {
+                    if (personIdSet.has(m.husband) && personIdSet.has(m.wife)) {
+                        const clusterName = m.idA ? m.idA : 'unknown_family';
+                        const clusterLines = [];
+                        clusterLines.push(`  subgraph cluster_${clusterName} {`);
+                        if (m.marriage) {
+                            clusterLines.push(`    label="${m.marriage}";`);
+                        } else {
+                            clusterLines.push(`    label="";`);
+                        }
+                        clusterLines.push(`    rank=same;`);
+                        clusterLines.push(`    style=dashed;`);
+                        clusterLines.push(`    color="${EDGE_COLOR}";`);
+                        clusterLines.push(`    ${m.husband};`);
+                        clusterLines.push(`    ${m.wife};`);
+                        clusterLines.push(`  }`);
+                        clusters.push(clusterLines.join('\n'));
+                    }
+                });
+
+                const clusterSection = clusters.length > 0 ? '\n' + clusters.join('\n') + '\n' : '';
+                return `digraph G {\n  rankdir=TB;\n  node [fontname="${FONT_NAME}", fontsize=${FONT_SIZE}];\n  edge [color="${EDGE_COLOR}"];\n\n${nodes.join('\n')}\n${clusterSection}\n${edges.join('\n')}\n}`;
+            }
+
+            async function buildImagesOption(peopleList) {
+                const imageMap = new Map();
+                for (const p of peopleList) {
+                    const photoPath = await getPersonPhotoPath(p);
+                    if (photoPath) imageMap.set(photoPath, true);
+                }
+                return Array.from(imageMap.keys()).map(path => ({
+                    name: path,
+                    width: PHOTO_SIZE_PX,
+                    height: PHOTO_SIZE_PX
+                }));
+            }
+
+            async function renderDot(dotStr, imagesOption) {
+                try {
+                    const viz = await Viz.instance();
+                    const svgStr = await viz.renderString(dotStr, {
+                        format: 'svg',
+                        images: imagesOption
+                    });
+                    graphvizContainer.innerHTML = svgStr;
+                    const svgEl = graphvizContainer.querySelector('svg');
+                    if (svgEl) addNodeClickHandlers(svgEl);
+                } catch (error) {
+                    graphvizContainer.innerHTML = `<p style="color:red">Ошибка рендеринга: ${error.message}</p>`;
+                    logMessage('❌ Ошибка рендеринга: ' + error.message, true);
+                }
+            }
+
+            // --- Find/Replace in DOT editor ---
+            let dotFindLastIndex = -1;
+            let dotFindLastTerm = '';
+
+            function getDotFindTerm() {
+                return document.getElementById('dotFindInput').value;
+            }
+
+            function getDotReplaceTerm() {
+                return document.getElementById('dotReplaceInput').value;
+            }
+
+            function setDotFindStatus(msg) {
+                document.getElementById('dotFindStatus').textContent = msg;
+            }
+
+            window.dotFindFirst = function() {
+                const term = getDotFindTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                const idx = text.indexOf(term);
+                if (idx === -1) {
+                    setDotFindStatus('Не найдено');
+                    dotFindLastIndex = -1;
+                } else {
+                    dotCodePre.focus();
+                    dotCodePre.setSelectionRange(idx, idx + term.length);
+                    dotFindLastIndex = idx;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('');
+                }
+            };
+
+            window.dotFindNext = function() {
+                const term = getDotFindTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                const startFrom = (term === dotFindLastTerm && dotFindLastIndex !== -1) ? dotFindLastIndex + 1 : 0;
+                const idx = text.indexOf(term, startFrom);
+                if (idx === -1) {
+                    const idxWrap = text.indexOf(term, 0);
+                    if (idxWrap === -1) {
+                        setDotFindStatus('Не найдено');
+                        dotFindLastIndex = -1;
+                    } else {
+                        dotCodePre.focus();
+                        dotCodePre.setSelectionRange(idxWrap, idxWrap + term.length);
+                        dotFindLastIndex = idxWrap;
+                        dotFindLastTerm = term;
+                        setDotFindStatus('С начала');
+                    }
+                } else {
+                    dotCodePre.focus();
+                    dotCodePre.setSelectionRange(idx, idx + term.length);
+                    dotFindLastIndex = idx;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('');
+                }
+            };
+
+            window.dotReplaceOne = function() {
+                const term = getDotFindTerm();
+                const replacement = getDotReplaceTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                const selStart = dotCodePre.selectionStart;
+                const selEnd = dotCodePre.selectionEnd;
+                if (selEnd - selStart === term.length && text.substring(selStart, selEnd) === term) {
+                    dotCodePre.value = text.substring(0, selStart) + replacement + text.substring(selEnd);
+                    dotFindLastIndex = selStart + replacement.length - 1;
+                    dotFindLastTerm = term;
+                    setDotFindStatus('Заменено');
+                    window.dotFindNext();
+                } else {
+                    window.dotFindFirst();
+                }
+            };
+
+            window.dotReplaceAll = function() {
+                const term = getDotFindTerm();
+                const replacement = getDotReplaceTerm();
+                if (!term) { setDotFindStatus(''); return; }
+                const text = dotCodePre.value;
+                const count = (text.split(term).length - 1);
+                if (count === 0) {
+                    setDotFindStatus('Не найдено');
+                    return;
+                }
+                dotCodePre.value = text.split(term).join(replacement);
+                dotFindLastIndex = -1;
+                setDotFindStatus(`Заменено: ${count}`);
+            };
+
+            window.refreshDiagramFromEditor = async function() {
+                const editedDot = dotCodePre.value;
+                if (!editedDot || editedDot === '(код появится после загрузки)') return;
+                logMessage('⏳ Перерисовка диаграммы по редактору...');
+                dotCode = editedDot;
+                dotCodeForGraphvizOnline = editedDot;
+                const encoded = encodeURIComponent(editedDot);
+                graphvizLink = `${GRAPHVIZ_ONLINE_TYPE}${encoded}`;
+                graphvizLinkInput.value = graphvizLink;
+                const imagesOption = await buildImagesOption(people);
+                await renderDot(editedDot, imagesOption);
+                logMessage('✅ Диаграмма обновлена');
+            };
+
+            function updatePhotosPanel() {
+                const grid = document.getElementById('photosGrid');
+                if (!grid) return;
+                grid.innerHTML = '';
+                const existingFiles = [];
+                for (const fn of ['dafaultm.png', 'dafaultf.png']) {
+                    if (photoExistsCache[fn]) existingFiles.push(fn);
+                }
+                people.forEach(p => {
+                    const fn = p.idA + '.png';
+                    if (photoExistsCache[fn] && !existingFiles.includes(fn)) existingFiles.push(fn);
+                });
+                if (existingFiles.length === 0) {
+                    grid.innerHTML = '<em style="color:#888">Файлы фото не найдены в папке pic/</em>';
+                    return;
+                }
+                existingFiles.forEach(filename => {
+                    const div = document.createElement('div');
+                    div.className = 'photo-item';
+                    const img = document.createElement('img');
+                    img.src = getActivePicDir() + '/' + filename;
+                    img.alt = filename;
+                    img.title = filename;
+                    const label = document.createElement('div');
+                    label.className = 'path';
+                    const shortName = filename.length > 20 ? filename.substring(0, 18) + '…' : filename;
+                    label.textContent = shortName;
+                    label.title = filename;
+                    div.appendChild(img);
+                    div.appendChild(label);
+                    grid.appendChild(div);
+                });
+            }
+
+            function updateInfoPanels() {
+                if (dotCode) {
+                    const codeForLink = dotCodeForGraphvizOnline || dotCode;
+                    const showGraphvizCode = PIC_DIR_TYPE === 'relativeGraphvizOnline' && dotCodeForGraphvizOnline && dotCodeForGraphvizOnline !== dotCode;
+                    dotCodePre.value = showGraphvizCode ? dotCodeForGraphvizOnline : dotCode;
+                    const encoded = encodeURIComponent(codeForLink);
+                    graphvizLink = `${GRAPHVIZ_ONLINE_TYPE}${encoded}`;
+                    graphvizLinkInput.value = graphvizLink;
+                } else {
+                    dotCodePre.value = '(код появится после загрузки)';
+                    graphvizLinkInput.value = '(сгенерируется после загрузки)';
+                }
+                updatePhotosPanel();
+            }
+
+            // --- getFieldLabel и остальные функции панелей свойств (без изменений, они длинные, оставим как есть) ---
+            function getFieldLabel(sheetName, fieldKey) {
+                const mapKey = sheetName + '.' + fieldKey;
+                const entry = langMap[mapKey];
+                if (!entry) {
+                    const warnMsg = 'Предупреждение: поле "' + fieldKey + '" листа "' + sheetName + '" не найдено в листе language';
+                    console.warn(warnMsg);
+                    logMessage(warnMsg, false);
+                    return fieldKey.replace(/_$/, '');
+                }
+                if (LANGUAGE === 'ru') return entry.ru || entry.name.replace(/_$/, '');
+                if (LANGUAGE === 'en') return entry.en || entry.name.replace(/_$/, '');
+                return entry.name.replace(/_$/, '');
+            }
+            window.getFieldLabel = getFieldLabel;
+
+            function buildLinksHtml(hyperLinkStr) {
+                if (!hyperLinkStr) return '';
+                const links = hyperLinkStr.split(';').map(s => s.trim()).filter(s => s);
+                return links.map(href => {
+                    const safeHref = href.replace(/"/g, '&quot;');
+                    let displayText = href;
+                    try {
+                        const url = new URL(href);
+                        const hostParts = url.hostname.replace(/^www\./, '').split('.');
+                        displayText = hostParts.length >= 2 ? hostParts.slice(-2).join('.') : url.hostname;
+                    } catch (e) { /* не URL — показываем как есть */ }
+                    return '<a href="' + safeHref + '" target="_blank" rel="noopener noreferrer">' + displayText + '</a>';
+                }).join(' ');
+            }
+
+            function showNodeProperties(person) {
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+                const existingPanel = openPropertiesPanels.find(p => p.idA === person.idA);
+                if (existingPanel) {
+                    const panel = document.getElementById(existingPanel.panelId);
+                    if (panel) bringPanelToFront(panel);
+                    return;
+                }
+                propertiesPanelCounter++;
+                const panelId = 'properties-panel-' + propertiesPanelCounter;
+                const offsetMultiplier = openPropertiesPanels.length % 5;
+                const rightOffset = 20 + (offsetMultiplier * 30);
+                const topOffset = 100 + (offsetMultiplier * 30);
+                const photoFile = photoExistsCache[person.idA + '.png'] ? person.idA + '.png' : null;
+                let propertiesHtml = '';
+                if (person.extraFields) {
+                    const fieldNames = Object.keys(person.extraFields);
+                    for (let fi = 0; fi < fieldNames.length; fi++) {
+                        const key = fieldNames[fi];
+                        let val = person.extraFields[key];
+                        if (!val) continue;
+                        const labelText = getFieldLabel('person', key);
+                        let valHtml = val;
+                        if (key.toLowerCase().includes('hyperlink')) {
+                            valHtml = buildLinksHtml(val) || val;
+                        }
+                        propertiesHtml += '<div class="property-item"><div class="property-predicate">' + labelText + '</div><div class="property-value">' + valHtml + '</div></div>';
+                    }
+                }
+                if (photoFile) {
+                    propertiesHtml += '<div class="property-item"><div class="property-predicate">Фото</div><div class="property-value photo"><img src="' + getActivePicDir() + '/' + photoFile + '" alt="' + person.label + '"></div></div>';
+                }
+                const escapedIdA = person.idA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const escapedIdAForOnclick = person.idA.replace(/'/g, "\\'");
+                const panelHtml =
+                    '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">Основные свойства person</div>' +
+                    '<h3>' + person.idA + '</h3>' +
+                    '<div class="properties-header-buttons">' +
+                    '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
+                    '<button class="foto-person-btn" onclick="event.stopPropagation(); openPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_person</button>' +
+                    '<button class="foto-family-btn" onclick="event.stopPropagation(); openFamilyGalleryForPerson(\'' + escapedIdAForOnclick + '\')">foto_family</button>' +
+                    '<button class="foto-group-btn" onclick="event.stopPropagation(); openGroupGallery(\'' + escapedIdAForOnclick + '\')">foto_group</button>' +
+                    '<button class="foto-location-btn" onclick="event.stopPropagation(); openLocationPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_location</button>' +
+                    '<button class="event-btn" onclick="event.stopPropagation(); openEventPanel(\'' + escapedIdAForOnclick + '\')">Event</button>' +
+                    '</div>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    propertiesHtml +
+                    '</div>' +
+                    '</div>';
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                openPropertiesPanels.push({ panelId, idA: person.idA });
+                const newPanel = document.getElementById(panelId);
+                if (newPanel) bringPanelToFront(newPanel);
+            }
+
+            function showFamilyProperties(familyObj) {
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+                const existingKey = 'family-' + familyObj.idA;
+                const existingPanel = openPropertiesPanels.find(p => p.idA === existingKey);
+                if (existingPanel) {
+                    const panel = document.getElementById(existingPanel.panelId);
+                    if (panel) bringPanelToFront(panel);
+                    return;
+                }
+                propertiesPanelCounter++;
+                const panelId = 'properties-panel-' + propertiesPanelCounter;
+                const offsetMultiplier = openPropertiesPanels.length % 5;
+                const rightOffset = 20 + (offsetMultiplier * 30);
+                const topOffset = 100 + (offsetMultiplier * 30);
+                let propertiesHtml = '';
+                if (familyObj.extraFields) {
+                    const fieldNames = Object.keys(familyObj.extraFields);
+                    for (let fi = 0; fi < fieldNames.length; fi++) {
+                        const key = fieldNames[fi];
+                        let val = familyObj.extraFields[key];
+                        if (!val) continue;
+                        const labelText = getFieldLabel('family', key);
+                        let valHtml = val;
+                        if (key.toLowerCase().includes('hyperlink')) {
+                            valHtml = buildLinksHtml(val) || val;
+                        }
+                        propertiesHtml += '<div class="property-item"><div class="property-predicate">' + labelText + '</div><div class="property-value">' + valHtml + '</div></div>';
+                    }
+                }
+                const escapedIdA = familyObj.idA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const escapedIdAForOnclick = familyObj.idA.replace(/'/g, "\\'");
+                const displayIdA = familyObj.idA.replace(/__/g, '<br>');
+                const panelHtml =
+                    '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">Основные свойства family</div>' +
+                    '<h3>' + displayIdA + '</h3>' +
+                    '<div class="properties-header-buttons">' +
+                    '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
+                    '<button class="foto-family-btn" onclick="event.stopPropagation(); openFamilyGallery(\'' + escapedIdAForOnclick + '\')">foto_family</button>' +
+                    '<button class="foto-location-btn" onclick="event.stopPropagation(); openLocationFamilyGallery(\'' + escapedIdAForOnclick + '\')">foto_location</button>' +
+                    '</div>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    propertiesHtml +
+                    '</div>' +
+                    '</div>';
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                openPropertiesPanels.push({ panelId, idA: existingKey });
+                const newPanel = document.getElementById(panelId);
+                if (newPanel) bringPanelToFront(newPanel);
+            }
+
+            window.openFamilyGallery = function(familyIdA) {
+                if (window.FOTO && window.FOTO.showFamilyGallery) {
+                    window.FOTO.showFamilyGallery(familyIdA, fotoFamilyRows, 'foto_family');
+                }
+            };
+            window.openFamilyGalleryForPerson = function(personIdA) {
+                if (window.FOTO && window.FOTO.showFamilyGalleryForPerson) {
+                    window.FOTO.showFamilyGalleryForPerson(personIdA, fotoFamilyRows, 'foto_family');
+                }
+            };
+            window.openPersonGallery = function(personIdA) {
+                if (window.FOTO && window.FOTO.showPersonGallery) {
+                    window.FOTO.showPersonGallery(personIdA, fotoPersonRows, 'foto_person');
+                }
+            };
+            window.openGroupGallery = function(personIdA) {
+                if (window.FOTO && window.FOTO.showGroupGallery) {
+                    window.FOTO.showGroupGallery(personIdA, fotoGroupRows, 'foto_group');
+                }
+            };
+            window.openLocationPersonGallery = function(personIdA) {
+                if (window.FOTO && window.FOTO.showLocationPersonGallery) {
+                    window.FOTO.showLocationPersonGallery(personIdA, fotoLocationRows, 'foto_location');
+                }
+            };
+            window.openLocationFamilyGallery = function(familyIdA) {
+                if (window.FOTO && window.FOTO.showLocationFamilyGallery) {
+                    window.FOTO.showLocationFamilyGallery(familyIdA, fotoLocationRows, 'foto_location');
+                }
+            };
+            window.openEventPanel = function(personIdA) {
+                showEventPanel(personIdA);
+            };
+
+            function showEventPanel(personIdA) {
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+                const existingKey = 'event-' + personIdA;
+                const existingPanel = openPropertiesPanels.find(p => p.idA === existingKey);
+                if (existingPanel) {
+                    const ep = document.getElementById(existingPanel.panelId);
+                    if (ep) bringPanelToFront(ep);
+                    return;
+                }
+                const matchingEvents = [];
+                for (let i = 0; i < eventRows.length; i++) {
+                    const row = eventRows[i];
+                    const idPersonAll = row.id_personAll || '';
+                    const ids = idPersonAll.split(';').map(s => s.trim());
+                    if (ids.indexOf(personIdA) !== -1) matchingEvents.push(row);
+                }
+                propertiesPanelCounter++;
+                const panelId = 'properties-panel-' + propertiesPanelCounter;
+                const offsetMultiplier = openPropertiesPanels.length % 5;
+                const rightOffset = 20 + (offsetMultiplier * 30);
+                const topOffset = 100 + (offsetMultiplier * 30);
+                const fotoTypes = ['foto_person', 'foto_family', 'foto_group', 'foto_location'];
+                let eventsHtml = '';
+                if (matchingEvents.length === 0) {
+                    eventsHtml = '<div class="property-item"><em style="color:#888">События не найдены</em></div>';
+                } else {
+                    for (let mi = 0; mi < matchingEvents.length; mi++) {
+                        const ev = matchingEvents[mi];
+                        const escapedEventId = (ev.id_event || '').replace(/'/g, "\\'");
+                        const evAvailableFotoTypes = [];
+                        for (let fi = 0; fi < fotoTypes.length; fi++) {
+                            const ft = fotoTypes[fi];
+                            if (ev[ft] && ev[ft].trim() !== '') evAvailableFotoTypes.push(ft);
+                        }
+                        let evFotoListHtml = '';
+                        if (evAvailableFotoTypes.length > 0) {
+                            let evOptHtml = '<option value="">-- FotoList --</option>';
+                            for (let oi = 0; oi < evAvailableFotoTypes.length; oi++) {
+                                evOptHtml += '<option value="' + evAvailableFotoTypes[oi] + '">' + evAvailableFotoTypes[oi] + '</option>';
+                            }
+                            evFotoListHtml = '<select class="event-fotolist-select" onchange="openSingleEventFotoGallery(\'' + escapedEventId + '\', this.value, this)">' + evOptHtml + '</select>';
+                        }
+                        const evKeys = Object.keys(ev);
+                        for (let eki = 0; eki < evKeys.length; eki++) {
+                            const evKey = evKeys[eki];
+                            if (!evKey.endsWith('_')) continue;
+                            const evVal = ev[evKey];
+                            if (!evVal) continue;
+                            const evLabel = getFieldLabel('event', evKey);
+                            let evValHtml = String(evVal);
+                            if (evKey.toLowerCase().includes('hyperlink')) {
+                                const links = evVal.split(';').map(s => s.trim()).filter(s => s);
+                                evValHtml = links.map(href => '<a href="' + href + '" target="_blank" rel="noopener noreferrer">[↗]</a>').join(' ');
+                            }
+                            eventsHtml += '<div class="property-item"><div class="property-predicate">' + evLabel + '</div><div class="property-value">' + evValHtml + '</div></div>';
+                        }
+                        if (evFotoListHtml) {
+                            eventsHtml += '<div class="property-item event-fotolist-row"><div class="property-predicate">FotoList</div><div class="property-value">' + evFotoListHtml + '</div></div>';
+                        }
+                        eventsHtml += '<hr class="event-separator">';
+                    }
+                    eventsHtml = eventsHtml.replace(/<hr class="event-separator">$/, '');
+                }
+                const escapedIdA = personIdA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const panelHtml =
+                    '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">События person</div>' +
+                    '<h3>' + personIdA + '</h3>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="closePropertiesPanel(\'' + panelId + '\')">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    eventsHtml +
+                    '</div>' +
+                    '</div>';
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                openPropertiesPanels.push({ panelId, idA: existingKey });
+                const newPanel = document.getElementById(panelId);
+                if (newPanel) bringPanelToFront(newPanel);
+            }
+
+            window.openSingleEventFotoGallery = function(eventId, fotoType, selectEl) {
+                if (!fotoType) return;
+                if (selectEl) selectEl.value = '';
+                let eventRow = null;
+                for (let i = 0; i < eventRows.length; i++) {
+                    if ((eventRows[i].id_event || '').trim() === eventId.trim()) {
+                        eventRow = eventRows[i];
+                        break;
+                    }
+                }
+                if (!eventRow) return;
+                const fotoFileName = eventRow[fotoType] ? eventRow[fotoType].trim() : '';
+                if (!fotoFileName) return;
+                const fotoObj = { idA: fotoFileName };
+                const keys = Object.keys(eventRow);
+                for (let k = 0; k < keys.length; k++) {
+                    const key = keys[k];
+                    if (key.endsWith('_') && eventRow[key]) {
+                        fotoObj[key] = eventRow[key];
+                    }
+                }
+                if (window.FOTO && window.FOTO.showEventFotoGallery) {
+                    window.FOTO.showEventFotoGallery(eventId + '_' + fotoType, [fotoObj], fotoType, fotoType);
+                }
+            };
+
+            window.openEventFotoGallery = function(personIdA, fotoType, selectEl) {
+                if (!fotoType) return;
+                if (selectEl) selectEl.value = '';
+                const fotoRowsFromEvents = [];
+                const seenIdA = {};
+                for (let i = 0; i < eventRows.length; i++) {
+                    const row = eventRows[i];
+                    const idPersonAll = row.id_personAll || '';
+                    const ids = idPersonAll.split(';').map(s => s.trim());
+                    if (ids.indexOf(personIdA) === -1) continue;
+                    const fotoFileName = row[fotoType] ? row[fotoType].trim() : '';
+                    if (!fotoFileName) continue;
+                    if (seenIdA[fotoFileName]) continue;
+                    seenIdA[fotoFileName] = true;
+                    const fotoObj = { idA: fotoFileName };
+                    const keys = Object.keys(row);
+                    for (let k = 0; k < keys.length; k++) {
+                        const key = keys[k];
+                        if (key.endsWith('_') && row[key]) {
+                            fotoObj[key] = row[key];
+                        }
+                    }
+                    fotoRowsFromEvents.push(fotoObj);
+                }
+                if (window.FOTO && window.FOTO.showEventFotoGallery) {
+                    window.FOTO.showEventFotoGallery(personIdA + '_' + fotoType, fotoRowsFromEvents, fotoType, fotoType);
+                }
+            };
+
+            window.closePropertiesPanel = function(panelId) {
+                const panel = document.getElementById(panelId);
+                if (panel) {
+                    panel.remove();
+                    openPropertiesPanels = openPropertiesPanels.filter(p => p.panelId !== panelId);
+                }
+                if (selectedNodeElement) {
+                    selectedNodeElement.classList.remove('selected');
+                    selectedNodeElement = null;
+                }
+            };
+
+            window.copyObjectId = function(label, btn) {
+                navigator.clipboard.writeText(label).then(() => {
+                    const orig = btn.textContent;
+                    btn.textContent = '✓';
+                    setTimeout(() => { btn.textContent = orig; }, 1500);
+                }).catch(() => {
+                    const el = document.createElement('textarea');
+                    el.value = label;
+                    document.body.appendChild(el);
+                    el.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(el);
+                });
+            };
+
+            function bringPanelToFront(panel) {
+                let maxZIndex = 2000;
+                openPropertiesPanels.forEach(p => {
+                    const el = document.getElementById(p.panelId);
+                    if (el) {
+                        const z = parseInt(el.style.zIndex) || 2000;
+                        if (z > maxZIndex) maxZIndex = z;
+                    }
+                });
+                panel.style.zIndex = maxZIndex + 1;
+            }
+            window.bringPanelToFront = bringPanelToFront;
+
+            window.startDragPanel = function(event, panelId) {
+                if (event.target.classList.contains('properties-close-btn') ||
+                    event.target.classList.contains('properties-copy-btn') ||
+                    event.target.classList.contains('foto-family-btn') ||
+                    event.target.classList.contains('foto-person-btn') ||
+                    event.target.classList.contains('foto-group-btn') ||
+                    event.target.classList.contains('foto-location-btn') ||
+                    event.target.classList.contains('event-btn') ||
+                    event.target.classList.contains('event-fotolist-select')) return;
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+                draggedPanel = panel;
+                const rect = panel.getBoundingClientRect();
+                dragOffsetX = event.clientX - rect.left;
+                dragOffsetY = event.clientY - rect.top;
+                bringPanelToFront(panel);
+                document.addEventListener('mousemove', dragPanel);
+                document.addEventListener('mouseup', stopDragPanel);
+                event.preventDefault();
+            };
+
+            function dragPanel(event) {
+                if (!draggedPanel) return;
+                const newLeft = event.clientX - dragOffsetX;
+                const newTop = event.clientY - dragOffsetY;
+                draggedPanel.style.left = newLeft + 'px';
+                draggedPanel.style.top = newTop + 'px';
+                draggedPanel.style.right = 'auto';
+            }
+
+            function stopDragPanel() {
+                draggedPanel = null;
+                document.removeEventListener('mousemove', dragPanel);
+                document.removeEventListener('mouseup', stopDragPanel);
+            }
+
+            function addNodeClickHandlers(svgEl) {
+                svgEl.querySelectorAll('g#graph0 > polygon[fill="white"]').forEach(poly => poly.style.pointerEvents = 'none');
+                const nodes = svgEl.querySelectorAll('g.node');
+                nodes.forEach(node => {
+                    node.style.cursor = 'pointer';
+                    node.addEventListener('click', function(event) {
+                        event.stopPropagation();
+                        const titleEl = node.querySelector('title');
+                        if (!titleEl) return;
+                        const nodeId = titleEl.textContent.trim();
+                        const person = people.find(p => p.idA === nodeId);
+                        if (!person) return;
+                        if (selectedNodeElement) selectedNodeElement.classList.remove('selected');
+                        node.classList.add('selected');
+                        selectedNodeElement = node;
+                        showNodeProperties(person);
+                        if (typeof window.tvHighlightPerson === 'function') window.tvHighlightPerson(nodeId);
+                    });
+                });
+                const clusters = svgEl.querySelectorAll('g.cluster');
+                clusters.forEach(clusterEl => {
+                    clusterEl.style.cursor = 'pointer';
+                    clusterEl.querySelectorAll('polygon').forEach(poly => {
+                        const fillAttr = poly.getAttribute('fill');
+                        if (fillAttr === 'white' || fillAttr === '#ffffff') poly.style.pointerEvents = 'none';
+                    });
+                    clusterEl.addEventListener('click', function(event) {
+                        event.stopPropagation();
+                        const titleEl = clusterEl.querySelector('title');
+                        if (!titleEl) return;
+                        const clusterName = titleEl.textContent.trim();
+                        if (!clusterName.startsWith('cluster_')) return;
+                        const familyIdA = clusterName.slice('cluster_'.length);
+                        const familyObj = marriages.find(m => m.idA === familyIdA);
+                        if (!familyObj) return;
+                        showFamilyProperties(familyObj);
+                    });
+                });
+                svgEl.addEventListener('click', function() {
+                    if (selectedNodeElement) {
+                        selectedNodeElement.classList.remove('selected');
+                        selectedNodeElement = null;
+                    }
+                });
+            }
+
+            document.addEventListener('treeview-select-person-focus', function(event) {
+                const personId = event.detail?.personId;
+                if (!personId) return;
+                const svgEl = document.querySelector('#graphvizContainer svg');
+                if (!svgEl) return;
+                if (selectedNodeElement) selectedNodeElement.classList.remove('selected');
+                const nodes = svgEl.querySelectorAll('g.node');
+                for (let i = 0; i < nodes.length; i++) {
+                    const titleEl = nodes[i].querySelector('title');
+                    if (titleEl && titleEl.textContent.trim() === personId) {
+                        nodes[i].classList.add('selected');
+                        selectedNodeElement = nodes[i];
+                        nodes[i].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        break;
+                    }
+                }
+            });
+
+            document.addEventListener('treeview-select-person', function(event) {
+                const personId = event.detail?.personId;
+                if (!personId) return;
+                const svgEl = document.querySelector('#graphvizContainer svg');
+                if (!svgEl) return;
+                if (selectedNodeElement) selectedNodeElement.classList.remove('selected');
+                const nodes = svgEl.querySelectorAll('g.node');
+                for (let i = 0; i < nodes.length; i++) {
+                    const titleEl = nodes[i].querySelector('title');
+                    if (titleEl && titleEl.textContent.trim() === personId) {
+                        nodes[i].classList.add('selected');
+                        selectedNodeElement = nodes[i];
+                        nodes[i].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        break;
+                    }
+                }
+                const person = people.find(p => p.idA === personId);
+                if (person) showNodeProperties(person);
+            });
+
+            document.addEventListener('treeview-descendants-mode', async function(event) {
+                const active = event.detail?.active;
+                const personIdA = event.detail?.personIdA;
+                if (active && personIdA) {
+                    const filteredPeople = filterDescendants(people, marriages, personIdA);
+                    logMessage(`⏳ Перерисовка диаграммы: потомки ${personIdA}`);
+                    dotCode = await generateDotCode(filteredPeople, marriages);
+                    if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                        dotCodeForGraphvizOnline = await generateDotCode(filteredPeople, marriages, PIC_DIR_GRAPHVIZ_ONLINE);
+                    } else {
+                        dotCodeForGraphvizOnline = dotCode;
+                    }
+                    updateInfoPanels();
+                    const imagesOption = await buildImagesOption(filteredPeople);
+                    await renderDot(dotCode, imagesOption);
+                    logMessage(`✅ Диаграмма: потомки ${personIdA}`);
+                } else {
+                    logMessage('⏳ Перерисовка полного дерева...');
+                    dotCode = await generateDotCode(people, marriages);
+                    if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                        dotCodeForGraphvizOnline = await generateDotCode(people, marriages, PIC_DIR_GRAPHVIZ_ONLINE);
+                    } else {
+                        dotCodeForGraphvizOnline = dotCode;
+                    }
+                    updateInfoPanels();
+                    const imagesOption = await buildImagesOption(people);
+                    await renderDot(dotCode, imagesOption);
+                    logMessage('✅ Дерево построено');
+                }
+            });
+
+            function filterDescendants(peopleList, marriagesList, personIdA) {
+                const resultSet = {};
+                const person = peopleList.find(p => p.idA === personIdA);
+                if (person) resultSet[personIdA] = person;
+                (marriagesList || []).forEach(m => {
+                    if (m.husband === personIdA) {
+                        const wife = peopleList.find(p => p.idA === m.wife);
+                        if (wife) resultSet[m.wife] = wife;
+                    } else if (m.wife === personIdA) {
+                        const husband = peopleList.find(p => p.idA === m.husband);
+                        if (husband) resultSet[m.husband] = husband;
+                    }
+                });
+                function addDescendants(parentIdA) {
+                    peopleList.forEach(p => {
+                        if (p.hasFather === parentIdA || p.hasMother === parentIdA) {
+                            if (!resultSet[p.idA]) {
+                                resultSet[p.idA] = p;
+                                (marriagesList || []).forEach(m => {
+                                    if (m.husband === p.idA) {
+                                        const spouse = peopleList.find(pp => pp.idA === m.wife);
+                                        if (spouse && !resultSet[m.wife]) resultSet[m.wife] = spouse;
+                                    } else if (m.wife === p.idA) {
+                                        const spouse = peopleList.find(pp => pp.idA === m.husband);
+                                        if (spouse && !resultSet[m.husband]) resultSet[m.husband] = spouse;
+                                    }
+                                });
+                                addDescendants(p.idA);
+                            }
+                        }
+                    });
+                }
+                addDescendants(personIdA);
+                return Object.values(resultSet);
+            }
+
+            async function buildTree(parsedData) {
+                const peopleArray = parsedData.people || parsedData;
+                const marriagesArray = parsedData.marriages || [];
+                if (!peopleArray.length) return;
+                people = peopleArray;
+                marriages = marriagesArray;
+                fotoFamilyRows = parsedData.fotoFamilyRows || [];
+                fotoPersonRows = parsedData.fotoPersonRows || [];
+                fotoGroupRows = parsedData.fotoGroupRows || [];
+                fotoLocationRows = parsedData.fotoLocationRows || [];
+                eventRows = parsedData.eventRows || [];
+
+                window.SAVE_DATA = {
+                    fotoFamilyRows, fotoPersonRows, fotoGroupRows, fotoLocationRows,
+                    photoFilenames: []
+                };
+
+                langMap = {};
+                const langRowsData = parsedData.languageRows || [];
+                for (let li = 0; li < langRowsData.length; li++) {
+                    const lr = langRowsData[li];
+                    langMap[lr.object + '.' + lr.name] = lr;
+                }
+                logMessage('⏳ Проверка наличия фото...');
+                await preloadPhotoChecks(people);
+                if (window.SAVE_DATA) {
+                    window.SAVE_DATA.photoFilenames = [];
+                    for (let fn in photoExistsCache) {
+                        if (photoExistsCache[fn]) window.SAVE_DATA.photoFilenames.push(fn);
+                    }
+                }
+                logMessage('⏳ Генерация DOT кода...');
+                dotCode = await generateDotCode(people, marriagesArray);
+                if (PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                    dotCodeForGraphvizOnline = await generateDotCode(people, marriagesArray, PIC_DIR_GRAPHVIZ_ONLINE);
+                } else {
+                    dotCodeForGraphvizOnline = dotCode;
+                }
+                graphvizOnlineBtn.disabled = false;
+                document.getElementById('pdfBtn').disabled = false;
+                document.getElementById('svgBtn').disabled = false;
+                document.getElementById('drawioBtn').disabled = false;
+                document.getElementById('drawioOnlineBtn').disabled = false;
+                document.getElementById('zipBtn').disabled = false;
+                updateInfoPanels();
+                logMessage('⏳ Построение дерева...');
+                const imagesOption = await buildImagesOption(people);
+                await renderDot(dotCode, imagesOption);
+                logMessage('✅ Дерево построено');
+                if (typeof window.tvInit === 'function') window.tvInit(people);
+                if (typeof window.ptInit === 'function') window.ptInit(fotoPersonRows, fotoFamilyRows, fotoGroupRows, fotoLocationRows);
+            }
+
+            async function loadFromUrl(url) {
+                try {
+                    logMessage(`⏳ Загрузка файла ${url}...`);
+                    await configPromise;
+                    await loadSheetJS();
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = parseExcel(await response.arrayBuffer());
+                    await buildTree(data);
+                } catch (e) {
+                    logMessage('❌ Ошибка загрузки: ' + e.message, true);
+                }
+            }
+
+            function loadFromFile(file) {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        logMessage(`⏳ Чтение файла ${file.name}...`);
+                        await configPromise;
+                        await loadSheetJS();
+                        const data = parseExcel(e.target.result);
+                        await buildTree(data);
+                    } catch (err) {
+                        logMessage('❌ Ошибка чтения: ' + err.message, true);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            loadBtn.addEventListener('click', () => loadFromUrl('tree.xlsx'));
+            manualBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files[0]) loadFromFile(e.target.files[0]);
+                fileInput.value = '';
+            });
+
+            window.openGraphvizOnline = function() {
+                if (graphvizLink) window.open(graphvizLink, '_blank');
+            };
+
+            const configPromise = loadConfig();
+            configPromise.then(async () => {
+                try {
+                    await loadSheetJS();
+                    loadFromUrl('tree.xlsx');
+                } catch (e) {
+                    logMessage('❌ Ошибка загрузки библиотеки XLSX. Проверьте подключение к интернету.', true);
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
