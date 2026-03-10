@@ -1,8 +1,8 @@
-### Верcия 4
+### Верcия 5
 Добавлен treeview
 Один код для двух режимов: github pages (иной статический web - server) и локальный (desktop)
 ### run github
-- github pages https://bpmbpm.github.io/family-tree/ver4/index.html  
+- github pages https://bpmbpm.github.io/family-tree/ver5/index.html  
 при мобильном интернете могут быть сложности (нажимать кнопку обновить, если не прочтется .xlsx). Потом устраним
 
 ### run desktop
@@ -17,9 +17,9 @@
 - Пример автозаполнения родословной известных персон https://github.com/bpmbpm/family-tree/issues/74
 ### service
 #### 1 service_foto_folder
-- .io: https://bpmbpm.github.io/family-tree/ver4/service_foto_github_v2.html решение см. https://github.com/bpmbpm/family-tree/pull/63
+- .io: https://bpmbpm.github.io/family-tree/ver5/service_foto_github_v2.html решение см. https://github.com/bpmbpm/family-tree/pull/63
   - old https://bpmbpm.github.io/family-tree/ver2/service_foto_github.html
-- https://bpmbpm.github.io/family-tree/ver4/service_foto_desktop.html
+- https://bpmbpm.github.io/family-tree/ver5/service_foto_desktop.html
 
 #### 2 service_minifoto_edit
 - https://github.com/bpmbpm/family-tree/tree/main/services/minifoto см. https://github.com/bpmbpm/family-tree/pull/65
