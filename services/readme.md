@@ -20,4 +20,4 @@
 - excel viewer
   - https://codebeautify.org/excel-viewer	 + editor
   - https://products.groupdocs.app/viewer/excel
- 
+  - сделать открывающий xls по url
