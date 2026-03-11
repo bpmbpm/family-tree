@@ -15,3 +15,9 @@
 
 ### 3 pic
 Формирование минифото (папка pic) 
+
+### 4 online 
+- excel viewer
+  - https://codebeautify.org/excel-viewer	 + editor
+  - https://products.groupdocs.app/viewer/excel
+ 
