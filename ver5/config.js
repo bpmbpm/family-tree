@@ -13,6 +13,9 @@
 // Кнопка zipDesktop работает в локальном режиме (file://) — пользователь выбирает папку.
 
 window.CONFIG = {
+    "githubRepo": "bpmbpm/family-tree",
+    "githubBranch": "main",
+    "githubBasePath": "ver5",
     "width": 1.1,
     "height": 1.9,
     "fontname": "Arial",
