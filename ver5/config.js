@@ -29,7 +29,7 @@ window.CONFIG = {
     "picDir": "pic",
     "picDirType": "relativeGraphvizOnline",
     "picDirGlobal": "",
-    "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver4/pic",
+    "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver5/pic",
     "graphvizOnlineType": "https://bpmbpm.github.io/graphviz-online/ver1/index.html",
     "language": "ru",
     "foto_sheets": ["foto_person", "foto_family", "foto_group", "foto_location", "foto_item", "foto_event"],
