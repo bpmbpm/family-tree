@@ -1,7 +1,7 @@
 # Взаимосвязь полей Excel и папок проекта (v1)
 
 В этом документе описано, как поля из разных листов Excel (`tree.xlsx`) связаны между собой и с папками, в которых хранятся фотографии.  
-см. также 2 addition
+см. также [2 addition](https://github.com/bpmbpm/family-tree/blob/main/design/relationship_between_fields_and_folders_v1.md#2-addition)
 
 ---
 
