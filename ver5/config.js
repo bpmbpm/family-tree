@@ -4,6 +4,13 @@
 //
 // Переменная window.CONFIG доступна глобально и читается в loadConfig() из index.html.
 // Если этот файл отсутствует, используются значения по умолчанию из index.html.
+//
+// Параметры для кнопки zip (необязательны при использовании на GitHub Pages):
+//   githubRepo      — репозиторий GitHub в формате "owner/repo" (например, "bpmbpm/family-tree")
+//   githubBranch    — ветка (по умолчанию "main")
+//   githubBasePath  — путь к папке проекта в репозитории (например, "ver5")
+// Если githubRepo не задан, параметры определяются автоматически из URL GitHub Pages.
+// Кнопка zipDesktop работает в локальном режиме (file://) — пользователь выбирает папку.
 
 window.CONFIG = {
     "width": 1.1,

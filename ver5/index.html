@@ -91,7 +91,8 @@
                 <button id="svgBtn" onclick="exportToSvg()" disabled title="Выгрузить диаграмму в SVG">SVG</button>
                 <button id="drawioBtn" onclick="exportToDrawio()" disabled title="Выгрузить диаграмму в Drawio">Drawio</button>
                 <button id="drawioOnlineBtn" onclick="openDrawioOnline()" disabled title="Открыть диаграмму в diagrams.net онлайн">Drawio online</button>
-                <button id="zipBtn" onclick="downloadZip()" disabled title="Создать архив для развёртывания на desktop">zip</button>
+                <button id="zipBtn" onclick="downloadZip()" disabled title="Создать архив для развёртывания на desktop (работает на GitHub Pages, использует GitHub API для листинга папок)">zip</button>
+                <button id="zipDesktopBtn" onclick="downloadZipDesktop()" title="Создать архив в режиме desktop: выберите папку проекта — браузер упакует все файлы в ZIP">zipDesktop</button>
             </div>
         </div>
 
