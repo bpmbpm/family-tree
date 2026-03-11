@@ -32,4 +32,5 @@
 - открываем index.html и фото доступны из двух окон:
   - из карточки персоны - Основные совйства person по кнопке FotoSheet
   - из treeview Фото
+  
 ![foto_group.jpg](./pic/foto_group2.jpg)     
