@@ -23,3 +23,9 @@
   - сделать открывающий xls по url
 - конвертер markdown to pdf
   см. также path: https://github.com/bpmbpm/family-tree/blob/main/requirements/excel.md#link
+  - https://rare2pdf.com/md-to-pdf/
+  - https://pdfcandy.com/ru/md-to-pdf.html
+  - https://www.coolutils.com/ru/online/MD-to-PDF
+  - https://www.zamzar.com/ru/convert/md-to-pdf/
+  - https://products.documentize.app/ru/md-to-pdf
+  - inst https://github.com/jgm/pandoc ; https://pandoc.org/
