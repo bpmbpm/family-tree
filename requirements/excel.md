@@ -23,11 +23,11 @@ Family (семейная пара, лист family)
 - foto location места, местоположения, объекты, животные и т.п. привязка к событиям
 
 ### link
-Абсолючные на md:
+Абсолютные пути на md:
 - `https://github.com/bpmbpm/family-tree/blob/main/ver5/md_person/` - markdown
 - `https://bpmbpm.github.io/family-tree/ver5/md_person/` - txt 
 
-Относительные на md: 
+Относительные пути на md: 
 - если задать /md_person/ххх, то подставится:  
 https://bpmbpm.github.io/md_person/%D0%A3%D0%BB%D1%8C%D1%8F%D0%BD%D0%B8%D0%BD_%D0%9D%D0%B8%D0%BA%D0%BE%D0%BB%D0%B0%D0%B9_%D0%92%D0%B0%D1%81%D0%B8%D0%BB%D1%8C%D0%B5%D0%B2%D0%B8%D1%87.md
 - нужно через ./ т.е.: https://bpmbpm.github.io/family-tree/ver5/md_person/%D0%A3%D0%BB%D1%8C%D1%8F%D0%BD%D0%B8%D0%BD_%D0%9D%D0%B8%D0%BA%D0%BE%D0%BB%D0%B0%D0%B9_%D0%92%D0%B0%D1%81%D0%B8%D0%BB%D1%8C%D0%B5%D0%B2%D0%B8%D1%87.md но будет также txt
