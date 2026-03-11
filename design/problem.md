@@ -31,3 +31,4 @@ https://github.com/bpmbpm/family-tree/pull/30
 1. Проблема пока не обрабатываются на листе event дла последних поля. В Foto-list окна "События Person" иная обработка - хоорошо бы унифицировать.
 2. В family нет Foto-list
 3. https://github.com/bpmbpm/family-tree/blob/main/design/relationship_between_fields_and_folders_v1.md#2-addition
+4. При распаковке файла zip папка не должна содержать пробелы
