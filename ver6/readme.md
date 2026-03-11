@@ -25,8 +25,8 @@
 - https://github.com/bpmbpm/family-tree/tree/main/services/minifoto см. https://github.com/bpmbpm/family-tree/pull/65
 - .io: https://bpmbpm.github.io/family-tree/services/minifoto/minifoto_v1.html
 #### 3 test tree
-- https://github.com/bpmbpm/family-tree/blob/main/ver4/test_tree_v1.html см. https://github.com/bpmbpm/family-tree/issues/82
-- .io: https://bpmbpm.github.io/family-tree/ver4/test_tree_v1.html
+- https://github.com/bpmbpm/family-tree/blob/main/ver6/test_tree_v1.html см. https://github.com/bpmbpm/family-tree/issues/82
+- .io: https://bpmbpm.github.io/family-tree/ver6/test_tree_v1.html
 ### related projects
 - https://github.com/bpmbpm/rdf-grapher/tree/main/ver9d https://bpmbpm.github.io/rdf-grapher/ver9d/
 - https://github.com/bpmbpm/graphviz-online/tree/main/ver1
