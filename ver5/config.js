@@ -43,6 +43,7 @@ window.CONFIG = {
         "foto_location",
         "foto_item",
         "foto_event",
+        "md_person",
         "album"
     ]
 };
