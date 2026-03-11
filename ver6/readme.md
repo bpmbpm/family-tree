@@ -3,7 +3,6 @@
 Один код для двух режимов: github pages (иной статический web - server) и локальный (desktop)
 ### run github
 - github pages https://bpmbpm.github.io/family-tree/ver6/index.html
-при мобильном интернете могут быть сложности (нажимать кнопку обновить, если не прочтется .xlsx). Потом устраним
 
 ### run desktop
 - скачать файлы, например, архивом по кнопке zip (вначале запустить run github). Распоковать и запустить index.html
