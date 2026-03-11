@@ -41,7 +41,7 @@ githubBasePath: "ver4"
 файл ver5/service_foto_github_v2.html  
 всегда нужно отслеживать
 
-При смене папки проекта:
+При смене папки проекта (для работы online режима):  
 - для кнопки zip:  
     "githubBasePath": "ver5",
   - плюс аналогично для service_foto_github_v2.html
