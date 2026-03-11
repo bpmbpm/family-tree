@@ -1,5 +1,5 @@
 ### Верcия 6
-Добавлен treeview
+
 Один код для двух режимов: github pages (иной статический web - server) и локальный (desktop)
 ### run github
 - github pages https://bpmbpm.github.io/family-tree/ver6/index.html
@@ -11,10 +11,10 @@
 - для теста папок с фото использовать service_foto_desktop.html (не service_foto_github_v2.html)
 
 ### info
-- Инструкция пользователя https://github.com/bpmbpm/family-tree/blob/main/ver3/doc/user_manual_v1.md
+- Первые шаги к заполнению: https://github.com/bpmbpm/family-tree/blob/main/introduction/begin_v1.md
+- Инструкция пользователя https://github.com/bpmbpm/family-tree/blob/main/introduction/user_manual_v1.md
 - Взаимосвязь полей Excel и папок проекта (v1) https://github.com/bpmbpm/family-tree/blob/main/design/relationship_between_fields_and_folders_v1.md
-- Предлагаемые новые функции (v1) https://github.com/bpmbpm/family-tree/blob/main/design/prototype/new_v1.md
-- Пример автозаполнения родословной известных персон https://github.com/bpmbpm/family-tree/issues/74
+
 ### service
 #### 1 service_foto_folder
 - .io: https://bpmbpm.github.io/family-tree/ver6/service_foto_github_v2.html решение см. https://github.com/bpmbpm/family-tree/pull/63
