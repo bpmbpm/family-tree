@@ -15,7 +15,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🌳 Семейное древо на excel + Graphviz (с фото)</h1>
+        <h1><a href="https://github.com/bpmbpm/family-tree" target="_blank" class="title-link">🌳 Семейное древо на excel + Graphviz (с фото)</a></h1>
         <div class="toolbar">
             <button id="loadBtn">📂 Загрузить tree.xlsx</button>
             <button id="manualBtn">📁 Выбрать файл</button>
@@ -72,7 +72,7 @@
         <!-- Diagram panel: zoom container on top, zoom controls at bottom -->
         <div class="diagram-panel">
             <div class="diagram-panel-header">
-                <span class="diagram-panel-title">📊 Диаграмма</span>
+                <span class="diagram-panel-title" id="diagramPanelTitle">📊 Диаграмма</span>
             </div>
             <div class="zoom-container" id="zoomContainer">
                 <div class="zoom-content" id="zoomContent">
@@ -856,6 +856,17 @@
                         });
                     }
 
+                    // --- version ---
+                    let versionValue = '';
+                    const versionSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'version');
+                    if (versionSheetName) {
+                        const versionSheet = workbook.Sheets[versionSheetName];
+                        const versionRows = XLSX.utils.sheet_to_json(versionSheet, { header: 1, defval: '' });
+                        if (versionRows.length >= 2 && versionRows[1][0] !== undefined) {
+                            versionValue = versionRows[1][0].toString().trim();
+                        }
+                    }
+
                     return {
                         people: peopleList,
                         marriages: marriagesList,
@@ -867,7 +878,8 @@
                         fotoItemRows: fotoItemRowsList,
                         fotoEventRows: fotoEventRowsList,
                         eventRows: eventRowsList,
-                        languageRows: languageRowsList
+                        languageRows: languageRowsList,
+                        version: versionValue
                     };
                 } catch (e) {
                     logMessage('❌ Ошибка парсинга Excel: ' + e.message, true);
@@ -1770,6 +1782,12 @@
                 for (let li = 0; li < langRowsData.length; li++) {
                     const lr = langRowsData[li];
                     langMap[lr.object + '.' + lr.name] = lr;
+                }
+
+                const versionStr = parsedData.version || '';
+                const diagramTitle = document.getElementById('diagramPanelTitle');
+                if (diagramTitle) {
+                    diagramTitle.textContent = versionStr ? '📊 Диаграмма (' + versionStr + ')' : '📊 Диаграмма';
                 }
                 logMessage('⏳ Проверка наличия фото...');
                 await preloadPhotoChecks(people);
