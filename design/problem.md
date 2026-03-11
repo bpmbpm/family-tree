@@ -34,4 +34,9 @@ https://github.com/bpmbpm/family-tree/pull/30
 4. При распаковке файла zip папка не должна содержать пробелы
 
 ### иначе
-- https://github.com/bpmbpm/family-tree/pull/99 требует заполнения файла list.md. Кнопка zip работает только в gitHub: с помощью API GitHub для перечисления содержимого папок. https://github.com/bpmbpm/family-tree/pull/101  
+- https://github.com/bpmbpm/family-tree/pull/99 требует заполнения файла list.md. Кнопка zip работает только в gitHub: с помощью API GitHub для перечисления содержимого папок. https://github.com/bpmbpm/family-tree/pull/101
+```
+githubBasePath: "ver4"
+```
+файл ver5/service_foto_github_v2.html  
+всегда нужно отслеживать
