@@ -46,5 +46,5 @@ githubBasePath: "ver4"
     "githubBasePath": "ver5",
   - плюс аналогично для service_foto_github_v2.html
 - для online:  
-      "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver5/pic",    
-    
+      "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver5/pic",     
+см. https://github.com/bpmbpm/family-tree/pull/107    
