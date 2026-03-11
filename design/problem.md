@@ -28,6 +28,6 @@ https://github.com/bpmbpm/family-tree/pull/30
 Какие еще есть решения?  Поместить config во внутрь модуля js с кодом - не рассматриваем.
 
 ### 3 не забыть
-1 Проблема пока не обрабатываются на листе event дла последних поля. В Foto-list окна "События Person" иная обработка - хоорошо бы унифицировать.
-2 В family нет Foto-list
-3 https://github.com/bpmbpm/family-tree/blob/main/design/relationship_between_fields_and_folders_v1.md#2-addition
+1. Проблема пока не обрабатываются на листе event дла последних поля. В Foto-list окна "События Person" иная обработка - хоорошо бы унифицировать.
+2. В family нет Foto-list
+3. https://github.com/bpmbpm/family-tree/blob/main/design/relationship_between_fields_and_folders_v1.md#2-addition
