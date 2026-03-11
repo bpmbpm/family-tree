@@ -378,8 +378,8 @@ const CONFIG = {
 
 ## Полезные ссылки
 
-- **Основное приложение**: https://bpmbpm.github.io/family-tree/ver3/index.html
-- **Сервис проверки фото (GitHub)**: https://bpmbpm.github.io/family-tree/ver3/service_foto_github_v2.html
+- **Основное приложение**: https://bpmbpm.github.io/family-tree/ver5/index.html
+- **Сервис проверки фото (GitHub)**: https://bpmbpm.github.io/family-tree/ver5/service_foto_github_v2.html
 - **Сервис создания миниатюр**: https://bpmbpm.github.io/family-tree/services/minifoto/minifoto_v1.html
 - **Репозиторий проекта**: https://github.com/bpmbpm/family-tree
 
