@@ -454,15 +454,8 @@
     // =====================================================================
 
     // --- Создать ZIP-архив для развёртывания на desktop ---
-    // Архив содержит:
-    //   - index.html (текущий)
-    //   - styles.css
-    //   - config.js (если существует)
-    //   - foto.js, treeview.js, phototree.js, save.js
-    //   - tree.xlsx
-    //   - service_foto_desktop.html
-    //   - папка pic/ с фотографиями
-    //   - папки foto_family/, foto_person/, foto_group/, foto_location/ с фотографиями
+    // Архив содержит файлы и папки из константы fileZIP в config.js.
+    // По умолчанию включает все стандартные файлы и папки проекта.
     window.downloadZip = async function () {
         var statusDiv = document.getElementById('status');
         if (statusDiv) {
@@ -478,83 +471,87 @@
 
             var zip = new JSZip();
 
-            // Список текстовых файлов для включения в архив
-            var textFiles = [
-                'index.html',
-                'styles.css',
-                'config.js',
-                'foto.js',
-                'treeview.js',
-                'phototree.js',
-                'save.js',
-                'service_foto_desktop.html',
-                'test_tree_v1.html'
-            ];
+            // Получаем список файлов и папок из конфига (или используем набор по умолчанию)
+            var fileZIP = (typeof CONFIG !== 'undefined' && CONFIG && Array.isArray(CONFIG.fileZIP))
+                ? CONFIG.fileZIP
+                : [
+                    'index.html', 'styles.css', 'config.js', 'config.txt',
+                    'foto.js', 'treeview.js', 'phototree.js', 'save.js',
+                    'service_foto_desktop.html', 'service_foto_github_v2.html',
+                    'test_tree_v1.html', 'tree.xlsx',
+                    'pic', 'foto_person', 'foto_family', 'foto_group',
+                    'foto_location', 'foto_item', 'foto_event', 'album'
+                ];
 
-            // Список бинарных файлов
-            var binaryFiles = [
-                'tree.xlsx'
-            ];
+            // Список имён папок фото (для определения какие папки нужно скачивать)
+            var fotoDirNames = (typeof CONFIG !== 'undefined' && CONFIG && Array.isArray(CONFIG.foto_sheets))
+                ? CONFIG.foto_sheets
+                : ['foto_person', 'foto_family', 'foto_group', 'foto_location'];
 
-            // Добавляем текстовые файлы
-            for (var i = 0; i < textFiles.length; i++) {
-                var filename = textFiles[i];
-                try {
-                    var content = await fetchFileContent(filename, false);
-                    if (content !== null) {
-                        zip.file(filename, content);
+            // Обрабатываем каждый элемент из fileZIP
+            for (var i = 0; i < fileZIP.length; i++) {
+                var entry = fileZIP[i];
+
+                // Определяем: папка это или файл
+                // Папки: нет расширения или явно указаны как известные папки
+                var isPicDir = (entry === getPicDir() || entry === 'pic');
+                var isFotoDir = fotoDirNames.indexOf(entry) !== -1;
+                var isAlbum = (entry === 'album');
+
+                if (isPicDir) {
+                    // Папка с миниатюрами
+                    if (statusDiv) statusDiv.textContent = '⏳ Загрузка фотографий из ' + entry + '...';
+                    var picDir = getPicDir();
+                    var photoFilenames = getPhotoFilenames();
+                    for (var j = 0; j < photoFilenames.length; j++) {
+                        try {
+                            var photoContent = await fetchFileContent(picDir + '/' + photoFilenames[j], true);
+                            if (photoContent !== null) {
+                                zip.file(picDir + '/' + photoFilenames[j], photoContent);
+                            }
+                        } catch (e) {
+                            console.warn('Не удалось загрузить фото:', photoFilenames[j], e);
+                        }
                     }
-                } catch (e) {
-                    console.warn('Не удалось загрузить файл:', filename, e);
-                }
-            }
-
-            // Добавляем бинарные файлы (xlsx)
-            for (var b = 0; b < binaryFiles.length; b++) {
-                var binaryFilename = binaryFiles[b];
-                try {
-                    var binaryContent = await fetchFileContent(binaryFilename, true);
-                    if (binaryContent !== null) {
-                        zip.file(binaryFilename, binaryContent);
+                } else if (isFotoDir) {
+                    // Папка с фото (foto_person, foto_family и т.д.)
+                    if (statusDiv) statusDiv.textContent = '⏳ Загрузка фотографий из ' + entry + '...';
+                    var fotoFiles = getFotoFilenames(entry);
+                    for (var k = 0; k < fotoFiles.length; k++) {
+                        try {
+                            var fotoContent = await fetchFileContent(entry + '/' + fotoFiles[k], true);
+                            if (fotoContent !== null) {
+                                zip.file(entry + '/' + fotoFiles[k], fotoContent);
+                            }
+                        } catch (e) {
+                            console.warn('Не удалось загрузить файл из', entry, ':', fotoFiles[k], e);
+                        }
                     }
-                } catch (e) {
-                    console.warn('Не удалось загрузить бинарный файл:', binaryFilename, e);
-                }
-            }
-
-            if (statusDiv) statusDiv.textContent = '⏳ Загрузка фотографий...';
-
-            // Добавляем папку pic/ с фотографиями
-            var picDir = getPicDir();
-            var photoFilenames = getPhotoFilenames();
-            if (photoFilenames.length > 0) {
-                for (var j = 0; j < photoFilenames.length; j++) {
-                    var photoFile = photoFilenames[j];
+                } else if (isAlbum) {
+                    // Папка album — скачиваем файлы из SAVE_DATA если доступны
+                    if (statusDiv) statusDiv.textContent = '⏳ Загрузка файлов из ' + entry + '...';
+                    var albumFiles = getAlbumFilenames();
+                    for (var al = 0; al < albumFiles.length; al++) {
+                        try {
+                            var albumContent = await fetchFileContent(entry + '/' + albumFiles[al], true);
+                            if (albumContent !== null) {
+                                zip.file(entry + '/' + albumFiles[al], albumContent);
+                            }
+                        } catch (e) {
+                            console.warn('Не удалось загрузить файл из', entry, ':', albumFiles[al], e);
+                        }
+                    }
+                } else {
+                    // Обычный файл
+                    var isBinary = entry.endsWith('.xlsx') || entry.endsWith('.xls') ||
+                        entry.endsWith('.png') || entry.endsWith('.jpg') || entry.endsWith('.jpeg');
                     try {
-                        var photoContent = await fetchFileContent(picDir + '/' + photoFile, true);
-                        if (photoContent !== null) {
-                            zip.file(picDir + '/' + photoFile, photoContent);
+                        var fileContent = await fetchFileContent(entry, isBinary);
+                        if (fileContent !== null) {
+                            zip.file(entry, fileContent);
                         }
                     } catch (e) {
-                        console.warn('Не удалось загрузить фото:', photoFile, e);
-                    }
-                }
-            }
-
-            // Добавляем папки с фото других типов
-            // Используем глобальный объект window.SAVE_DATA для получения списка фото
-            var fotoDirs = ['foto_family', 'foto_person', 'foto_group', 'foto_location'];
-            for (var d = 0; d < fotoDirs.length; d++) {
-                var dir = fotoDirs[d];
-                var fotoFiles = getFotoFilenames(dir);
-                for (var k = 0; k < fotoFiles.length; k++) {
-                    try {
-                        var fotoContent = await fetchFileContent(dir + '/' + fotoFiles[k], true);
-                        if (fotoContent !== null) {
-                            zip.file(dir + '/' + fotoFiles[k], fotoContent);
-                        }
-                    } catch (e) {
-                        console.warn('Не удалось загрузить файл из', dir, ':', fotoFiles[k], e);
+                        console.warn('Не удалось загрузить файл:', entry, e);
                     }
                 }
             }
@@ -680,27 +677,17 @@
 
         // Сначала пробуем получить из глобального объекта SAVE_DATA
         if (typeof window.SAVE_DATA !== 'undefined') {
-            if (dirName === 'foto_person' && window.SAVE_DATA.fotoPersonRows) {
-                rows = window.SAVE_DATA.fotoPersonRows;
-            } else if (dirName === 'foto_family' && window.SAVE_DATA.fotoFamilyRows) {
-                rows = window.SAVE_DATA.fotoFamilyRows;
-            } else if (dirName === 'foto_group' && window.SAVE_DATA.fotoGroupRows) {
-                rows = window.SAVE_DATA.fotoGroupRows;
-            } else if (dirName === 'foto_location' && window.SAVE_DATA.fotoLocationRows) {
-                rows = window.SAVE_DATA.fotoLocationRows;
-            }
-        }
-
-        // Если SAVE_DATA недоступен, пробуем получить из глобальных переменных (для обратной совместимости)
-        if (!rows) {
-            if (dirName === 'foto_person' && typeof fotoPersonRows !== 'undefined') {
-                rows = fotoPersonRows;
-            } else if (dirName === 'foto_family' && typeof fotoFamilyRows !== 'undefined') {
-                rows = fotoFamilyRows;
-            } else if (dirName === 'foto_group' && typeof fotoGroupRows !== 'undefined') {
-                rows = fotoGroupRows;
-            } else if (dirName === 'foto_location' && typeof fotoLocationRows !== 'undefined') {
-                rows = fotoLocationRows;
+            var keyMap = {
+                'foto_person': 'fotoPersonRows',
+                'foto_family': 'fotoFamilyRows',
+                'foto_group': 'fotoGroupRows',
+                'foto_location': 'fotoLocationRows',
+                'foto_item': 'fotoItemRows',
+                'foto_event': 'fotoEventRows'
+            };
+            var key = keyMap[dirName];
+            if (key && window.SAVE_DATA[key]) {
+                rows = window.SAVE_DATA[key];
             }
         }
 
@@ -713,6 +700,15 @@
         }
 
         return filenames;
+    }
+
+    // --- Получить список файлов из папки album ---
+    // Возвращает пустой массив если список недоступен (папка будет пропущена)
+    function getAlbumFilenames() {
+        if (typeof window.SAVE_DATA !== 'undefined' && window.SAVE_DATA.albumFilenames) {
+            return window.SAVE_DATA.albumFilenames.slice();
+        }
+        return [];
     }
 
 })();

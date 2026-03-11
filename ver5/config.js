@@ -21,5 +21,28 @@ window.CONFIG = {
     "picDirGlobal": "",
     "picDirGraphvizOnline": "https://bpmbpm.github.io/family-tree/ver4/pic",
     "graphvizOnlineType": "https://bpmbpm.github.io/graphviz-online/ver1/index.html",
-    "language": "ru"
+    "language": "ru",
+    "foto_sheets": ["foto_person", "foto_family", "foto_group", "foto_location", "foto_item", "foto_event"],
+    "fileZIP": [
+        "index.html",
+        "styles.css",
+        "config.js",
+        "config.txt",
+        "foto.js",
+        "treeview.js",
+        "phototree.js",
+        "save.js",
+        "service_foto_desktop.html",
+        "service_foto_github_v2.html",
+        "test_tree_v1.html",
+        "tree.xlsx",
+        "pic",
+        "foto_person",
+        "foto_family",
+        "foto_group",
+        "foto_location",
+        "foto_item",
+        "foto_event",
+        "album"
+    ]
 };

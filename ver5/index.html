@@ -150,7 +150,11 @@
             let fotoPersonRows = [];
             let fotoGroupRows = [];
             let fotoLocationRows = [];
+            let fotoItemRows = [];
+            let fotoEventRows = [];
             let eventRows = [];
+            // Карта данных листов фото: имя листа -> массив записей
+            let fotoSheetsData = {};
             let dotCode = '';
             let dotCodeForGraphvizOnline = '';
             let graphvizLink = '';
@@ -729,6 +733,68 @@
                         }
                     }
 
+                    // --- foto_item ---
+                    let fotoItemRowsList = [];
+                    const fotoItemSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'foto_item');
+                    if (fotoItemSheetName) {
+                        const fiSheet = workbook.Sheets[fotoItemSheetName];
+                        const fiRows = XLSX.utils.sheet_to_json(fiSheet, { header: 1, defval: '' });
+                        if (fiRows.length > 1) {
+                            const fiRawHeaders = fiRows[0].map(h => (h || '').toString().trim());
+                            const fiHeaderLower = fiRawHeaders.map(h => h.toLowerCase());
+                            fiRows.slice(1).forEach(row => {
+                                const idPersonAllIdx = fiHeaderLower.indexOf('id_personall');
+                                const idPersonAllVal = idPersonAllIdx >= 0 ? row[idPersonAllIdx] : '';
+                                if (!idPersonAllVal || idPersonAllVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < fiRawHeaders.length; ci++) {
+                                    obj[fiRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                if (!obj.idA) {
+                                    const idPersonIdx = fiHeaderLower.indexOf('id_person');
+                                    const suffixIdx = fiHeaderLower.findIndex(h => h === 'suffix' || h === 'suffix_');
+                                    const extIdx = fiHeaderLower.indexOf('extension');
+                                    const idPerson = idPersonIdx >= 0 ? row[idPersonIdx].toString().trim() : '';
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (idPerson && suffix && ext) obj.idA = idPerson + '-' + suffix + '.' + ext;
+                                }
+                                fotoItemRowsList.push(obj);
+                            });
+                        }
+                    }
+
+                    // --- foto_event ---
+                    let fotoEventRowsList = [];
+                    const fotoEventSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'foto_event');
+                    if (fotoEventSheetName) {
+                        const feSheet = workbook.Sheets[fotoEventSheetName];
+                        const feRows = XLSX.utils.sheet_to_json(feSheet, { header: 1, defval: '' });
+                        if (feRows.length > 1) {
+                            const feRawHeaders = feRows[0].map(h => (h || '').toString().trim());
+                            const feHeaderLower = feRawHeaders.map(h => h.toLowerCase());
+                            feRows.slice(1).forEach(row => {
+                                const idPersonAllIdx = feHeaderLower.indexOf('id_personall');
+                                const idPersonAllVal = idPersonAllIdx >= 0 ? row[idPersonAllIdx] : '';
+                                if (!idPersonAllVal || idPersonAllVal.toString().trim() === '') return;
+                                const obj = {};
+                                for (let ci = 0; ci < feRawHeaders.length; ci++) {
+                                    obj[feRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                }
+                                if (!obj.idA) {
+                                    const idPersonIdx = feHeaderLower.indexOf('id_person');
+                                    const suffixIdx = feHeaderLower.findIndex(h => h === 'suffix' || h === 'suffix_');
+                                    const extIdx = feHeaderLower.indexOf('extension');
+                                    const idPerson = idPersonIdx >= 0 ? row[idPersonIdx].toString().trim() : '';
+                                    const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
+                                    const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
+                                    if (idPerson && suffix && ext) obj.idA = idPerson + '-' + suffix + '.' + ext;
+                                }
+                                fotoEventRowsList.push(obj);
+                            });
+                        }
+                    }
+
                     // --- event ---
                     let eventRowsList = [];
                     const eventSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'event');
@@ -778,6 +844,17 @@
                     }
 
                     logMessage('✅ Парсинг Excel завершён успешно.');
+
+                    // Проверяем наличие листов foto_sheets из конфига
+                    if (window.CONFIG && Array.isArray(window.CONFIG.foto_sheets)) {
+                        window.CONFIG.foto_sheets.forEach(function(sheetName) {
+                            const sheetExists = workbook.SheetNames.some(n => n.toLowerCase() === sheetName.toLowerCase());
+                            if (!sheetExists) {
+                                logMessage('⚠️ Предупреждение: лист "' + sheetName + '" из foto_sheets не найден в файле Excel', false);
+                            }
+                        });
+                    }
+
                     return {
                         people: peopleList,
                         marriages: marriagesList,
@@ -786,6 +863,8 @@
                         fotoPersonRows: fotoPersonRowsList,
                         fotoGroupRows: fotoGroupRowsList,
                         fotoLocationRows: fotoLocationRowsList,
+                        fotoItemRows: fotoItemRowsList,
+                        fotoEventRows: fotoEventRowsList,
                         eventRows: eventRowsList,
                         languageRows: languageRowsList
                     };
@@ -1112,6 +1191,20 @@
                 }
                 const escapedIdA = person.idA.replace(/'/g, "\\'").replace(/"/g, '&quot;');
                 const escapedIdAForOnclick = person.idA.replace(/'/g, "\\'");
+
+                // Строим выпадающий список FotoSheet: только листы, где есть фото для этой персоны
+                const availableFotoSheets = getAvailableFotoSheetsForPerson(person.idA);
+                let fotoSheetSelectHtml = '';
+                if (availableFotoSheets.length > 0) {
+                    let optHtml = '<option value="">-- FotoSheet --</option>';
+                    for (let oi = 0; oi < availableFotoSheets.length; oi++) {
+                        optHtml += '<option value="' + availableFotoSheets[oi] + '">' + availableFotoSheets[oi] + '</option>';
+                    }
+                    fotoSheetSelectHtml = '<select class="event-fotolist-select" onchange="openFotoSheetGallery(\'' + escapedIdAForOnclick + '\', this.value, this)">' + optHtml + '</select>';
+                } else {
+                    fotoSheetSelectHtml = '<select class="event-fotolist-select" disabled><option value="">-- FotoSheet --</option></select>';
+                }
+
                 const panelHtml =
                     '<div class="properties-panel visible" id="' + panelId + '" style="right: ' + rightOffset + 'px; top: ' + topOffset + 'px;">' +
                     '<div class="properties-header" onmousedown="startDragPanel(event, \'' + panelId + '\')">' +
@@ -1120,10 +1213,7 @@
                     '<h3>' + person.idA + '</h3>' +
                     '<div class="properties-header-buttons">' +
                     '<button class="properties-copy-btn" onclick="event.stopPropagation(); copyObjectId(\'' + escapedIdA + '\', this)">Копировать</button>' +
-                    '<button class="foto-person-btn" onclick="event.stopPropagation(); openPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_person</button>' +
-                    '<button class="foto-family-btn" onclick="event.stopPropagation(); openFamilyGalleryForPerson(\'' + escapedIdAForOnclick + '\')">foto_family</button>' +
-                    '<button class="foto-group-btn" onclick="event.stopPropagation(); openGroupGallery(\'' + escapedIdAForOnclick + '\')">foto_group</button>' +
-                    '<button class="foto-location-btn" onclick="event.stopPropagation(); openLocationPersonGallery(\'' + escapedIdAForOnclick + '\')">foto_location</button>' +
+                    fotoSheetSelectHtml +
                     '<button class="event-btn" onclick="event.stopPropagation(); openEventPanel(\'' + escapedIdAForOnclick + '\')">Event</button>' +
                     '</div>' +
                     '</div>' +
@@ -1226,9 +1316,48 @@
                     window.FOTO.showLocationFamilyGallery(familyIdA, fotoLocationRows, 'foto_location');
                 }
             };
+
+            // --- Открыть галерею для листа фото по персоне (через id_personAll) ---
+            // Используется из выпадающего списка FotoSheet в панели "Основные свойства person"
+            window.openFotoSheetGallery = function(personIdA, sheetName, selectEl) {
+                if (!sheetName) return;
+                if (selectEl) selectEl.value = '';
+                var rows = fotoSheetsData[sheetName] || [];
+                // Фильтруем строки, где personIdA встречается в id_personAll
+                var matchingRows = rows.filter(function(row) {
+                    if (!row.idA) return false;
+                    var idPersonAll = row.id_personAll || '';
+                    var ids = idPersonAll.split(';').map(function(s) { return s.trim(); });
+                    return ids.indexOf(personIdA) !== -1;
+                });
+                if (window.FOTO && window.FOTO.showEventFotoGallery) {
+                    window.FOTO.showEventFotoGallery(personIdA + '_' + sheetName, matchingRows, sheetName, sheetName);
+                }
+            };
+
             window.openEventPanel = function(personIdA) {
                 showEventPanel(personIdA);
             };
+
+            // --- Получить список листов фото из foto_sheets, где персона встречается в id_personAll ---
+            function getAvailableFotoSheetsForPerson(personIdA) {
+                var fotoSheets = (window.CONFIG && Array.isArray(window.CONFIG.foto_sheets))
+                    ? window.CONFIG.foto_sheets
+                    : ['foto_person', 'foto_family', 'foto_group', 'foto_location'];
+                var available = [];
+                for (var i = 0; i < fotoSheets.length; i++) {
+                    var sheetName = fotoSheets[i];
+                    var rows = fotoSheetsData[sheetName] || [];
+                    var hasPhoto = rows.some(function(row) {
+                        if (!row.idA) return false;
+                        var idPersonAll = row.id_personAll || '';
+                        var ids = idPersonAll.split(';').map(function(s) { return s.trim(); });
+                        return ids.indexOf(personIdA) !== -1;
+                    });
+                    if (hasPhoto) available.push(sheetName);
+                }
+                return available;
+            }
 
             function showEventPanel(personIdA) {
                 const container = document.getElementById('properties-panels-container');
@@ -1412,10 +1541,6 @@
             window.startDragPanel = function(event, panelId) {
                 if (event.target.classList.contains('properties-close-btn') ||
                     event.target.classList.contains('properties-copy-btn') ||
-                    event.target.classList.contains('foto-family-btn') ||
-                    event.target.classList.contains('foto-person-btn') ||
-                    event.target.classList.contains('foto-group-btn') ||
-                    event.target.classList.contains('foto-location-btn') ||
                     event.target.classList.contains('event-btn') ||
                     event.target.classList.contains('event-fotolist-select')) return;
                 const panel = document.getElementById(panelId);
@@ -1606,10 +1731,36 @@
                 fotoPersonRows = parsedData.fotoPersonRows || [];
                 fotoGroupRows = parsedData.fotoGroupRows || [];
                 fotoLocationRows = parsedData.fotoLocationRows || [];
+                fotoItemRows = parsedData.fotoItemRows || [];
+                fotoEventRows = parsedData.fotoEventRows || [];
                 eventRows = parsedData.eventRows || [];
+
+                // Строим карту данных листов фото для передачи в ptInit
+                fotoSheetsData = {
+                    'foto_person': fotoPersonRows,
+                    'foto_family': fotoFamilyRows,
+                    'foto_group': fotoGroupRows,
+                    'foto_location': fotoLocationRows,
+                    'foto_item': fotoItemRows,
+                    'foto_event': fotoEventRows
+                };
+
+                // Проверка наличия папок foto_sheets (только по HTTP/HTTPS)
+                if (window.CONFIG && Array.isArray(window.CONFIG.foto_sheets) && window.location.protocol !== 'file:') {
+                    window.CONFIG.foto_sheets.forEach(function(sheetName) {
+                        fetch(sheetName + '/', { method: 'HEAD' }).then(function(resp) {
+                            if (!resp.ok) {
+                                logMessage('⚠️ Предупреждение: папка "' + sheetName + '" из foto_sheets не найдена', false);
+                            }
+                        }).catch(function() {
+                            // Папки могут быть недоступны в некоторых средах, не выводим ошибку
+                        });
+                    });
+                }
 
                 window.SAVE_DATA = {
                     fotoFamilyRows, fotoPersonRows, fotoGroupRows, fotoLocationRows,
+                    fotoItemRows, fotoEventRows,
                     photoFilenames: []
                 };
 
@@ -1646,7 +1797,7 @@
                 await renderDot(dotCode, imagesOption);
                 logMessage('✅ Дерево построено');
                 if (typeof window.tvInit === 'function') window.tvInit(people);
-                if (typeof window.ptInit === 'function') window.ptInit(fotoPersonRows, fotoFamilyRows, fotoGroupRows, fotoLocationRows);
+                if (typeof window.ptInit === 'function') window.ptInit(fotoSheetsData);
             }
 
             async function loadFromUrl(url) {
