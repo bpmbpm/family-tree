@@ -37,9 +37,9 @@
 ### Запуск приложения
 
 Приложение доступно онлайн:
-- **Основное приложение**: https://bpmbpm.github.io/family-tree/ver3/index.html
+- **Основное приложение**: https://bpmbpm.github.io/family-tree/ver5/index.html
 
-Также можно запустить локально, открыв файл `ver3/index.html` в браузере.
+Также можно запустить локально, открыв файл `ver5/index.html` в браузере.
 
 ---
 
