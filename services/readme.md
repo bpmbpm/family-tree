@@ -22,4 +22,4 @@
   - https://products.groupdocs.app/viewer/excel
   - сделать открывающий xls по url
 - конвертер markdown to pdf
-  см. также path^ https://github.com/bpmbpm/family-tree/blob/main/requirements/excel.md#link
+  см. также path: https://github.com/bpmbpm/family-tree/blob/main/requirements/excel.md#link
