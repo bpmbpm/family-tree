@@ -541,6 +541,39 @@
                             console.warn('Не удалось загрузить файл из', entry, ':', albumFiles[al], e);
                         }
                     }
+                } else if (entry.indexOf('.') === -1) {
+                    // Произвольная папка (нет расширения, не попала в предыдущие категории)
+                    // Читаем список файлов из list.md в этой папке
+                    if (statusDiv) statusDiv.textContent = '⏳ Загрузка файлов из ' + entry + '...';
+                    try {
+                        var listContent = await fetchFileContent(entry + '/list.md', false);
+                        if (listContent !== null) {
+                            // Сохраняем list.md в архив
+                            zip.file(entry + '/list.md', listContent);
+                            // Парсим список файлов: каждая непустая строка без # — имя файла
+                            var dirFiles = listContent.split('\n')
+                                .map(function(line) { return line.trim(); })
+                                .filter(function(line) { return line.length > 0 && !line.startsWith('#'); });
+                            for (var di = 0; di < dirFiles.length; di++) {
+                                var dirFile = dirFiles[di];
+                                var isDirFileBinary = dirFile.endsWith('.xlsx') || dirFile.endsWith('.xls') ||
+                                    dirFile.endsWith('.png') || dirFile.endsWith('.jpg') || dirFile.endsWith('.jpeg') ||
+                                    dirFile.endsWith('.gif') || dirFile.endsWith('.pdf');
+                                try {
+                                    var dirFileContent = await fetchFileContent(entry + '/' + dirFile, isDirFileBinary);
+                                    if (dirFileContent !== null) {
+                                        zip.file(entry + '/' + dirFile, dirFileContent);
+                                    }
+                                } catch (e) {
+                                    console.warn('Не удалось загрузить файл из', entry, ':', dirFile, e);
+                                }
+                            }
+                        } else {
+                            console.warn('Папка "' + entry + '" в fileZIP: не найден list.md, файлы папки не добавлены в архив');
+                        }
+                    } catch (e) {
+                        console.warn('Не удалось прочитать list.md из папки:', entry, e);
+                    }
                 } else {
                     // Обычный файл
                     var isBinary = entry.endsWith('.xlsx') || entry.endsWith('.xls') ||
