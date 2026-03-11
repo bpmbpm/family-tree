@@ -8,11 +8,9 @@
     // Состояние модуля
     // =====================================================================
 
-    // Данные фотографий (ссылки на глобальные массивы из index.html)
-    var fotoPersonData = [];
-    var fotoFamilyData = [];
-    var fotoGroupData = [];
-    var fotoLocationData = [];
+    // Карта данных фотографий: имя листа -> массив записей
+    // Поддерживает произвольный набор листов из константы foto_sheets
+    var fotoDataMap = {};
 
     // =====================================================================
     // Построение дерева фото
@@ -239,15 +237,8 @@
 
     // --- Открыть галерею для конкретного фото ---
     function openPhotoGallery(fotoType, fotoRow, idA) {
-        // Используем глобальные функции из foto.js / index.html
-        if (fotoType === 'foto_person' && window.FOTO && window.FOTO.showPersonGallery) {
-            // Передаём массив с одной записью
-            window.FOTO.showSinglePhotoGallery(idA, [fotoRow], fotoType);
-        } else if (fotoType === 'foto_family' && window.FOTO && window.FOTO.showFamilyGallery) {
-            window.FOTO.showSinglePhotoGallery(idA, [fotoRow], fotoType);
-        } else if (fotoType === 'foto_group' && window.FOTO && window.FOTO.showGroupGallery) {
-            window.FOTO.showSinglePhotoGallery(idA, [fotoRow], fotoType);
-        } else if (fotoType === 'foto_location' && window.FOTO && window.FOTO.showLocationPersonGallery) {
+        // Используем универсальную функцию showSinglePhotoGallery из foto.js
+        if (window.FOTO && window.FOTO.showSinglePhotoGallery) {
             window.FOTO.showSinglePhotoGallery(idA, [fotoRow], fotoType);
         } else {
             // Fallback: показать alert
@@ -259,14 +250,34 @@
     // Отображение и обновление дерева
     // =====================================================================
 
+    // --- Определить поля идентификатора и суффикса для типа фото ---
+    // Возвращает { idField, suffixField } по имени листа фото
+    function getFotoFieldNames(fotoType) {
+        if (fotoType === 'foto_family') return { idField: 'id_family', suffixField: 'suffix_' };
+        if (fotoType === 'foto_location') return { idField: 'id_loc', suffixField: 'suffix' };
+        // foto_person, foto_group, foto_item, foto_event и прочие — id_person и suffix
+        return { idField: 'id_person', suffixField: 'suffix' };
+    }
+
     // --- Отрисовать дерево фото в панели ---
     function renderPhotoTreeView() {
         var container = document.getElementById('pt-content');
         if (!container) return;
         container.innerHTML = '';
 
-        var hasData = fotoPersonData.length > 0 || fotoFamilyData.length > 0 ||
-                      fotoGroupData.length > 0 || fotoLocationData.length > 0;
+        // Получаем список листов фото из конфига (или используем стандартный набор)
+        var fotoSheets = (window.CONFIG && Array.isArray(window.CONFIG.foto_sheets))
+            ? window.CONFIG.foto_sheets
+            : ['foto_person', 'foto_family', 'foto_group', 'foto_location'];
+
+        var hasData = false;
+        for (var si = 0; si < fotoSheets.length; si++) {
+            var sheetName = fotoSheets[si];
+            if (fotoDataMap[sheetName] && fotoDataMap[sheetName].length > 0) {
+                hasData = true;
+                break;
+            }
+        }
 
         if (!hasData) {
             container.innerHTML = '<div class="tv-empty">Загрузите данные</div>';
@@ -276,28 +287,15 @@
         var ul = document.createElement('ul');
         ul.className = 'pt-root-list';
 
-        // foto_person
-        if (fotoPersonData.length > 0) {
-            var fpLi = buildFotoFolderDom('foto_person', fotoPersonData, 'id_person', 'suffix');
-            ul.appendChild(fpLi);
-        }
-
-        // foto_family
-        if (fotoFamilyData.length > 0) {
-            var ffLi = buildFotoFolderDom('foto_family', fotoFamilyData, 'id_family', 'suffix_');
-            ul.appendChild(ffLi);
-        }
-
-        // foto_group
-        if (fotoGroupData.length > 0) {
-            var fgLi = buildFotoFolderDom('foto_group', fotoGroupData, 'id_person', 'suffix_');
-            ul.appendChild(fgLi);
-        }
-
-        // foto_location
-        if (fotoLocationData.length > 0) {
-            var flLi = buildFotoFolderDom('foto_location', fotoLocationData, 'id_loc', 'suffix');
-            ul.appendChild(flLi);
+        // Добавляем папку для каждого листа из foto_sheets (если есть данные)
+        for (var fi = 0; fi < fotoSheets.length; fi++) {
+            var ft = fotoSheets[fi];
+            var rows = fotoDataMap[ft] || [];
+            if (rows.length > 0) {
+                var fields = getFotoFieldNames(ft);
+                var fLi = buildFotoFolderDom(ft, rows, fields.idField, fields.suffixField);
+                ul.appendChild(fLi);
+            }
         }
 
         container.appendChild(ul);
@@ -337,12 +335,21 @@
     // Инициализация: вызывается из index.html после загрузки данных
     // =====================================================================
 
-    // --- Инициализировать phototree с массивами фото ---
-    window.ptInit = function (fotoPersonRows, fotoFamilyRows, fotoGroupRows, fotoLocationRows) {
-        fotoPersonData = fotoPersonRows || [];
-        fotoFamilyData = fotoFamilyRows || [];
-        fotoGroupData = fotoGroupRows || [];
-        fotoLocationData = fotoLocationRows || [];
+    // --- Инициализировать phototree с данными фото ---
+    // Принимает карту { имя_листа: массив_записей } или (для обратной совместимости)
+    // отдельные аргументы: (fotoPersonRows, fotoFamilyRows, fotoGroupRows, fotoLocationRows)
+    window.ptInit = function (firstArg, fotoFamilyRows, fotoGroupRows, fotoLocationRows) {
+        if (firstArg && typeof firstArg === 'object' && !Array.isArray(firstArg)) {
+            // Новый формат: карта листов
+            fotoDataMap = firstArg;
+        } else {
+            // Старый формат: отдельные аргументы (для обратной совместимости)
+            fotoDataMap = {};
+            if (firstArg) fotoDataMap['foto_person'] = firstArg;
+            if (fotoFamilyRows) fotoDataMap['foto_family'] = fotoFamilyRows;
+            if (fotoGroupRows) fotoDataMap['foto_group'] = fotoGroupRows;
+            if (fotoLocationRows) fotoDataMap['foto_location'] = fotoLocationRows;
+        }
 
         renderPhotoTreeView();
     };
