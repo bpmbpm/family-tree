@@ -25,6 +25,8 @@
 ![Рамка с обозначением супругов](./pic/family_tree.jpg)  
   
 ##### 3. Лист foto_group:
-- вводим данные
-- сохраняем tree.xlsx, открываем index.html и получаем:
-![foto_group.jpg](./pic/foto_group.jpg)    
+- вводим данные 
+![foto_group.jpg](./pic/foto_group.jpg)  
+- сохраняем tree.xlsx, 
+- добавляем в папку foto_group/ фотографии со сгененированными именами и получаем:
+- открываем index.html   
