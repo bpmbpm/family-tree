@@ -28,9 +28,9 @@
 - .io: https://bpmbpm.github.io/family-tree/ver6/test_tree_v1.html
 
 #### 4 excel online
-Для просмотра tree.xlsx можно воспользоваться https://bpmbpm.github.io/excel-online/ver1/index.html  
+- Для просмотра tree.xlsx можно воспользоваться https://bpmbpm.github.io/excel-online/ver1/index.html  
 и указать URL https://bpmbpm.github.io/family-tree/ver6/tree.xlsx
-Прямая ссылка https://bpmbpm.github.io/excel-online/ver1/index.html?file=https%3A%2F%2Fbpmbpm.github.io%2Ffamily-tree%2Fver6%2Ftree.xlsx
+- Прямая ссылка https://bpmbpm.github.io/excel-online/ver1/index.html?file=https%3A%2F%2Fbpmbpm.github.io%2Ffamily-tree%2Fver6%2Ftree.xlsx
 
 ### related projects
 - https://github.com/bpmbpm/rdf-grapher/tree/main/ver9d https://bpmbpm.github.io/rdf-grapher/ver9d/
