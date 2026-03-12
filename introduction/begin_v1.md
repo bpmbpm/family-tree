@@ -1,12 +1,13 @@
 ## first steps
 ### Начало. Вариант 1
-#### Фаза А. Скачивание
+#### Фаза А. Скачивание проекта \ шаблона
 1. Заходим на старинцу: https://github.com/bpmbpm/family-tree/tree/main/ver5 (или ver6)
 2. Запускаем через run: github pages https://bpmbpm.github.io/family-tree/ver5/index.html (ver6)
 3. Смотрим, как должно работать ("тыкаем" в дерево, treeview и т.п., смотрим фото)
 4. Кнопкой zip скачиваем и сохраняем на компьютере.  
 
 Далее работаем в desktop версии. Запуск также через index.html (браузерный js). При запуске с desktop (с локального компьютера, а не с github pages или иного статического web server) нужно выбирать файл tree.xlsx вручную (в серверном варианте он подставляется автоматом, т.к. нет CORS) через кнопку "Выбрать файл".
+#### start-1-3
 #### Фаза Б. Составление Семейного дерева в excel
 Открываем и редактируем Ecxel (tree.xlsx).    
 ##### 1. Лист person: 
@@ -34,3 +35,5 @@
   - из treeview Фото
   
 ![foto_group.jpg](./pic/foto_group2.jpg)     
+
+Результат **start-1-3** записан в zip см. https://github.com/bpmbpm/family-tree/tree/main/ver6/old#family-tree-step1-37z
