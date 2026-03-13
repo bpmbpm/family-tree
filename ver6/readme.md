@@ -16,20 +16,21 @@
 
 ### service
 #### 1 service_foto_folder
-- .io: https://bpmbpm.github.io/family-tree/ver6/service_foto_github_v2.html решение см. https://github.com/bpmbpm/family-tree/pull/63
+- run (.io): https://bpmbpm.github.io/family-tree/ver6/service_foto_github_v2.html решение см. https://github.com/bpmbpm/family-tree/pull/63
   - old https://bpmbpm.github.io/family-tree/ver2/service_foto_github.html
 - https://bpmbpm.github.io/family-tree/ver6/service_foto_desktop.html
 
 #### 2 service_minifoto_edit
-- https://github.com/bpmbpm/family-tree/tree/main/services/minifoto см. https://github.com/bpmbpm/family-tree/pull/65
-- .io: https://bpmbpm.github.io/family-tree/services/minifoto/minifoto_v1.html
+- run (.io): https://bpmbpm.github.io/family-tree/services/minifoto/minifoto_v1.html
+  - https://github.com/bpmbpm/family-tree/tree/main/services/minifoto см. https://github.com/bpmbpm/family-tree/pull/65
 #### 3 test tree
 - run (.io): https://bpmbpm.github.io/family-tree/ver6/test_tree_v1.html
   - info https://github.com/bpmbpm/family-tree/blob/main/ver6/test_tree_v1.html см. https://github.com/bpmbpm/family-tree/issues/82
 #### 4 excel online
-- Для просмотра tree.xlsx можно воспользоваться https://bpmbpm.github.io/excel-online/ver1/index.html  
+- run (прямая ссылка): https://bpmbpm.github.io/excel-online/ver1/index.html?file=https%3A%2F%2Fbpmbpm.github.io%2Ffamily-tree%2Fver6%2Ftree.xlsx
+  - Для просмотра tree.xlsx можно воспользоваться https://bpmbpm.github.io/excel-online/ver1/index.html  
 и указать URL https://bpmbpm.github.io/family-tree/ver6/tree.xlsx
-- Прямая ссылка https://bpmbpm.github.io/excel-online/ver1/index.html?file=https%3A%2F%2Fbpmbpm.github.io%2Ffamily-tree%2Fver6%2Ftree.xlsx
+
 
 ### related projects
 - https://github.com/bpmbpm/rdf-grapher/tree/main/ver9d https://bpmbpm.github.io/rdf-grapher/ver9d/
