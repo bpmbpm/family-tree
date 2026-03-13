@@ -24,9 +24,8 @@
 - https://github.com/bpmbpm/family-tree/tree/main/services/minifoto см. https://github.com/bpmbpm/family-tree/pull/65
 - .io: https://bpmbpm.github.io/family-tree/services/minifoto/minifoto_v1.html
 #### 3 test tree
-- https://github.com/bpmbpm/family-tree/blob/main/ver6/test_tree_v1.html см. https://github.com/bpmbpm/family-tree/issues/82
-- .io: https://bpmbpm.github.io/family-tree/ver6/test_tree_v1.html
-
+- run (.io): https://bpmbpm.github.io/family-tree/ver6/test_tree_v1.html
+  - info https://github.com/bpmbpm/family-tree/blob/main/ver6/test_tree_v1.html см. https://github.com/bpmbpm/family-tree/issues/82
 #### 4 excel online
 - Для просмотра tree.xlsx можно воспользоваться https://bpmbpm.github.io/excel-online/ver1/index.html  
 и указать URL https://bpmbpm.github.io/family-tree/ver6/tree.xlsx
