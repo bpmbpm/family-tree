@@ -52,10 +52,10 @@ githubBasePath: "ver4"
 ### 4 info_excel
 Вопросы ведения инфо в excel
 1. Проблема валидации, например, можно через Проверка данных или VBA (расширение файла изменится), можно внешние. Например, лишний пробел в авто поле давт на конце _
-2. Смена id персоны. Например, стало известно отчество и нужно сделать замену id (без отчества) на всех листах и также в именах файлов, включая фото и md (pdf). см. https://github.com/bpmbpm/family-tree/blob/main/introduction/excel_info_v1.md#verify
+2. Смена id персоны. Например, стало известно отчество и нужно сделать замену id (без отчества) на всех листах и также в именах файлов, включая фото и md (pdf). см. https://github.com/bpmbpm/family-tree/blob/main/introduction/excel_info_v1.md#verify 
 
 ### 5 foto folder
 алгоритм определения - в какую папку foto_fam vs foto_group
 ### 6 md
 Алгоритм с md файлами - как относительные пути через ./ например, 
-`./md_person/Ульянин_Николай_Васильевич.md ; ./md_person/Ульянин_Николай_Васильевич.pdf`
+`./md_person/Ульянин_Николай_Васильевич.md ; ./md_person/Ульянин_Николай_Васильевич.pdf` см. https://github.com/bpmbpm/family-tree/blob/main/ver5/tree.xlsx
