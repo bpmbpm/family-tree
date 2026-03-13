@@ -23,7 +23,7 @@
 https://github.com/bpmbpm/family-tree/tree/main/services/test_tree см. https://github.com/bpmbpm/family-tree/blob/main/design/problem.md#4-info_excel
 
 ### add columns
-При добавлении полей на листы excel для отображаемых полей добавлять их на лист language (RU + EN)
+При добавлении полей на листы excel для отображаемых полей добавлять их на лист language (RU + EN)  
 Пример issue:
 
 Окно "Основные свойства person" отражается верно: 
@@ -40,3 +40,4 @@ foto_person - title_ - название
 Кроме того, поле hyperLink (hyperLink_) отображено без сокращения до доменного имени второго порядка и без поддержки множественного перечисления (разделитель ;).
 Проверь и исправь код, а при необходимости дополни лист language (object - это имя листа excel, при условии что type=sheet). Учитывай, что одно и тоже название поля на разных листах может иметь разный перевод (у них будут разные значения в поле object). 
 
+См. https://github.com/bpmbpm/family-tree/issues/110 до его отработки  - файл https://github.com/bpmbpm/family-tree/blob/main/ver6/old/family-tree-desktop_13_03.zip
