@@ -1,3 +1,3 @@
 ## info
 
-Кононов Спиридон Николаевич https://pokolenia.permkrai.ru/records/card/1008683
+Кононов Спиридон Николаевич  04.12.1837 https://pokolenia.permkrai.ru/records/card/1008683 Метрическая книга
