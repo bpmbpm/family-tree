@@ -514,14 +514,14 @@
 
                     const headerRow = rows[0].map(h => (h || '').toString().trim().toLowerCase());
                     const colIdx = {
-                        idA: headerRow.indexOf('ida'),
+                        idA: headerRow.findIndex(h => h === 'ida' || h === 'ida_'),
                         label: headerRow.findIndex(h => h === 'label' || h === 'label_'),
-                        sex: headerRow.indexOf('sex'),
+                        sex: headerRow.findIndex(h => h === 'sex' || h === 'sex_'),
                         surName2: headerRow.findIndex(h => h === 'surname2' || h === 'surname2_'),
-                        hasFather: headerRow.indexOf('hasfather'),
-                        hasMother: headerRow.indexOf('hasmother'),
-                        birth: headerRow.findIndex(h => h === 'birth' && !h.includes('full')),
-                        death: headerRow.findIndex(h => h === 'death' && !h.includes('full'))
+                        hasFather: headerRow.findIndex(h => h === 'hasfather' || h === 'hasfather_'),
+                        hasMother: headerRow.findIndex(h => h === 'hasmother' || h === 'hasmother_'),
+                        birth: headerRow.findIndex(h => (h === 'birth' || h === 'birth_') && !h.includes('full')),
+                        death: headerRow.findIndex(h => (h === 'death' || h === 'death_') && !h.includes('full'))
                     };
                     if (colIdx.idA < 0) colIdx.idA = 0;
                     if (colIdx.label < 0) colIdx.label = 1;
@@ -574,9 +574,9 @@
                             const famRawHeaders = familyRows[0].map(h => (h || '').toString().trim());
                             const famHeader = famRawHeaders.map(h => h.toLowerCase());
                             const famIdx = {
-                                idA: famHeader.indexOf('ida'),
-                                husband: famHeader.indexOf('husband'),
-                                wife: famHeader.indexOf('wife'),
+                                idA: famHeader.findIndex(h => h === 'ida' || h === 'ida_'),
+                                husband: famHeader.findIndex(h => h === 'husband' || h === 'husband_'),
+                                wife: famHeader.findIndex(h => h === 'wife' || h === 'wife_'),
                                 marriage: famHeader.findIndex(h => h === 'marriage' || h === 'marriage_')
                             };
                             if (famIdx.idA < 0) famIdx.idA = 0;
@@ -744,17 +744,23 @@
                             const fiRawHeaders = fiRows[0].map(h => (h || '').toString().trim());
                             const fiHeaderLower = fiRawHeaders.map(h => h.toLowerCase());
                             fiRows.slice(1).forEach(row => {
-                                const idPersonAllIdx = fiHeaderLower.indexOf('id_personall');
+                                const idPersonAllIdx = fiHeaderLower.findIndex(h => h === 'id_personall' || h === 'id_personall_');
                                 const idPersonAllVal = idPersonAllIdx >= 0 ? row[idPersonAllIdx] : '';
                                 if (!idPersonAllVal || idPersonAllVal.toString().trim() === '') return;
                                 const obj = {};
                                 for (let ci = 0; ci < fiRawHeaders.length; ci++) {
+                                    // Нормализуем имя поля: убираем суффикс _ для служебных полей
+                                    const normalKey = fiRawHeaders[ci].replace(/_$/, '');
+                                    const logicKeys = ['idA', 'id_person', 'id_personAll', 'extension', 'id_event'];
+                                    if (logicKeys.includes(normalKey) && !obj[normalKey]) {
+                                        obj[normalKey] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                    }
                                     obj[fiRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
                                 }
                                 if (!obj.idA) {
-                                    const idPersonIdx = fiHeaderLower.indexOf('id_person');
+                                    const idPersonIdx = fiHeaderLower.findIndex(h => h === 'id_person' || h === 'id_person_');
                                     const suffixIdx = fiHeaderLower.findIndex(h => h === 'suffix' || h === 'suffix_');
-                                    const extIdx = fiHeaderLower.indexOf('extension');
+                                    const extIdx = fiHeaderLower.findIndex(h => h === 'extension' || h === 'extension_');
                                     const idPerson = idPersonIdx >= 0 ? row[idPersonIdx].toString().trim() : '';
                                     const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
                                     const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';
@@ -775,17 +781,23 @@
                             const feRawHeaders = feRows[0].map(h => (h || '').toString().trim());
                             const feHeaderLower = feRawHeaders.map(h => h.toLowerCase());
                             feRows.slice(1).forEach(row => {
-                                const idPersonAllIdx = feHeaderLower.indexOf('id_personall');
+                                const idPersonAllIdx = feHeaderLower.findIndex(h => h === 'id_personall' || h === 'id_personall_');
                                 const idPersonAllVal = idPersonAllIdx >= 0 ? row[idPersonAllIdx] : '';
                                 if (!idPersonAllVal || idPersonAllVal.toString().trim() === '') return;
                                 const obj = {};
                                 for (let ci = 0; ci < feRawHeaders.length; ci++) {
+                                    // Нормализуем имя поля: убираем суффикс _ для служебных полей
+                                    const normalKey = feRawHeaders[ci].replace(/_$/, '');
+                                    const logicKeys = ['idA', 'id_person', 'id_personAll', 'extension', 'id_event'];
+                                    if (logicKeys.includes(normalKey) && !obj[normalKey]) {
+                                        obj[normalKey] = row[ci] !== undefined ? row[ci].toString().trim() : '';
+                                    }
                                     obj[feRawHeaders[ci]] = row[ci] !== undefined ? row[ci].toString().trim() : '';
                                 }
                                 if (!obj.idA) {
-                                    const idPersonIdx = feHeaderLower.indexOf('id_person');
+                                    const idPersonIdx = feHeaderLower.findIndex(h => h === 'id_person' || h === 'id_person_');
                                     const suffixIdx = feHeaderLower.findIndex(h => h === 'suffix' || h === 'suffix_');
-                                    const extIdx = feHeaderLower.indexOf('extension');
+                                    const extIdx = feHeaderLower.findIndex(h => h === 'extension' || h === 'extension_');
                                     const idPerson = idPersonIdx >= 0 ? row[idPersonIdx].toString().trim() : '';
                                     const suffix = suffixIdx >= 0 ? row[suffixIdx].toString().trim() : '';
                                     const ext = extIdx >= 0 ? row[extIdx].toString().trim() : '';

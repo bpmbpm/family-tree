@@ -64,6 +64,23 @@
     // title — заголовок окна (idA фото)
     // fields — объект с полями с суффиксом _ для отображения описания
     // sheetName — (необязательно) имя листа Excel для перевода названий полей через getFieldLabel
+    // Преобразует строку со ссылками (разделитель ';') в HTML:
+    // показывает только домен второго уровня как текст ссылки.
+    function buildLinksHtml(hyperLinkStr) {
+        if (!hyperLinkStr) return '';
+        var links = hyperLinkStr.split(';').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+        return links.map(function(href) {
+            var safeHref = href.replace(/"/g, '&quot;');
+            var displayText = href;
+            try {
+                var url = new URL(href);
+                var hostParts = url.hostname.replace(/^www\./, '').split('.');
+                displayText = hostParts.length >= 2 ? hostParts.slice(-2).join('.') : url.hostname;
+            } catch (e) { /* не URL — показываем как есть */ }
+            return '<a href="' + safeHref + '" target="_blank" rel="noopener noreferrer">' + displayText + '</a>';
+        }).join(' ');
+    }
+
     function openFullPhoto(src, title, fields, sheetName) {
         var newWin = window.open('', '_blank', 'width=900,height=700,resizable=yes,scrollbars=yes');
         if (!newWin) return;
@@ -82,9 +99,12 @@
                 label = key.replace(/_$/, '');
             }
             var valHtml = String(val);
-            // Если значение похоже на URL — делаем ссылку
-            if (String(val).match(/^https?:\/\//)) {
-                valHtml = '<a href="' + val + '" target="_blank" rel="noopener noreferrer">' + val + '</a>';
+            // Если поле — гиперссылка: показываем домен, поддерживаем несколько ссылок через ';'
+            if (key.toLowerCase().includes('hyperlink')) {
+                valHtml = buildLinksHtml(String(val)) || String(val);
+            } else if (String(val).match(/^https?:\/\//)) {
+                // Одиночная URL в других полях — делаем ссылку
+                valHtml = '<a href="' + String(val).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener noreferrer">' + String(val) + '</a>';
             }
             fieldRows += '<tr><td class="fd-label">' + label + '</td><td class="fd-value">' + valHtml + '</td></tr>';
         }
