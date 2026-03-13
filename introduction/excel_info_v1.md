@@ -40,4 +40,4 @@ foto_person - title_ - название
 Кроме того, поле hyperLink (hyperLink_) отображено без сокращения до доменного имени второго порядка и без поддержки множественного перечисления (разделитель ;).
 Проверь и исправь код, а при необходимости дополни лист language (object - это имя листа excel, при условии что type=sheet). Учитывай, что одно и тоже название поля на разных листах может иметь разный перевод (у них будут разные значения в поле object). 
 
-См. https://github.com/bpmbpm/family-tree/issues/110 до его отработки  - файл https://github.com/bpmbpm/family-tree/blob/main/ver6/old/family-tree-desktop_13_03.zip
+Применительно к `Также напоминаю, что поля (название полей) в excel могут быть без `_` (нижнее подчеркивание) ...` См. https://github.com/bpmbpm/family-tree/issues/110 до его отработки  - файл https://github.com/bpmbpm/family-tree/blob/main/ver6/old/family-tree-desktop_13_03.zip
