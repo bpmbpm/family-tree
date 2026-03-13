@@ -20,4 +20,7 @@
 
 ### verify
 Провекрки соблюдения синтаксиса и т.п. - 
-https://github.com/bpmbpm/family-tree/tree/main/services/test_tree
+https://github.com/bpmbpm/family-tree/tree/main/services/test_tree см. https://github.com/bpmbpm/family-tree/blob/main/design/problem.md#4-info_excel
+
+### add columns
+При добавлении полей на листы excel для отображаемых полей добавлять их на лист language (RU + EN)
