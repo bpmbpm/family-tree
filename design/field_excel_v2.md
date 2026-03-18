@@ -39,6 +39,7 @@
 | `id_person` | `id_person` или `id_person_` |
 | `id_personAll` | `id_personAll` или `id_personAll_` |
 | `extension` | `extension` или `extension_` |
+| `preSet` | `preSet` или `preSet_` |
 
 ---
 
@@ -55,6 +56,7 @@
 | `foto_item` | `index.html`, `phototree.js`, `save.js` | Фотографии вещей/предметов. |
 | `foto_event` | `index.html`, `phototree.js`, `save.js` | Фотографии событий. |
 | `event` | `index.html` | События персон. |
+| `preSet` | `index.html` → `parseExcel()` | Точное совпадение `name.toLowerCase() === 'preset'`. Справочник пресетов (наборов ветвей). |
 
 ---
 
@@ -70,7 +72,19 @@
 | `hasMother` | `hasMother` или `hasMother_` | `idA` матери — строит ребро в дереве. |
 | `birth` | `birth` или `birth_` | Год рождения (краткий). |
 | `death` | `death` или `death_` | Год смерти (краткий). |
+| `preSet` | `preSet` или `preSet_` | Принадлежность персоны к пресету(ам). Несколько значений через запятую. |
 | `*_` (поля с суффиксом `_`) | — | Все поля с `_` → в `extraFields` → UI-панель свойств. Примеры: `birthFull_`, `hyperLink_`. |
+
+---
+
+## Лист `preSet`
+
+Справочник пресетов (наборов ветвей) для кнопки «Открыть Род».
+
+| Поле | Принимаемые варианты | Описание |
+|------|---------------------|----------|
+| `preSet` | `preSet` или `preSet_` | Ключ пресета. Используется в поле `preSet` листа `person`. |
+| `description` | `description` или `description_` | Человекочитаемое название пресета, отображается в выпадающем меню. |
 
 ---
 
@@ -165,3 +179,4 @@
 | `id_family` / `id_family_` | `foto_family` | Привязка к семье |
 | `id_familyAll` / `id_familyAll_` | `foto_location` | Привязка к списку семей |
 | `id_loc` / `id_loc_` | `foto_location` | Идентификатор локации |
+| `preSet` / `preSet_` | `person`, `preSet` | Привязка к пресету / ключ пресета |
