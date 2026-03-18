@@ -7,6 +7,11 @@ https://github.com/bpmbpm/family-tree/tree/main/ver7
 ### Pull request
 В Pull request указывай измененные файлы. При отсутсвии изменений явно указывай, что изменений нет.  
 
+
+### doc
+Коммениируй код на русском. 
+
+# archival
 ## dot
 1. Не используй: 
 ```
@@ -15,6 +20,3 @@ label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0"><TR><TD><IMG SRC="pic/У
 используй легко читаемый код dot (без html - тегов).
 
 2. Для добавления минифото на дерево используй dot тег image="
-
-### doc
-Коммениируй код на русском. 
