@@ -20,6 +20,13 @@
             <button id="loadBtn">📂 Загрузить tree.xlsx</button>
             <button id="manualBtn">📁 Выбрать файл</button>
             <input type="file" id="fileInput" accept=".xlsx, .xls">
+            <div class="open-file-dropdown" id="openFileDropdown">
+                <button id="openFileBtn" onclick="toggleOpenFileMenu(event)">📂 Открыть файл ▾</button>
+                <div class="open-file-menu" id="openFileMenu">
+                    <div class="open-file-menu-item" onclick="openFileMenuSelect('pic')">🖼️ Лица персон (pic)</div>
+                    <div class="open-file-menu-item" onclick="openFileMenuSelect('album')">📷 Альбомы (album)</div>
+                </div>
+            </div>
         </div>
 
         <!-- Основной макет: дерево слева, диаграмма справа -->
@@ -407,6 +414,117 @@
                 if (newPanel && typeof bringPanelToFront === 'function') bringPanelToFront(newPanel);
                 const btn = document.getElementById('pt-btn-photos');
                 if (btn) btn.classList.add('tv-btn-active');
+            };
+
+            // --- Открыть файл: выпадающее меню ---
+            window.toggleOpenFileMenu = function(e) {
+                e.stopPropagation();
+                const menu = document.getElementById('openFileMenu');
+                if (menu) menu.classList.toggle('visible');
+            };
+            document.addEventListener('click', function() {
+                const menu = document.getElementById('openFileMenu');
+                if (menu) menu.classList.remove('visible');
+            });
+
+            window.openFileMenuSelect = function(type) {
+                const menu = document.getElementById('openFileMenu');
+                if (menu) menu.classList.remove('visible');
+                if (type === 'pic') {
+                    window.togglePersonPhotos();
+                } else if (type === 'album') {
+                    window.showAlbumGallery();
+                }
+            };
+
+            window.showAlbumGallery = async function() {
+                const PANEL_ID = 'album-gallery-panel';
+                const container = document.getElementById('properties-panels-container');
+                if (!container) return;
+                const existing = document.getElementById(PANEL_ID);
+                if (existing) { existing.remove(); return; }
+
+                // Загружаем список файлов из album/list.md
+                let fileNames = [];
+                try {
+                    const resp = await fetch('album/list.md');
+                    if (resp.ok) {
+                        const text = await resp.text();
+                        fileNames = text.split('\n').map(l => l.trim()).filter(l => l && l !== 'list');
+                    }
+                } catch (e) { /* ignore */ }
+
+                // Если fetch не сработал (file:// protocol) или список пуст, пробуем GitHub API
+                if (fileNames.length === 0 && window.location.protocol !== 'file:') {
+                    try {
+                        const hostname = window.location.hostname;
+                        if (hostname.endsWith('.github.io')) {
+                            const owner = hostname.replace('.github.io', '');
+                            const parts = window.location.pathname.replace(/^\//, '').split('/');
+                            const repo = parts[0];
+                            const basePath = parts.slice(1, -1).join('/');
+                            const folderPath = basePath ? basePath + '/album' : 'album';
+                            const apiUrl = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + folderPath + '?ref=main';
+                            const apiResp = await fetch(apiUrl, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
+                            if (apiResp.ok) {
+                                const items = await apiResp.json();
+                                fileNames = items.filter(i => i.type === 'file' && i.name !== 'list.md').map(i => i.name);
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+
+                function getAlbumIcon(name) {
+                    const ext = name.split('.').pop().toLowerCase();
+                    if (['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) return null; // image
+                    if (ext === 'pdf') return '📄';
+                    if (['doc','docx'].includes(ext)) return '📝';
+                    if (['xls','xlsx'].includes(ext)) return '📊';
+                    if (ext === 'md') return '📋';
+                    return '📎';
+                }
+
+                let gridHtml = '';
+                if (fileNames.length === 0) {
+                    gridHtml = '<em style="color:#888">Файлы не найдены в папке album/</em>';
+                } else {
+                    fileNames.forEach(function(name) {
+                        const icon = getAlbumIcon(name);
+                        const shortName = name.length > 22 ? name.substring(0, 20) + '…' : name;
+                        const fileUrl = 'album/' + name;
+                        if (icon === null) {
+                            // image
+                            gridHtml +=
+                                '<div class="album-item" onclick="window.open(\'' + fileUrl + '\', \'_blank\')" title="' + name + '">' +
+                                '<img src="' + fileUrl + '" alt="' + name + '">' +
+                                '<div class="album-name">' + shortName + '</div>' +
+                                '</div>';
+                        } else {
+                            gridHtml +=
+                                '<div class="album-item" onclick="window.open(\'' + fileUrl + '\', \'_blank\')" title="' + name + '">' +
+                                '<div class="album-icon">' + icon + '</div>' +
+                                '<div class="album-name">' + shortName + '</div>' +
+                                '</div>';
+                        }
+                    });
+                }
+
+                const panelHtml =
+                    '<div class="properties-panel visible" id="' + PANEL_ID + '" style="right: 60px; top: 150px; min-width: 360px; max-width: 580px;">' +
+                    '<div class="properties-header" onmousedown="startDragPanel(event, \'' + PANEL_ID + '\')">' +
+                    '<div class="properties-header-content">' +
+                    '<div class="properties-header-title">📷 Альбомы</div>' +
+                    '</div>' +
+                    '<button class="properties-close-btn" onclick="document.getElementById(\'' + PANEL_ID + '\').remove();">&times;</button>' +
+                    '</div>' +
+                    '<div class="properties-content">' +
+                    '<div class="album-grid" id="albumGrid">' + gridHtml + '</div>' +
+                    '</div>' +
+                    '</div>';
+
+                container.insertAdjacentHTML('beforeend', panelHtml);
+                const newPanel = document.getElementById(PANEL_ID);
+                if (newPanel && typeof bringPanelToFront === 'function') bringPanelToFront(newPanel);
             };
 
             window.copyLink = function() {
