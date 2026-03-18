@@ -1,5 +1,5 @@
 ## current project
-https://github.com/bpmbpm/family-tree/tree/main/ver6
+https://github.com/bpmbpm/family-tree/tree/main/ver7
 ## code
 Браузерный JS  
 Код должен быть хорошо читаемым человеку с низким уровнем знания js. 
