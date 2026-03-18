@@ -1,5 +1,5 @@
 # requirements
-## current project
+## current project (folder)
 https://github.com/bpmbpm/family-tree/tree/main/ver7
 ## code
 Браузерный JS  
@@ -8,9 +8,8 @@ https://github.com/bpmbpm/family-tree/tree/main/ver7
 ### Pull request
 В Pull request указывай измененные файлы. При отсутсвии изменений явно указывай, что изменений нет.  
 
-
 ### doc
-Коммениируй код на русском. 
+Коммениируй код на русском. Файлы описания и докуменацию пиши на русском. 
 
 # archival
 ## dot
