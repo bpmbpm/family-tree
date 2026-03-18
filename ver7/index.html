@@ -27,6 +27,13 @@
                     <div class="open-file-menu-item" onclick="openFileMenuSelect('album')">📷 Альбомы (album)</div>
                 </div>
             </div>
+            <div class="open-file-dropdown" id="openRodDropdown">
+                <button id="openRodBtn" onclick="toggleOpenRodMenu(event)">🌿 Открыть Род ▾</button>
+                <div class="open-file-menu" id="openRodMenu">
+                    <!-- Пункты заполняются из листа preSet при загрузке файла -->
+                    <div class="open-file-menu-item" onclick="selectPreSet(null)">🌐 Все ветви</div>
+                </div>
+            </div>
         </div>
 
         <!-- Основной макет: дерево слева, диаграмма справа -->
@@ -155,6 +162,8 @@
             let people = [];
             let marriages = [];
             let fotoFamilyRows = [];
+            // Список пресетов из листа preSet Excel: [{preSet, description}, ...]
+            let preSetList = [];
             let fotoPersonRows = [];
             let fotoGroupRows = [];
             let fotoLocationRows = [];
@@ -425,7 +434,50 @@
             document.addEventListener('click', function() {
                 const menu = document.getElementById('openFileMenu');
                 if (menu) menu.classList.remove('visible');
+                const rodMenu = document.getElementById('openRodMenu');
+                if (rodMenu) rodMenu.classList.remove('visible');
             });
+
+            // --- Открыть Род: выпадающее меню ---
+            window.toggleOpenRodMenu = function(e) {
+                e.stopPropagation();
+                const menu = document.getElementById('openRodMenu');
+                if (menu) menu.classList.toggle('visible');
+            };
+
+            // Выбор пресета: null — показать всех, иначе — ключ preSet
+            window.selectPreSet = async function(preSetKey) {
+                const menu = document.getElementById('openRodMenu');
+                if (menu) menu.classList.remove('visible');
+
+                // Фильтруем персон по выбранному пресету
+                let filteredPeople;
+                if (preSetKey === null) {
+                    // «Все ветви» — берём всех персон без фильтрации
+                    filteredPeople = people;
+                } else {
+                    filteredPeople = people.filter(function(p) {
+                        if (!p.preSet) return false;
+                        // Значение может быть списком через запятую: «rod1, rod2»
+                        const parts = p.preSet.split(',').map(function(s) { return s.trim(); });
+                        return parts.indexOf(preSetKey) >= 0;
+                    });
+                }
+
+                // Перестраиваем дерево с отфильтрованным списком
+                logMessage('⏳ Генерация DOT кода (пресет: ' + (preSetKey || 'все') + ')...');
+                dotCode = await generateDotCode(filteredPeople, marriages);
+                if (typeof PIC_DIR_TYPE !== 'undefined' && PIC_DIR_TYPE === 'relativeGraphvizOnline' && PIC_DIR_GRAPHVIZ_ONLINE) {
+                    dotCodeForGraphvizOnline = await generateDotCode(filteredPeople, marriages, PIC_DIR_GRAPHVIZ_ONLINE);
+                } else {
+                    dotCodeForGraphvizOnline = dotCode;
+                }
+                logMessage('⏳ Построение дерева...');
+                const imagesOption = await buildImagesOption(filteredPeople);
+                await renderDot(dotCode, imagesOption);
+                logMessage('✅ Дерево построено (пресет: ' + (preSetKey || 'все') + ')');
+                if (typeof window.tvInit === 'function') window.tvInit(filteredPeople);
+            };
 
             window.openFileMenuSelect = function(type) {
                 const menu = document.getElementById('openFileMenu');
@@ -639,7 +691,8 @@
                         hasFather: headerRow.findIndex(h => h === 'hasfather' || h === 'hasfather_'),
                         hasMother: headerRow.findIndex(h => h === 'hasmother' || h === 'hasmother_'),
                         birth: headerRow.findIndex(h => (h === 'birth' || h === 'birth_') && !h.includes('full')),
-                        death: headerRow.findIndex(h => (h === 'death' || h === 'death_') && !h.includes('full'))
+                        death: headerRow.findIndex(h => (h === 'death' || h === 'death_') && !h.includes('full')),
+                        preSet: headerRow.findIndex(h => h === 'preset' || h === 'preset_')
                     };
                     if (colIdx.idA < 0) colIdx.idA = 0;
                     if (colIdx.label < 0) colIdx.label = 1;
@@ -675,6 +728,8 @@
                             hasMother: row[colIdx.hasMother] ? row[colIdx.hasMother].toString().trim() : '',
                             birth: row[colIdx.birth] ? row[colIdx.birth].toString().trim() : '',
                             death: row[colIdx.death] ? row[colIdx.death].toString().trim() : '',
+                            // preSet: одно значение или несколько через запятую (пробелы допустимы)
+                            preSet: (colIdx.preSet >= 0 && row[colIdx.preSet]) ? row[colIdx.preSet].toString().trim() : '',
                             extraFields
                         };
                     }).filter(p => p.idA && p.label);
@@ -997,6 +1052,25 @@
                         }
                     }
 
+                    // --- preSet ---
+                    // Лист preSet содержит поля: preSet (ключ) и description (метка для UI)
+                    let preSetList = [];
+                    const preSetSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'preset');
+                    if (preSetSheetName) {
+                        const psSheet = workbook.Sheets[preSetSheetName];
+                        const psRows = XLSX.utils.sheet_to_json(psSheet, { header: 1, defval: '' });
+                        if (psRows.length > 1) {
+                            const psHeaderLower = psRows[0].map(h => (h || '').toString().trim().toLowerCase());
+                            const psKeyIdx = psHeaderLower.findIndex(h => h === 'preset' || h === 'preset_');
+                            const psDescIdx = psHeaderLower.findIndex(h => h === 'description' || h === 'description_');
+                            psRows.slice(1).forEach(row => {
+                                const key = psKeyIdx >= 0 ? (row[psKeyIdx] || '').toString().trim() : '';
+                                const desc = psDescIdx >= 0 ? (row[psDescIdx] || '').toString().trim() : '';
+                                if (key) preSetList.push({ preSet: key, description: desc || key });
+                            });
+                        }
+                    }
+
                     return {
                         people: peopleList,
                         marriages: marriagesList,
@@ -1009,7 +1083,8 @@
                         fotoEventRows: fotoEventRowsList,
                         eventRows: eventRowsList,
                         languageRows: languageRowsList,
-                        version: versionValue
+                        version: versionValue,
+                        preSetList: preSetList
                     };
                 } catch (e) {
                     logMessage('❌ Ошибка парсинга Excel: ' + e.message, true);
@@ -1912,6 +1987,38 @@
                 for (let li = 0; li < langRowsData.length; li++) {
                     const lr = langRowsData[li];
                     langMap[lr.object + '.' + lr.name] = lr;
+                }
+
+                // --- Инициализация пресетов ---
+                preSetList = parsedData.preSetList || [];
+
+                // Заполняем выпадающее меню «Открыть Род»
+                const rodMenu = document.getElementById('openRodMenu');
+                if (rodMenu) {
+                    // Оставляем первый пункт «Все ветви», добавляем пресеты из листа
+                    rodMenu.innerHTML = '<div class="open-file-menu-item" onclick="selectPreSet(null)">🌐 Все ветви</div>';
+                    preSetList.forEach(function(ps) {
+                        const item = document.createElement('div');
+                        item.className = 'open-file-menu-item';
+                        item.textContent = ps.description;
+                        item.onclick = function() { selectPreSet(ps.preSet); };
+                        rodMenu.appendChild(item);
+                    });
+                }
+
+                // Проверка: все значения preSet у персон должны быть в листе preSet
+                const knownPreSets = new Set(preSetList.map(function(ps) { return ps.preSet; }));
+                if (knownPreSets.size > 0) {
+                    // Проверяем только если лист preSet не пустой
+                    peopleArray.forEach(function(p) {
+                        if (!p.preSet) return;
+                        const parts = p.preSet.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+                        parts.forEach(function(part) {
+                            if (!knownPreSets.has(part)) {
+                                logMessage('⚠️ Неизвестный preSet "' + part + '" у персоны "' + p.label + '" не найден в листе preSet', false);
+                            }
+                        });
+                    });
                 }
 
                 const versionStr = parsedData.version || '';
