@@ -613,9 +613,17 @@
                     }
 
                     if (dirFileNames !== null) {
-                        // Успешно получили список файлов через GitHub API
+                        // Успешно получили список файлов через GitHub API.
+                        // Также включаем list.md в архив, чтобы папка работала в desktop-режиме (file://).
+                        // showAlbumGallery() и аналогичные функции читают list.md для получения списка файлов,
+                        // поэтому без него кнопка «Открыть файл \ Альбомы» показывает «Файлы не найдены».
+                        var listMdContent = await fetchFileContent(entry + '/list.md', false);
+                        if (listMdContent !== null) {
+                            zip.file(entry + '/list.md', listMdContent);
+                        }
                         for (var gi = 0; gi < dirFileNames.length; gi++) {
                             var gFile = dirFileNames[gi];
+                            if (gFile === 'list.md') continue; // уже добавлен выше
                             var isGFileBinary = isBinaryFilename(gFile);
                             try {
                                 var gContent = await fetchFileContent(entry + '/' + gFile, isGFileBinary);
