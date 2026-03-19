@@ -1,6 +1,6 @@
 ### Верcия 7 (Обозовы)
 
-Один код для двух режимов: github pages (иной статический web - server) и локальный (desktop)
+Один код для двух режимов: github pages (иной статический web - server) и локальный (desktop).
 ### run github
 - github pages https://bpmbpm.github.io/family-tree/ver7/index.html
 
@@ -36,6 +36,8 @@
 - https://github.com/bpmbpm/rdf-grapher/tree/main/ver9d https://bpmbpm.github.io/rdf-grapher/ver9d/
 - https://github.com/bpmbpm/graphviz-online/tree/main/ver1
 
+### new ver7
+- добавлны preset
 ### problem
 - при скачивании по zip разархивировать в папку без пробелов
 - ранее:
