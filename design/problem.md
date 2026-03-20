@@ -57,8 +57,9 @@ githubBasePath: "ver4"
 ### 5 foto folder
 алгоритм определения - в какую папку foto_fam vs foto_group
 ### 6 md
-Алгоритм с md файлами - как относительные пути через ./ например, 
+1. Алгоритм с md файлами - как относительные пути через ./ например, 
 `./md_person/Ульянин_Николай_Васильевич.md ; ./md_person/Ульянин_Николай_Васильевич.pdf` см. https://github.com/bpmbpm/family-tree/blob/main/ver5/tree.xlsx
+2. Ссылки на .md открываются как txt
 
 ### album
 https://github.com/bpmbpm/family-tree/pull/123 не решена (открытие файлов в album в версии desktop), т.е.  
