@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Test sync XHR for album/list.md</title></head>
+<body>
+<h1>Test: Загрузка album/list.md</h1>
+<pre id="output">Тестируем...</pre>
+<script>
+var out = document.getElementById('output');
+function log(msg) { out.textContent += msg + '\n'; }
+
+async function test() {
+    log('Protocol: ' + window.location.protocol);
+    log('');
+
+    var fileNames = [];
+
+    // Шаг 1: fetch
+    log('=== Шаг 1: fetch() ===');
+    try {
+        var resp = await fetch('album/list.md');
+        log('fetch: ok=' + resp.ok + ' status=' + resp.status);
+        if (resp.ok) {
+            var text = await resp.text();
+            fileNames = text.split('\n').map(function(l){return l.trim();}).filter(function(l){return l && l !== 'list';});
+            log('fetch: файлы = ' + JSON.stringify(fileNames));
+        }
+    } catch(e) {
+        log('fetch ошибка: ' + e.message);
+    }
+
+    // Шаг 2: async XHR
+    if (fileNames.length === 0 && window.location.protocol === 'file:') {
+        log('');
+        log('=== Шаг 2: async XHR ===');
+        try {
+            await new Promise(function(resolve) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', 'album/list.md', true);
+                xhr.onload = function() {
+                    log('async XHR: status=' + xhr.status + ' responseText.length=' + xhr.responseText.length);
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        var lines = xhr.responseText.split('\n').map(function(l){return l.trim();}).filter(function(l){return l && l !== 'list';});
+                        if (lines.length > 0) fileNames = lines;
+                        log('async XHR: файлы = ' + JSON.stringify(fileNames));
+                    }
+                    resolve();
+                };
+                xhr.onerror = function() { log('async XHR: onerror'); resolve(); };
+                xhr.send();
+            });
+        } catch(e) { log('async XHR исключение: ' + e.message); }
+    }
+
+    // Шаг 3: sync XHR (новый)
+    if (fileNames.length === 0 && window.location.protocol === 'file:') {
+        log('');
+        log('=== Шаг 3: sync XHR (новый) ===');
+        try {
+            var xhrSync = new XMLHttpRequest();
+            xhrSync.open('GET', 'album/list.md', false);
+            xhrSync.send();
+            log('sync XHR: status=' + xhrSync.status + ' responseText.length=' + xhrSync.responseText.length);
+            if (xhrSync.status === 200 || xhrSync.status === 0) {
+                var syncLines = xhrSync.responseText.split('\n').map(function(l){return l.trim();}).filter(function(l){return l && l !== 'list';});
+                if (syncLines.length > 0) fileNames = syncLines;
+                log('sync XHR: файлы = ' + JSON.stringify(fileNames));
+            }
+        } catch(e) { log('sync XHR исключение: ' + e.message); }
+    }
+
+    log('');
+    log('=== Итог ===');
+    if (fileNames.length > 0) {
+        log('✅ Файлы загружены: ' + fileNames.join(', '));
+    } else {
+        log('❌ Файлы не найдены в папке album/');
+    }
+}
+
+test();
+</script>
+</body>
+</html>

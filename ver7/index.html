@@ -506,7 +506,7 @@
                     }
                 } catch (e) { /* ignore */ }
 
-                // В режиме file:// fetch заблокирован браузером — пробуем XMLHttpRequest
+                // В режиме file:// fetch заблокирован браузером — пробуем XMLHttpRequest асинхронно
                 if (fileNames.length === 0 && window.location.protocol === 'file:') {
                     try {
                         await new Promise(function(resolve) {
@@ -522,6 +522,19 @@
                             xhr.onerror = function() { resolve(); };
                             xhr.send();
                         });
+                    } catch (e) { /* ignore */ }
+                }
+
+                // Если асинхронный XHR тоже не сработал — пробуем синхронный XHR (как в loadConfig)
+                if (fileNames.length === 0 && window.location.protocol === 'file:') {
+                    try {
+                        var xhrSync = new XMLHttpRequest();
+                        xhrSync.open('GET', 'album/list.md', false);
+                        xhrSync.send();
+                        if (xhrSync.status === 200 || xhrSync.status === 0) {
+                            var syncLines = xhrSync.responseText.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l && l !== 'list'; });
+                            if (syncLines.length > 0) fileNames = syncLines;
+                        }
                     } catch (e) { /* ignore */ }
                 }
 
