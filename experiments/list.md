@@ -1,4 +1,5 @@
 ## list.md
+### album file
 https://github.com/bpmbpm/family-tree/pull/123  
 При запуске из desktop (file:// protocol) галерея альбомов показывает «Файлы не найдены в папке album/», хотя файл `album/list.md` присутствует в архиве.
 
