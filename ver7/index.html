@@ -490,6 +490,14 @@
             };
 
             window.showAlbumGallery = async function() {
+                // В режиме file:// (desktop) открываем папку album/ напрямую в браузере
+                if (window.location.protocol === 'file:') {
+                    var pageUrl = window.location.href;
+                    var albumFolderUrl = pageUrl.substring(0, pageUrl.lastIndexOf('/') + 1) + 'album/';
+                    window.open(albumFolderUrl, '_blank');
+                    return;
+                }
+
                 const PANEL_ID = 'album-gallery-panel';
                 const container = document.getElementById('properties-panels-container');
                 if (!container) return;
@@ -506,39 +514,7 @@
                     }
                 } catch (e) { /* ignore */ }
 
-                // В режиме file:// fetch заблокирован браузером — пробуем XMLHttpRequest асинхронно
-                if (fileNames.length === 0 && window.location.protocol === 'file:') {
-                    try {
-                        await new Promise(function(resolve) {
-                            var xhr = new XMLHttpRequest();
-                            xhr.open('GET', 'album/list.md', true);
-                            xhr.onload = function() {
-                                if (xhr.status === 200 || xhr.status === 0) {
-                                    var lines = xhr.responseText.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l && l !== 'list'; });
-                                    if (lines.length > 0) fileNames = lines;
-                                }
-                                resolve();
-                            };
-                            xhr.onerror = function() { resolve(); };
-                            xhr.send();
-                        });
-                    } catch (e) { /* ignore */ }
-                }
-
-                // Если асинхронный XHR тоже не сработал — пробуем синхронный XHR (как в loadConfig)
-                if (fileNames.length === 0 && window.location.protocol === 'file:') {
-                    try {
-                        var xhrSync = new XMLHttpRequest();
-                        xhrSync.open('GET', 'album/list.md', false);
-                        xhrSync.send();
-                        if (xhrSync.status === 200 || xhrSync.status === 0) {
-                            var syncLines = xhrSync.responseText.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l && l !== 'list'; });
-                            if (syncLines.length > 0) fileNames = syncLines;
-                        }
-                    } catch (e) { /* ignore */ }
-                }
-
-                // Если fetch не сработал (file:// protocol) или список пуст, пробуем GitHub API
+                // Если fetch не сработал или список пуст, пробуем GitHub API
                 if (fileNames.length === 0 && window.location.protocol !== 'file:') {
                     try {
                         const hostname = window.location.hostname;
