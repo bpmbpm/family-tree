@@ -506,6 +506,25 @@
                     }
                 } catch (e) { /* ignore */ }
 
+                // В режиме file:// fetch заблокирован браузером — пробуем XMLHttpRequest
+                if (fileNames.length === 0 && window.location.protocol === 'file:') {
+                    try {
+                        await new Promise(function(resolve) {
+                            var xhr = new XMLHttpRequest();
+                            xhr.open('GET', 'album/list.md', true);
+                            xhr.onload = function() {
+                                if (xhr.status === 200 || xhr.status === 0) {
+                                    var lines = xhr.responseText.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l && l !== 'list'; });
+                                    if (lines.length > 0) fileNames = lines;
+                                }
+                                resolve();
+                            };
+                            xhr.onerror = function() { resolve(); };
+                            xhr.send();
+                        });
+                    } catch (e) { /* ignore */ }
+                }
+
                 // Если fetch не сработал (file:// protocol) или список пуст, пробуем GitHub API
                 if (fileNames.length === 0 && window.location.protocol !== 'file:') {
                     try {
