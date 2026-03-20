@@ -59,3 +59,8 @@ githubBasePath: "ver4"
 ### 6 md
 Алгоритм с md файлами - как относительные пути через ./ например, 
 `./md_person/Ульянин_Николай_Васильевич.md ; ./md_person/Ульянин_Николай_Васильевич.pdf` см. https://github.com/bpmbpm/family-tree/blob/main/ver5/tree.xlsx
+
+### album
+https://github.com/bpmbpm/family-tree/pull/123 не решена (открытие файлов в album в версии desktop), т.е.  
+Файлы не найдены в папке album/  
+https://github.com/bpmbpm/family-tree/blob/main/experiments/list.md#album-file 
