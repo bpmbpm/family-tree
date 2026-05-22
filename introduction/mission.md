@@ -11,4 +11,5 @@ JS, лучше браузерный JS с обеспечением работы 
 ### AI coding
 Испрользуется https://github.com/link-assistant/hive-mind
 
-
+### immich
+- [Личный архив: сбор, бэкап, таймлайн фотографий](https://habr.com/ru/articles/1038164/#comment_30005962)
